@@ -1,0 +1,2132 @@
+{
+  "schema_version": 1,
+  "revision": "49b90b7cee28892d5bee1ff66c3504b3f58513ef",
+  "revision_scope": "HEAD plus current working-tree changes; revision alone does not identify the audited tree",
+  "scope": "All scanner caller records with unresolved or unresolved_dynamic status, including generic transport sites. Manual traces and derived candidates do not establish behavior, completeness or reachability; report and command helpers may have many caller-specific paths.",
+  "summary": {
+    "derived_static_candidates_need_contract_review": 22,
+    "manually_traced_branches": 11,
+    "external_or_embedded_document_fetch": 1,
+    "known_unimplemented_disabled": 1,
+    "dynamic_playground_requires_further_review": 1,
+    "dynamic_command_registry_requires_further_review": 2,
+    "shared_helper_requires_further_review": 3,
+    "shared_transport_requires_further_review": 2
+  },
+  "callers": [
+    {
+      "file": "src/components/admin/AuditLogViewer.tsx",
+      "line": 13,
+      "transport": "fetch",
+      "method": null,
+      "path": null,
+      "expression": "url",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/audit-logs?{dynamic}",
+          "via": {
+            "file": "src/components/admin/AuditLogViewer.tsx",
+            "line": 28
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/admin/audit-logs",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 316
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/admin/AuditLogViewer.tsx:28"
+      ]
+    },
+    {
+      "file": "src/components/assets/ConstructionActions.tsx",
+      "line": 58,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/assets/{dynamic}/in-service",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets/${encodeURIComponent(asset.id)}/in-service`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/assets/{dynamic}/in-service",
+          "via": {
+            "file": "src/components/assets/ConstructionActions.tsx",
+            "line": 68
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/assets/:assetId/in-service",
+              "definition": {
+                "file": "src/server/routes/placeInServiceRoutes.ts",
+                "line": 14
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/assets/{dynamic}/in-service",
+          "via": {
+            "file": "src/components/assets/ConstructionActions.tsx",
+            "line": 81
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/assets/:assetId/in-service",
+              "definition": {
+                "file": "src/server/routes/placeInServiceRoutes.ts",
+                "line": 21
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/assets/ConstructionActions.tsx:68",
+        "src/components/assets/ConstructionActions.tsx:81"
+      ]
+    },
+    {
+      "file": "src/components/collaboration/TasksView.tsx",
+      "line": 26,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/tasks{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/tasks",
+          "via": {
+            "file": "src/components/collaboration/TasksView.tsx",
+            "line": 59
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/tasks",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 80
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/tasks",
+          "via": {
+            "file": "src/components/collaboration/TasksView.tsx",
+            "line": 76
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/tasks",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 83
+              }
+            }
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/workspaces/{dynamic}/tasks/{dynamic}",
+          "via": {
+            "file": "src/components/collaboration/TasksView.tsx",
+            "line": 84
+          },
+          "candidate_routes": [
+            {
+              "method": "PATCH",
+              "path": "/api/v1/workspaces/:workspaceId/tasks/:taskId",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 89
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/tasks/{dynamic}",
+          "via": {
+            "file": "src/components/collaboration/TasksView.tsx",
+            "line": 90
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/tasks/:taskId",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 95
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/collaboration/TasksView.tsx:59",
+        "src/components/collaboration/TasksView.tsx:76",
+        "src/components/collaboration/TasksView.tsx:84",
+        "src/components/collaboration/TasksView.tsx:90"
+      ]
+    },
+    {
+      "file": "src/components/collaboration/TimeView.tsx",
+      "line": 37,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/time{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/time${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/time",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 73
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/time",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 146
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/time",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 91
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/time",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 166
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/time/move",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 100
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/time/move",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 147
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/time/{dynamic}",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 108
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/time/:entryId",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 177
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/time/invoiced",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 130
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/time/invoiced",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 153
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/time/invoiced",
+          "via": {
+            "file": "src/components/collaboration/TimeView.tsx",
+            "line": 150
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/time/invoiced",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 153
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/collaboration/TimeView.tsx:73",
+        "src/components/collaboration/TimeView.tsx:91",
+        "src/components/collaboration/TimeView.tsx:100",
+        "src/components/collaboration/TimeView.tsx:108",
+        "src/components/collaboration/TimeView.tsx:130",
+        "src/components/collaboration/TimeView.tsx:150"
+      ]
+    },
+    {
+      "file": "src/components/collaboration/WatchingPanel.tsx",
+      "line": 15,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/tasks/watching{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tasks/watching${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/tasks/watching",
+          "via": {
+            "file": "src/components/collaboration/WatchingPanel.tsx",
+            "line": 49
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/tasks/watching",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 66
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/tasks/watching",
+          "via": {
+            "file": "src/components/collaboration/WatchingPanel.tsx",
+            "line": 61
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/tasks/watching",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 69
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/tasks/watching/{dynamic}",
+          "via": {
+            "file": "src/components/collaboration/WatchingPanel.tsx",
+            "line": 72
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/tasks/watching/:watchId",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 74
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/collaboration/WatchingPanel.tsx:49",
+        "src/components/collaboration/WatchingPanel.tsx:61",
+        "src/components/collaboration/WatchingPanel.tsx:72"
+      ]
+    },
+    {
+      "file": "src/components/common/PartyRowActions.tsx",
+      "line": 47,
+      "transport": "runCommand",
+      "method": "DELETE",
+      "path": null,
+      "expression": "check ? `${url}?check=1` : url",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/contacts/{dynamic}/{dynamic}?check=1",
+          "via": {
+            "file": "src/components/common/PartyRowActions.tsx",
+            "line": 51
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/contacts/:side/:id",
+              "definition": {
+                "file": "src/server/routes/contactMergeRoutes.ts",
+                "line": 21
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/contacts/{dynamic}/{dynamic}",
+          "via": {
+            "file": "src/components/common/PartyRowActions.tsx",
+            "line": 64
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/contacts/:side/:id",
+              "definition": {
+                "file": "src/server/routes/contactMergeRoutes.ts",
+                "line": 21
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/common/PartyRowActions.tsx:51",
+        "src/components/common/PartyRowActions.tsx:64"
+      ]
+    },
+    {
+      "file": "src/components/finance/FxRevaluationPanel.tsx",
+      "line": 62,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "POST /api/v1/transactions/revaluation/preview and commands/period.fxrevaluation, period.fxrevaluationundo selected by action; server posting not tested.",
+      "evidence": [
+        "src/components/finance/FxRevaluationPanel.tsx:103",
+        "src/server/routes/transactions/periodRoutes.ts:129"
+      ]
+    },
+    {
+      "file": "src/components/forensics/Vault.tsx",
+      "line": 186,
+      "transport": "fetch",
+      "method": "GET",
+      "path": null,
+      "expression": "sourceUrl",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "external_or_embedded_document_fetch",
+      "note": "Fetch reads a selected safe embedded data URL or HTTPS document, not necessarily a LedgerFlow API; subsequent OCR uses aiService. HTTP failure handling and arbitrary external availability were not tested.",
+      "evidence": [
+        "src/components/forensics/Vault.tsx:180"
+      ]
+    },
+    {
+      "file": "src/components/hr/PayRunApprovals.tsx",
+      "line": 21,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/pay-runs{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/pay-runs${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "PUT",
+          "path": "/api/v1/workspaces/{dynamic}/pay-runs/approval",
+          "via": {
+            "file": "src/components/hr/PayRunApprovals.tsx",
+            "line": 56
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/workspaces/:workspaceId/pay-runs/approval",
+              "definition": {
+                "file": "src/server/routes/payRunRoutes.ts",
+                "line": 61
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/pay-runs/{dynamic}/approve",
+          "via": {
+            "file": "src/components/hr/PayRunApprovals.tsx",
+            "line": 65
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/pay-runs/:payRunId/approve",
+              "definition": {
+                "file": "src/server/routes/payRunRoutes.ts",
+                "line": 68
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/pay-runs/{dynamic}/reject",
+          "via": {
+            "file": "src/components/hr/PayRunApprovals.tsx",
+            "line": 81
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/pay-runs/:payRunId/reject",
+              "definition": {
+                "file": "src/server/routes/payRunRoutes.ts",
+                "line": 75
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/pay-runs/{dynamic}",
+          "via": {
+            "file": "src/components/hr/PayRunApprovals.tsx",
+            "line": 93
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/pay-runs/:payRunId",
+              "definition": {
+                "file": "src/server/routes/payRunRoutes.ts",
+                "line": 54
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/hr/PayRunApprovals.tsx:56",
+        "src/components/hr/PayRunApprovals.tsx:65",
+        "src/components/hr/PayRunApprovals.tsx:81",
+        "src/components/hr/PayRunApprovals.tsx:93"
+      ]
+    },
+    {
+      "file": "src/components/intelligence/Copilot.tsx",
+      "line": 119,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "canOpenDraft ? `${base}/${encodeURIComponent(sandboxId)}/assistant/turn` : `${base}/assistant/turn`",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "POST either /workspaces/:workspaceId/sandboxes/assistant/turn or /sandboxes/:sandboxId/assistant/turn; different live-read/draft handlers, not interchangeable.",
+      "evidence": [
+        "src/components/intelligence/Copilot.tsx:55",
+        "src/server/routes/sandboxRoutes.ts:354",
+        "src/server/routes/sandboxRoutes.ts:360"
+      ]
+    },
+    {
+      "file": "src/components/ledger/MergeAccountDialog.tsx",
+      "line": 25,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": "/api/v1/workspaces/{dynamic}/chart-accounts{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/chart-accounts${path}`",
+      "status": "unresolved_dynamic",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/chart-accounts/merge/preview",
+          "via": {
+            "file": "src/components/ledger/MergeAccountDialog.tsx",
+            "line": 49
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/chart-accounts/merge/preview",
+              "definition": {
+                "file": "src/server/routes/accountMergeRoutes.ts",
+                "line": 14
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/chart-accounts/merge",
+          "via": {
+            "file": "src/components/ledger/MergeAccountDialog.tsx",
+            "line": 59
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/chart-accounts/merge",
+              "definition": {
+                "file": "src/server/routes/accountMergeRoutes.ts",
+                "line": 21
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/ledger/MergeAccountDialog.tsx:49",
+        "src/components/ledger/MergeAccountDialog.tsx:59"
+      ]
+    },
+    {
+      "file": "src/components/ledger/MonthEndCloseView.tsx",
+      "line": 66,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/periods/{dynamic}/close",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 192
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/periods/:month/close",
+              "definition": {
+                "file": "src/server/routes/periodRoutes.ts",
+                "line": 143
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/periods/{dynamic}/reopen",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 201
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/periods/:month/reopen",
+              "definition": {
+                "file": "src/server/routes/periodRoutes.ts",
+                "line": 151
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/periods/{dynamic}/sign-off",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 207
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/periods/:month/sign-off",
+              "definition": {
+                "file": "src/server/routes/periodRoutes.ts",
+                "line": 162
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/periods/unlock",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 213
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/periods/unlock",
+              "definition": {
+                "file": "src/server/routes/periodRoutes.ts",
+                "line": 126
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/periods/relock",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 218
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/periods/relock",
+              "definition": {
+                "file": "src/server/routes/periodRoutes.ts",
+                "line": 139
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/commands/period.yearclose",
+          "via": {
+            "file": "src/components/ledger/MonthEndCloseView.tsx",
+            "line": 251
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/commands/:name",
+              "definition": {
+                "file": "src/server/routes/commandRoutes.ts",
+                "line": 91
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/ledger/MonthEndCloseView.tsx:192",
+        "src/components/ledger/MonthEndCloseView.tsx:201",
+        "src/components/ledger/MonthEndCloseView.tsx:207",
+        "src/components/ledger/MonthEndCloseView.tsx:213",
+        "src/components/ledger/MonthEndCloseView.tsx:218",
+        "src/components/ledger/MonthEndCloseView.tsx:251"
+      ]
+    },
+    {
+      "file": "src/components/ledger/SandboxReviewView.tsx",
+      "line": 115,
+      "transport": "runCommand",
+      "method": "GET",
+      "path": null,
+      "expression": "base",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "Base is workspace/person sandbox. Review GET, accept, reject, undo and run_report tool routes appear in sandbox router; tool dispatch and auth/DB behavior need further testing.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/server/routes/sandboxRoutes.ts:163",
+        "src/server/routes/sandboxRoutes.ts:368",
+        "src/server/routes/sandboxRoutes.ts:372",
+        "src/server/routes/sandboxRoutes.ts:376"
+      ]
+    },
+    {
+      "file": "src/components/ledger/SandboxReviewView.tsx",
+      "line": 129,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": "{dynamic}/tools/run_report",
+      "expression": "`${base}/tools/run_report`",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "Base is workspace/person sandbox. Review GET, accept, reject, undo and run_report tool routes appear in sandbox router; tool dispatch and auth/DB behavior need further testing.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/server/routes/sandboxRoutes.ts:163",
+        "src/server/routes/sandboxRoutes.ts:368",
+        "src/server/routes/sandboxRoutes.ts:372",
+        "src/server/routes/sandboxRoutes.ts:376"
+      ]
+    },
+    {
+      "file": "src/components/ledger/SandboxReviewView.tsx",
+      "line": 156,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": "{dynamic}/accept",
+      "expression": "`${base}/accept`",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "Base is workspace/person sandbox. Review GET, accept, reject, undo and run_report tool routes appear in sandbox router; tool dispatch and auth/DB behavior need further testing.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/server/routes/sandboxRoutes.ts:163",
+        "src/server/routes/sandboxRoutes.ts:368",
+        "src/server/routes/sandboxRoutes.ts:372",
+        "src/server/routes/sandboxRoutes.ts:376"
+      ]
+    },
+    {
+      "file": "src/components/ledger/SandboxReviewView.tsx",
+      "line": 162,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": "{dynamic}/reject",
+      "expression": "`${base}/reject`",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "Base is workspace/person sandbox. Review GET, accept, reject, undo and run_report tool routes appear in sandbox router; tool dispatch and auth/DB behavior need further testing.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/server/routes/sandboxRoutes.ts:163",
+        "src/server/routes/sandboxRoutes.ts:368",
+        "src/server/routes/sandboxRoutes.ts:372",
+        "src/server/routes/sandboxRoutes.ts:376"
+      ]
+    },
+    {
+      "file": "src/components/ledger/SandboxReviewView.tsx",
+      "line": 165,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": "{dynamic}/steps/{dynamic}/undo",
+      "expression": "`${base}/steps/${stepId}/undo`",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "Base is workspace/person sandbox. Review GET, accept, reject, undo and run_report tool routes appear in sandbox router; tool dispatch and auth/DB behavior need further testing.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/server/routes/sandboxRoutes.ts:163",
+        "src/server/routes/sandboxRoutes.ts:368",
+        "src/server/routes/sandboxRoutes.ts:372",
+        "src/server/routes/sandboxRoutes.ts:376"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/BrandingProfilesSettings.tsx",
+      "line": 153,
+      "transport": "runCommand",
+      "method": "PUT",
+      "path": "/api/v1/workspaces/{dynamic}/branding-profiles",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspace.id)}/branding-profiles`",
+      "status": "unresolved_dynamic",
+      "derived_candidate_calls": [],
+      "triage": "known_unimplemented_disabled",
+      "note": "PUT branding-profiles has no identified registration; disabled/guarded pending server/PDF implementation (AUP-01).",
+      "evidence": [
+        "src/components/platform/settings/BrandingProfilesSettings.tsx",
+        "audit/api-ui-parity-review.json"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/GroupsSettings.tsx",
+      "line": 73,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/account/groups{dynamic}",
+      "expression": "`/api/v1/account/groups${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "DELETE",
+          "path": "/api/v1/account/groups/{dynamic}/share/{dynamic}",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 58
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/account/groups/:id/share/:uid",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 310
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/account/groups/{dynamic}/share",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 63
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/account/groups/:id/share",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 298
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/account/groups",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 100
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/account/groups",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 217
+              }
+            }
+          ]
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/account/groups/{dynamic}",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 125
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/account/groups/:id",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 241
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/account/groups",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 125
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/account/groups",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 222
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/account/groups/{dynamic}",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 139
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/account/groups/:id",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 320
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/account/groups/{dynamic}/share/{dynamic}",
+          "via": {
+            "file": "src/components/platform/settings/GroupsSettings.tsx",
+            "line": 152
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/account/groups/:id/share/:uid",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 310
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/settings/GroupsSettings.tsx:58",
+        "src/components/platform/settings/GroupsSettings.tsx:63",
+        "src/components/platform/settings/GroupsSettings.tsx:100",
+        "src/components/platform/settings/GroupsSettings.tsx:125",
+        "src/components/platform/settings/GroupsSettings.tsx:125",
+        "src/components/platform/settings/GroupsSettings.tsx:139",
+        "src/components/platform/settings/GroupsSettings.tsx:152"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/ImportSettings.tsx",
+      "line": 93,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/import-records",
+          "via": {
+            "file": "src/components/platform/settings/ImportSettings.tsx",
+            "line": 348
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/import-records",
+              "definition": {
+                "file": "src/server/routes/workspaceRoutes.ts",
+                "line": 270
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/import-records/{dynamic}/undo",
+          "via": {
+            "file": "src/components/platform/settings/ImportSettings.tsx",
+            "line": 371
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/import-records/:batchId/undo",
+              "definition": {
+                "file": "src/server/routes/workspaceRoutes.ts",
+                "line": 287
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/settings/ImportSettings.tsx:348",
+        "src/components/platform/settings/ImportSettings.tsx:371"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/NumberingSettings.tsx",
+      "line": 22,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/numbering{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/numbering${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "PUT",
+          "path": "/api/v1/workspaces/{dynamic}/numbering/{dynamic}",
+          "via": {
+            "file": "src/components/platform/settings/NumberingSettings.tsx",
+            "line": 51
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/workspaces/:workspaceId/numbering/:type",
+              "definition": {
+                "file": "src/server/routes/numberingRoutes.ts",
+                "line": 50
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/numbering/",
+          "via": {
+            "file": "src/components/platform/settings/NumberingSettings.tsx",
+            "line": 111
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/numbering",
+              "definition": {
+                "file": "src/server/routes/numberingRoutes.ts",
+                "line": 44
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/settings/NumberingSettings.tsx:51",
+        "src/components/platform/settings/NumberingSettings.tsx:111"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/RecoveryCodesPanel.tsx",
+      "line": 13,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/account/recovery-codes",
+      "expression": "'/api/v1/account/recovery-codes'",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/account/recovery-codes",
+          "via": {
+            "file": "src/components/platform/settings/RecoveryCodesPanel.tsx",
+            "line": 26
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/account/recovery-codes",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 132
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/account/recovery-codes",
+          "via": {
+            "file": "src/components/platform/settings/RecoveryCodesPanel.tsx",
+            "line": 35
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/account/recovery-codes",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 137
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/settings/RecoveryCodesPanel.tsx:26",
+        "src/components/platform/settings/RecoveryCodesPanel.tsx:35"
+      ]
+    },
+    {
+      "file": "src/components/platform/settings/TagsSettings.tsx",
+      "line": 26,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/tags{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/tags${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/tags",
+          "via": {
+            "file": "src/components/platform/settings/TagsSettings.tsx",
+            "line": 53
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/tags",
+              "definition": {
+                "file": "src/server/routes/tagRoutes.ts",
+                "line": 19
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/tags/change",
+          "via": {
+            "file": "src/components/platform/settings/TagsSettings.tsx",
+            "line": 72
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/tags/change",
+              "definition": {
+                "file": "src/server/routes/tagRoutes.ts",
+                "line": 29
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/settings/TagsSettings.tsx:53",
+        "src/components/platform/settings/TagsSettings.tsx:72"
+      ]
+    },
+    {
+      "file": "src/components/platform/SystemCommandCenterShared.tsx",
+      "line": 51,
+      "transport": "fetch",
+      "method": null,
+      "path": null,
+      "expression": "url",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/give-access",
+          "via": {
+            "file": "src/components/platform/GiveAccessPanel.tsx",
+            "line": 29
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/admin/give-access",
+              "definition": {
+                "file": "src/server/routes/giveAccessRoutes.ts",
+                "line": 88
+              }
+            }
+          ]
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/admin/workspaces/{dynamic}",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 105
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/admin/workspaces/:workspaceId",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 147
+              }
+            }
+          ]
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/admin/workspaces/{dynamic}",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 159
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/admin/workspaces/:workspaceId",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 147
+              }
+            }
+          ]
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/admin/users/{dynamic}",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 245
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/admin/users/:userId",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 222
+              }
+            }
+          ]
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/admin/global-config",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 273
+          },
+          "candidate_routes": [
+            {
+              "method": "PUT",
+              "path": "/api/v1/admin/global-config",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 394
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/telemetry",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 301
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/admin/telemetry",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 39
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/users",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 321
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/admin/users",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 206
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/global-config",
+          "via": {
+            "file": "src/components/platform/SystemCommandCenter.tsx",
+            "line": 338
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/admin/global-config",
+              "definition": {
+                "file": "src/server/routes/adminRoutes.ts",
+                "line": 383
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/platform/GiveAccessPanel.tsx:29",
+        "src/components/platform/SystemCommandCenter.tsx:105",
+        "src/components/platform/SystemCommandCenter.tsx:159",
+        "src/components/platform/SystemCommandCenter.tsx:245",
+        "src/components/platform/SystemCommandCenter.tsx:273",
+        "src/components/platform/SystemCommandCenter.tsx:301",
+        "src/components/platform/SystemCommandCenter.tsx:321",
+        "src/components/platform/SystemCommandCenter.tsx:338"
+      ]
+    },
+    {
+      "file": "src/components/platform/useApiHubModel.ts",
+      "line": 571,
+      "transport": "fetch",
+      "method": null,
+      "path": null,
+      "expression": "endpointUrl",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "dynamic_playground_requires_further_review",
+      "note": "User-selectable endpoint, with multiple branches and varying auth; guarded transaction options and session-only match documented in AUP-06/07. Not all possible endpoint contracts verified.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:343",
+        "audit/api-ui-parity-review.json"
+      ]
+    },
+    {
+      "file": "src/components/reporting/GroupSummaryReportView.tsx",
+      "line": 50,
+      "transport": "runCommand",
+      "method": "GET",
+      "path": null,
+      "expression": "url",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/account/groups",
+          "via": {
+            "file": "src/components/reporting/GroupSummaryReportView.tsx",
+            "line": 124
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/account/groups",
+              "definition": {
+                "file": "src/server/routes/accountRoutes.ts",
+                "line": 217
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/reports/group-summary?{dynamic}",
+          "via": {
+            "file": "src/components/reporting/GroupSummaryReportView.tsx",
+            "line": 133
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/reports/group-summary",
+              "definition": {
+                "file": "src/server/routes/reportRoutes.ts",
+                "line": 410
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/currency/historical?{dynamic}",
+          "via": {
+            "file": "src/components/reporting/GroupSummaryReportView.tsx",
+            "line": 153
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/currency/:endpoint",
+              "definition": {
+                "file": "src/server/routes/externalDataRoutes.ts",
+                "line": 40
+              }
+            }
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/currency/timeframe?{dynamic}",
+          "via": {
+            "file": "src/components/reporting/GroupSummaryReportView.tsx",
+            "line": 156
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/currency/:endpoint",
+              "definition": {
+                "file": "src/server/routes/externalDataRoutes.ts",
+                "line": 40
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/reporting/GroupSummaryReportView.tsx:124",
+        "src/components/reporting/GroupSummaryReportView.tsx:133",
+        "src/components/reporting/GroupSummaryReportView.tsx:153",
+        "src/components/reporting/GroupSummaryReportView.tsx:156"
+      ]
+    },
+    {
+      "file": "src/components/reporting/reportPack/ReportPackDialog.tsx",
+      "line": 57,
+      "transport": "runCommand",
+      "method": "GET",
+      "path": null,
+      "expression": "packReportUrl(kind, workspaceId, startDate, endDate)",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "packReportUrl maps report kinds to versioned report paths and query parameters; individual response contracts/figures remain to be verified.",
+      "evidence": [
+        "src/lib/reportPack.ts:131",
+        "src/components/reporting/reportPack/ReportPackDialog.tsx:57",
+        "src/server/routes/reportRoutes.ts"
+      ]
+    },
+    {
+      "file": "src/components/reporting/TaxLiabilityView.tsx",
+      "line": 36,
+      "transport": "runCommand",
+      "method": null,
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/tax-returns",
+          "via": {
+            "file": "src/components/reporting/TaxLiabilityView.tsx",
+            "line": 125
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/tax-returns",
+              "definition": {
+                "file": "src/server/routes/taxRoutes.ts",
+                "line": 52
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "manually_traced_branches",
+      "note": "GET and POST the workspace tax-returns base through helper; no /preview call found in this screen. Filing and calculations not runtime verified here.",
+      "evidence": [
+        "src/components/reporting/TaxLiabilityView.tsx:91",
+        "src/components/reporting/TaxLiabilityView.tsx:95",
+        "src/components/reporting/TaxLiabilityView.tsx:125",
+        "src/server/routes/taxRoutes.ts"
+      ]
+    },
+    {
+      "file": "src/components/sales/CustomerPortalLink.tsx",
+      "line": 38,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/customers/{dynamic}/portal-link",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/customers/${encodeURIComponent(customer.id)}/portal-link`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/customers/{dynamic}/portal-link",
+          "via": {
+            "file": "src/components/sales/CustomerPortalLink.tsx",
+            "line": 92
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/customers/:customerId/portal-link",
+              "definition": {
+                "file": "src/server/routes/customerPortalRoutes.ts",
+                "line": 17
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/customers/{dynamic}/portal-link",
+          "via": {
+            "file": "src/components/sales/CustomerPortalLink.tsx",
+            "line": 94
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/customers/:customerId/portal-link",
+              "definition": {
+                "file": "src/server/routes/customerPortalRoutes.ts",
+                "line": 25
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/customers/{dynamic}/portal-link",
+          "via": {
+            "file": "src/components/sales/CustomerPortalLink.tsx",
+            "line": 99
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/customers/:customerId/portal-link",
+              "definition": {
+                "file": "src/server/routes/customerPortalRoutes.ts",
+                "line": 17
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/sales/CustomerPortalLink.tsx:92",
+        "src/components/sales/CustomerPortalLink.tsx:94",
+        "src/components/sales/CustomerPortalLink.tsx:99"
+      ]
+    },
+    {
+      "file": "src/components/sales/InvoiceEmailDialog.tsx",
+      "line": 26,
+      "transport": "runCommand",
+      "method": null,
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/emails/invoices/{dynamic}",
+          "via": {
+            "file": "src/components/sales/InvoiceEmailDialog.tsx",
+            "line": 69
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/emails/invoices/:invoiceId",
+              "definition": {
+                "file": "src/server/routes/emailRoutes.ts",
+                "line": 25
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "manually_traced_branches",
+      "note": "GET /emails/log/:documentId and POST /emails/invoices/:invoiceId through helper; email log refusal covered by mocked component tests, no provider test.",
+      "evidence": [
+        "src/components/sales/InvoiceEmailDialog.tsx:50",
+        "src/server/routes/emailRoutes.ts:26",
+        "src/server/routes/emailRoutes.ts:58",
+        "src/tests/api-parity-invoice-email.test.tsx"
+      ]
+    },
+    {
+      "file": "src/components/sales/OrderDeliveryDialog.tsx",
+      "line": 56,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/inventory/deliveries/returns",
+          "via": {
+            "file": "src/components/sales/OrderDeliveryDialog.tsx",
+            "line": 85
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/inventory/deliveries/returns",
+              "definition": {
+                "file": "src/server/routes/inventoryRoutes.ts",
+                "line": 170
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inventory/deliveries",
+          "via": {
+            "file": "src/components/sales/OrderDeliveryDialog.tsx",
+            "line": 104
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/inventory/deliveries",
+              "definition": {
+                "file": "src/server/routes/inventoryRoutes.ts",
+                "line": 133
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inventory/deliveries/{dynamic}/undo",
+          "via": {
+            "file": "src/components/sales/OrderDeliveryDialog.tsx",
+            "line": 123
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/inventory/deliveries/:deliveryId/undo",
+              "definition": {
+                "file": "src/server/routes/inventoryRoutes.ts",
+                "line": 181
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/sales/OrderDeliveryDialog.tsx:85",
+        "src/components/sales/OrderDeliveryDialog.tsx:104",
+        "src/components/sales/OrderDeliveryDialog.tsx:123"
+      ]
+    },
+    {
+      "file": "src/components/transactions/EntryLinks.tsx",
+      "line": 15,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/entry-links{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/entry-links${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/entry-links?transactionId={dynamic}",
+          "via": {
+            "file": "src/components/transactions/EntryLinks.tsx",
+            "line": 59
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/entry-links",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 111
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/entry-links",
+          "via": {
+            "file": "src/components/transactions/EntryLinks.tsx",
+            "line": 79
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/entry-links",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 114
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/entry-links/{dynamic}",
+          "via": {
+            "file": "src/components/transactions/EntryLinks.tsx",
+            "line": 96
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/entry-links/:linkId",
+              "definition": {
+                "file": "src/server/routes/taskRoutes.ts",
+                "line": 121
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/components/transactions/EntryLinks.tsx:59",
+        "src/components/transactions/EntryLinks.tsx:79",
+        "src/components/transactions/EntryLinks.tsx:96"
+      ]
+    },
+    {
+      "file": "src/hooks/useAutoRules.ts",
+      "line": 221,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "changes.length ? '/api/v1/transactions/recategorize' : '/api/v1/transactions/batch'",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "manually_traced_branches",
+      "note": "POST /transactions/recategorize or /transactions/batch based on changes; server wrappers exist. Accounting effects and permissions not verified here.",
+      "evidence": [
+        "src/hooks/useAutoRules.ts:221",
+        "src/server/routes/transactions/bulkRoutes.ts:30",
+        "src/server/routes/transactions/bulkRoutes.ts:41"
+      ]
+    },
+    {
+      "file": "src/hooks/useCommand.ts",
+      "line": 126,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "entry.runPath",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "dynamic_command_registry_requires_further_review",
+      "note": "Command path comes from manifest entry, not a fixed endpoint; preview/run and each command require independent contract and authorization verification.",
+      "evidence": [
+        "src/hooks/useCommand.ts:126",
+        "src/lib/commandManifests.generated"
+      ]
+    },
+    {
+      "file": "src/hooks/useReportList.ts",
+      "line": 18,
+      "transport": "runCommand",
+      "method": "GET",
+      "path": null,
+      "expression": "request.path",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "shared_helper_requires_further_review",
+      "note": "Paths supplied by report screens including inventory details, aging and time-by-project. Inspect each caller and each response separately.",
+      "evidence": [
+        "src/hooks/useReportList.ts:8",
+        "src/components/reporting/InventoryDetailsReportView.tsx:34",
+        "src/components/reporting/TimeByProjectReportView.tsx:33"
+      ]
+    },
+    {
+      "file": "src/hooks/useServerOperationalReport.ts",
+      "line": 51,
+      "transport": "runCommand",
+      "method": "GET",
+      "path": null,
+      "expression": "request.url",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "shared_helper_requires_further_review",
+      "note": "Several reporting screens supply their own URLs and parse callbacks. Failure retains provisional rows; each screen must correctly disclose incomplete data and block unsafe export.",
+      "evidence": [
+        "src/hooks/useServerOperationalReport.ts:29",
+        "src/components/reporting/PartyAgingReportView.tsx:68"
+      ]
+    },
+    {
+      "file": "src/hooks/useTeamRequests.ts",
+      "line": 49,
+      "transport": "runCommand",
+      "method": null,
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "shared_helper_requires_further_review",
+      "note": "TeamSettings supplies members, roles, invites and audit-log endpoints; helper checks stale context. Each route/method and role behavior still needs verification.",
+      "evidence": [
+        "src/hooks/useTeamRequests.ts:40",
+        "src/components/platform/settings/TeamSettings.tsx:57",
+        "src/components/platform/settings/TeamSettings.tsx:92"
+      ]
+    },
+    {
+      "file": "src/lib/commandByName.ts",
+      "line": 23,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "entry.runPath",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "dynamic_command_registry_requires_further_review",
+      "note": "Named command runPath is selected from the manifest; each individual command needs contract, permissions and persistence testing.",
+      "evidence": [
+        "src/lib/commandByName.ts:23",
+        "src/lib/commandManifests.generated"
+      ]
+    },
+    {
+      "file": "src/lib/runCommand.ts",
+      "line": 87,
+      "transport": "fetch",
+      "method": null,
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "shared_transport_requires_further_review",
+      "note": "Shared transport takes caller-defined paths; unresolved by design. Other call sites need tracing individually; its own tests are not end-to-end route coverage.",
+      "evidence": [
+        "src/lib/runCommand.ts:87",
+        "src/tests/run-command.test.ts"
+      ]
+    },
+    {
+      "file": "src/lib/runCommand.ts",
+      "line": 150,
+      "transport": "runCommand",
+      "method": null,
+      "path": null,
+      "expression": "request",
+      "status": "unresolved",
+      "derived_candidate_calls": [],
+      "triage": "shared_transport_requires_further_review",
+      "note": "Shared transport takes caller-defined paths; unresolved by design. Other call sites need tracing individually; its own tests are not end-to-end route coverage.",
+      "evidence": [
+        "src/lib/runCommand.ts:87",
+        "src/tests/run-command.test.ts"
+      ]
+    },
+    {
+      "file": "src/services/bulkDocumentActions.ts",
+      "line": 12,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/payments",
+          "via": {
+            "file": "src/services/bulkDocumentActions.ts",
+            "line": 33
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/payments",
+              "definition": {
+                "file": "src/server/routes/paymentRoutes.ts",
+                "line": 70
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/emails/invoices/{dynamic}",
+          "via": {
+            "file": "src/services/bulkDocumentActions.ts",
+            "line": 63
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/emails/invoices/:invoiceId",
+              "definition": {
+                "file": "src/server/routes/emailRoutes.ts",
+                "line": 25
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/services/bulkDocumentActions.ts:33",
+        "src/services/bulkDocumentActions.ts:63"
+      ]
+    },
+    {
+      "file": "src/services/journalTemplateActions.ts",
+      "line": 7,
+      "transport": "runCommand",
+      "method": null,
+      "path": "/api/v1/workspaces/{dynamic}/journal-templates{dynamic}",
+      "expression": "`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/journal-templates${path}`",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/{dynamic}/journal-templates",
+          "via": {
+            "file": "src/services/journalTemplateActions.ts",
+            "line": 17
+          },
+          "candidate_routes": [
+            {
+              "method": "GET",
+              "path": "/api/v1/workspaces/:workspaceId/journal-templates",
+              "definition": {
+                "file": "src/server/routes/journalTemplateRoutes.ts",
+                "line": 24
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/{dynamic}/journal-templates",
+          "via": {
+            "file": "src/services/journalTemplateActions.ts",
+            "line": 23
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/workspaces/:workspaceId/journal-templates",
+              "definition": {
+                "file": "src/server/routes/journalTemplateRoutes.ts",
+                "line": 32
+              }
+            }
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/{dynamic}/journal-templates/{dynamic}",
+          "via": {
+            "file": "src/services/journalTemplateActions.ts",
+            "line": 27
+          },
+          "candidate_routes": [
+            {
+              "method": "DELETE",
+              "path": "/api/v1/workspaces/:workspaceId/journal-templates/:templateId",
+              "definition": {
+                "file": "src/server/routes/journalTemplateRoutes.ts",
+                "line": 39
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/services/journalTemplateActions.ts:17",
+        "src/services/journalTemplateActions.ts:23",
+        "src/services/journalTemplateActions.ts:27"
+      ]
+    },
+    {
+      "file": "src/services/stockRequests.ts",
+      "line": 45,
+      "transport": "runCommand",
+      "method": "POST",
+      "path": null,
+      "expression": "path",
+      "status": "unresolved",
+      "derived_candidate_calls": [
+        {
+          "method": "POST",
+          "path": "/api/v1/inventory/adjust",
+          "via": {
+            "file": "src/services/stockRequests.ts",
+            "line": 49
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/inventory/adjust",
+              "definition": {
+                "file": "src/server/routes/inventoryRoutes.ts",
+                "line": 87
+              }
+            }
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inventory/count",
+          "via": {
+            "file": "src/services/stockRequests.ts",
+            "line": 52
+          },
+          "candidate_routes": [
+            {
+              "method": "POST",
+              "path": "/api/v1/inventory/count",
+              "definition": {
+                "file": "src/server/routes/inventoryRoutes.ts",
+                "line": 98
+              }
+            }
+          ]
+        }
+      ],
+      "triage": "derived_static_candidates_need_contract_review",
+      "note": "Direct call sites were inferred by the scanner and candidate route registrations are attached. This is path/method evidence only, not runtime, schema, authorization or complete call-graph verification.",
+      "evidence": [
+        "src/services/stockRequests.ts:49",
+        "src/services/stockRequests.ts:52"
+      ]
+    }
+  ]
+}

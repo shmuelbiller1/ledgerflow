@@ -7,17 +7,30 @@ import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 
-import { db } from '../../firebase';
-import { collection, getDocs } from '../../lib/db/firestore';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 
-import type { Transaction, Workspace } from '../../types';
 import { AdminUser, TenantTelemetry, TelemetryLog, CommandCenterTelemetry, errorMessage, fetchWithAuth } from './SystemCommandCenterShared';
+// Workspace telemetry is sampled and includes derived balances. It is not a safe write snapshot.
+const WORKSPACE_POLICY_WRITES_AVAILABLE = false;
+
+function parseGlobalConfig(value: unknown) {
+  if (!value || typeof value !== 'object') return null;
+  const config = value as Record<string, unknown>;
+  const { creditCostMultiplier, quotaCentsMultiplier, bypassBilling, customKeyCreditCharge, customKeyCentsCharge, maxRegistrationLimit, freeWorkspaceTxCap } = config;
+  if (typeof bypassBilling !== 'boolean' ||
+      ![creditCostMultiplier, quotaCentsMultiplier, customKeyCreditCharge, customKeyCentsCharge, maxRegistrationLimit, freeWorkspaceTxCap].every(value => typeof value === 'number' && Number.isFinite(value))) return null;
+  return { creditCostMultiplier: creditCostMultiplier as number, quotaCentsMultiplier: quotaCentsMultiplier as number,
+    bypassBilling, customKeyCreditCharge: customKeyCreditCharge as number, customKeyCentsCharge: customKeyCentsCharge as number,
+    maxRegistrationLimit: maxRegistrationLimit as number, freeWorkspaceTxCap: freeWorkspaceTxCap as number };
+}
+
 /** Provides tenant telemetry, global billing controls, and tab-scoped polling for SystemCommandCenter. */
 function useSystemCommandCenterModel() {
   const formId = useId();
   const [telemetry, setTelemetry] = useState<CommandCenterTelemetry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [telemetryError, setTelemetryError] = useState('');
+  const [usersError, setUsersError] = useState('');
   useAuthStore(s => s.user);
   useAuthStore(s => s.userProfile);
   const lexiconOverrides = useUIStore(state => state.lexiconOverrides);
@@ -67,6 +80,7 @@ function useSystemCommandCenterModel() {
   });
 
   const startEditing = (tenant: TenantTelemetry) => {
+    if (!WORKSPACE_POLICY_WRITES_AVAILABLE) return;
     setEditingWorkspace(tenant);
     setActiveFormTab('tier'); // Reset to first tab on launch
     setFormState({
@@ -85,7 +99,7 @@ function useSystemCommandCenterModel() {
 
   const handleSaveWorkspaceLimits = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingWorkspace) return;
+    if (!WORKSPACE_POLICY_WRITES_AVAILABLE || !editingWorkspace) return;
     setSavingWorkspace(true);
     try {
       const res = await fetchWithAuth(`/api/v1/admin/workspaces/${editingWorkspace.id}`, {
@@ -116,6 +130,7 @@ function useSystemCommandCenterModel() {
 
   // Bulk Apply baseline configuration to ALL workspaces sequentially
   const handleBulkApplyBaseline = async () => {
+    if (!WORKSPACE_POLICY_WRITES_AVAILABLE) return;
     const list = telemetry?.tenants || [];
     if (list.length === 0) return;
     setBulkSyncing(true);
@@ -205,6 +220,7 @@ function useSystemCommandCenterModel() {
     freeWorkspaceTxCap: 100
   });
   const [updatingGlobal, setUpdatingGlobal] = useState(false);
+  const [globalConfigLoaded, setGlobalConfigLoaded] = useState(false);
 
   const startEditingUser = (u: AdminUser) => {
     setEditingUser(u);
@@ -251,6 +267,7 @@ function useSystemCommandCenterModel() {
 
   const handleSaveGlobalConfig = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!globalConfigLoaded) return;
     setUpdatingGlobal(true);
     try {
       const res = await fetchWithAuth('/api/v1/admin/global-config', {
@@ -262,9 +279,10 @@ function useSystemCommandCenterModel() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'success') {
-          // Sync state instantly
-          setGlobalConfig(data.globalAdminConfig);
+        const updatedConfig = parseGlobalConfig(data.data);
+        if (data.status === 'success' && updatedConfig) {
+          setGlobalConfig(updatedConfig);
+          toast.success('Global pricing updated');
         } else {
           throw new Error(data.message || 'Failed to update global pricing formulas');
         }
@@ -280,52 +298,18 @@ function useSystemCommandCenterModel() {
 
     const fetchTelemetry = async () => {
       try {
-        const workspacesSnap = await getDocs(collection(db, "workspaces"));
-        const transactionsSnap = await getDocs(collection(db, "transactions"));
-        const transactions = transactionsSnap.docs.map(doc => doc.data() as Transaction);
-
-        const tenants: Record<string, TenantTelemetry> = {};
-        workspacesSnap.docs.forEach(doc => {
-           const data: Partial<Workspace> = doc.data() || {};
-           tenants[doc.id] = {
-               id: doc.id,
-               name: data.name || "Default Workspace",
-               plan: data.plan || "sandbox",
-               concurrentUserLimit: data.concurrentUserLimit || 50,
-               activeUserCount: data.activeUserCount || 0,
-               seatCount: data.seatCount || 1,
-               maxSeats: data.maxSeats || 5,
-               computeCreditBalance: data.computeCreditBalance || 500,
-               apiQuotaTotalCentsUsed: data.apiQuotaTotalCentsUsed || 0,
-               apiQuotaMonthlyLimitCents: data.apiQuotaMonthlyLimitCents || 1000,
-               creditCostMultiplier: 1.0,
-               quotaCentsMultiplier: 1.0,
-               bypassBilling: false,
-               customKeyCreditCharge: 10,
-               customKeyCentsCharge: 0,
-               txCount: 0,
-               requestCount: 0,
-               errorCount: 0
-           };
-        });
-
-        transactions.forEach(tx => {
-            if (tx.workspaceId && tenants[tx.workspaceId]) {
-                tenants[tx.workspaceId].txCount++;
-            }
-        });
-
-        setTelemetry({
-          status: 'success',
-          tenants: Object.values(tenants),
-          liveLogs: []
-        });
-      } catch {
-        setTelemetry({
-          status: 'success',
-          tenants: [],
-          liveLogs: []
-        });
+        const res = await fetchWithAuth('/api/v1/admin/telemetry');
+        if (!res.ok) throw new Error(`Admin telemetry returned HTTP ${res.status}.`);
+        const data: unknown = await res.json();
+        if (!data || typeof data !== 'object' || !('status' in data) || data.status !== 'success' ||
+            !('tenants' in data) || !Array.isArray(data.tenants) || !('liveLogs' in data) || !Array.isArray(data.liveLogs)) {
+          throw new Error('The admin telemetry response was not readable.');
+        }
+        setTelemetry(data as CommandCenterTelemetry);
+        setTelemetryError('');
+      } catch (error) {
+        setTelemetry(null);
+        setTelemetryError(errorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -334,11 +318,16 @@ function useSystemCommandCenterModel() {
     const fetchUsersData = async () => {
       setLoadingUsers(true);
       try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        const usersData = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() as Omit<AdminUser, 'uid'> }));
-        setUsersList(usersData);
-      } catch (e) {
-        console.warn('Admin users fetch error', e);
+        const res = await fetchWithAuth('/api/v1/admin/users');
+        if (!res.ok) throw new Error(`Admin users returned HTTP ${res.status}.`);
+        const data: unknown = await res.json();
+        if (!data || typeof data !== 'object' || !('status' in data) || data.status !== 'success' ||
+            !('users' in data) || !Array.isArray(data.users)) throw new Error('The admin users response was not readable.');
+        setUsersList(data.users as AdminUser[]);
+        setUsersError('');
+      } catch (error) {
+        setUsersList([]);
+        setUsersError(errorMessage(error));
       } finally {
         setLoadingUsers(false);
       }
@@ -347,14 +336,17 @@ function useSystemCommandCenterModel() {
     const fetchGlobalConfig = async () => {
       try {
         const res = await fetchWithAuth('/api/v1/admin/global-config');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'success' && data.globalAdminConfig) {
-            setGlobalConfig(data.globalAdminConfig);
-          }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const config = parseGlobalConfig(data?.globalAdminConfig);
+        if (data?.status !== 'success' || !config) {
+          throw new Error('Invalid global configuration');
         }
+        setGlobalConfig(config);
+        setGlobalConfigLoaded(true);
       } catch (e) {
-        console.warn('Global billing overrides fetch bypassed:', e);
+        setGlobalConfigLoaded(false);
+        console.warn('Global billing configuration unavailable:', e);
       }
     };
 
@@ -382,7 +374,7 @@ function useSystemCommandCenterModel() {
 
   useAuthStore(s => s.isAdmin);
 
-  return { overlay1DialogProps, overlay1TitleId, overlay2DialogProps, overlay2TitleId, formatPlatformUsdQuota, formId, telemetry, loading, lexiconOverrides, setLexiconOverride, editingWorkspace, setEditingWorkspace, savingWorkspace, activeFormTab, setActiveFormTab, simulatedQueries, setSimulatedQueries, customKeyRatio, setCustomKeyRatio, simulatedLogs, setSimulatedLogs, bulkSyncing, bulkSyncProgress, bulkSyncTotal, bulkSyncStatusText, showBulkSuccess, setShowBulkSuccess, usersList, activeMainTab, setActiveMainTab, editingUser, setEditingUser, savingUser, userFormState, setUserFormState, formState, setFormState, startEditing, handleSaveWorkspaceLimits, handleBulkApplyBaseline, handleTriggerStressEvent, globalConfig, setGlobalConfig, updatingGlobal, startEditingUser, handleSaveUser, handleSaveGlobalConfig, totalErrors, liveErrors };
+  return { overlay1DialogProps, overlay1TitleId, overlay2DialogProps, overlay2TitleId, formatPlatformUsdQuota, formId, telemetry, loading, telemetryError, usersError, workspacePolicyWritesAvailable: WORKSPACE_POLICY_WRITES_AVAILABLE, lexiconOverrides, setLexiconOverride, editingWorkspace, setEditingWorkspace, savingWorkspace, activeFormTab, setActiveFormTab, simulatedQueries, setSimulatedQueries, customKeyRatio, setCustomKeyRatio, simulatedLogs, setSimulatedLogs, bulkSyncing, bulkSyncProgress, bulkSyncTotal, bulkSyncStatusText, showBulkSuccess, setShowBulkSuccess, usersList, activeMainTab, setActiveMainTab, editingUser, setEditingUser, savingUser, userFormState, setUserFormState, formState, setFormState, startEditing, handleSaveWorkspaceLimits, handleBulkApplyBaseline, handleTriggerStressEvent, globalConfig, setGlobalConfig, globalConfigLoaded, updatingGlobal, startEditingUser, handleSaveUser, handleSaveGlobalConfig, totalErrors, liveErrors };
 }
 
 export type SystemCommandCenterModel = ReturnType<typeof useSystemCommandCenterModel>;

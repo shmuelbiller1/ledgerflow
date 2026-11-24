@@ -29,6 +29,26 @@ interface Usage {
 /** Near a limit from 80% on, so it is seen before anything is refused. */
 export const NEAR_LIMIT = 0.8;
 
+function isUsage(value: unknown): value is Usage {
+  if (!value || typeof value !== 'object') return false;
+  const u = value as Record<string, unknown>;
+  const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  const meter = (v: unknown) => !!v && typeof v === 'object' && number((v as Meter).used) && number((v as Meter).limit);
+  if (typeof u.plan !== 'string' || typeof u.unlimited !== 'boolean' || !meter(u.seats) || !meter(u.storageMb)) return false;
+  if (['entities', 'firmClients', 'rentalUnits', 'paymentVolumeCents'].some(k => u[k] !== undefined && !meter(u[k]))) return false;
+  if (u.entries !== undefined) {
+    if (!u.entries || typeof u.entries !== 'object') return false;
+    const entries = u.entries as { used?: unknown; limit?: unknown };
+    if (!number(entries.used) || !(entries.limit === null || number(entries.limit))) return false;
+  }
+  if (u.assistant !== undefined) {
+    if (!u.assistant || typeof u.assistant !== 'object') return false;
+    const a = u.assistant as { modelTurns?: unknown; costCents?: unknown; limits?: { modelTurns?: unknown; costCents?: unknown } | null };
+    if (!number(a.modelTurns) || !number(a.costCents) || !(a.limits === null || (!!a.limits && number(a.limits.modelTurns) && number(a.limits.costCents)))) return false;
+  }
+  return true;
+}
+
 /**
  * Strategy 7 + L-15 on Settings → Billing: shows value-aligned meters (companies/entities,
  * accounting-firm clients, rental units, monthly payment volume, people with access, and document
@@ -36,25 +56,27 @@ export const NEAR_LIMIT = 0.8;
  */
 export default function UsagePanel() {
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
-  const [usage, setUsage] = useState<Usage | null>(null);
+  const uid = useAuthStore(s => s.user?.uid);
+  const [version, setVersion] = useState(0);
+  const key = JSON.stringify([workspaceId, uid, version]);
+  const [result, setResult] = useState<{ key: string; usage?: Usage; error?: string } | null>(null);
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!workspaceId || !uid) return;
     let live = true;
     (async () => {
-      const body = await runCommand<{ usage?: Usage }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/usage` });
-      return body?.usage ?? null;
+      const body = await runCommand<{ usage?: unknown }>({ path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/usage` });
+      if (!isUsage(body?.usage)) throw new Error('The server returned invalid usage data.');
+      return body.usage;
     })()
-      .then(u => {
-        if (live) setUsage(u);
-      })
-      .catch(() => {
-        if (live) setUsage(null);
-      });
-    return () => {
-      live = false;
-    };
-  }, [workspaceId]);
-  if (!usage) return null;
+      .then(usage => { if (live) setResult({ key, usage }); })
+      .catch(err => { if (live) setResult({ key, error: err instanceof Error ? err.message : 'Usage could not be loaded.' }); });
+    return () => { live = false; };
+  }, [workspaceId, uid, key]);
+  if (!workspaceId || !uid) return null;
+  const current = result?.key === key ? result : null;
+  if (current?.error) return <section aria-label="Usage"><p role="alert">Could not load usage: {current.error} <button type="button" onClick={() => setVersion(v => v + 1)} className="min-h-11 underline">Retry loading usage</button></p></section>;
+  if (!current?.usage) return <section aria-label="Usage"><p role="status">Loading usage…</p></section>;
+  const usage = current.usage;
 
   const rows: Array<{
     label: string;

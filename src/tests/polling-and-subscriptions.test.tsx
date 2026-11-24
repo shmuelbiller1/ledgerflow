@@ -367,7 +367,7 @@ describe('Visibility-aware polling and subscription cleanup', () => {
     });
 
     render(<StatusPage />);
-    await waitFor(() => screen.getByText('Everything is working'));
+    await waitFor(() => screen.getByText('No problems reported by available checks'));
     assert.equal(urls.length, 1);
 
     // Simulate hiding tab, waiting >1s minimum resume interval, and returning

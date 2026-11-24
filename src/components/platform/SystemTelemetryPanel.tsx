@@ -11,8 +11,9 @@ import { Labelled } from '../ui/Labelled';
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
 import { percentWidthStyle } from '../../lib/percentBar';
 export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterModel & { telemetry: NonNullable<SystemCommandCenterModel['telemetry']> } }) {
- const { formatPlatformUsdQuota, formId, telemetry, simulatedQueries, setSimulatedQueries, customKeyRatio, setCustomKeyRatio, bulkSyncing, bulkSyncProgress, bulkSyncTotal, bulkSyncStatusText, startEditing, handleBulkApplyBaseline, globalConfig, setGlobalConfig, updatingGlobal, handleSaveGlobalConfig, totalErrors } = model;
+ const { formatPlatformUsdQuota, formId, telemetry, workspacePolicyWritesAvailable, simulatedQueries, setSimulatedQueries, customKeyRatio, setCustomKeyRatio, bulkSyncing, bulkSyncProgress, bulkSyncTotal, bulkSyncStatusText, startEditing, handleBulkApplyBaseline, globalConfig, setGlobalConfig, globalConfigLoaded, updatingGlobal, handleSaveGlobalConfig, totalErrors } = model;
  return (<div className="xl:col-span-2 space-y-8">
+            <p role="status" className="text-sm text-[var(--muted)]">Telemetry includes at most 100 workspaces and transaction counts for only the first 30; balances may omit shards, defaults may be substituted, and request attribution is approximate and local to this server instance. Workspace policy editing and bulk sync are paused until complete, safe write data is available.</p>
             {/* Stat Cards Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className="bg-[var(--surface)] border border-[var(--line)] p-4 md:p-8 rounded-[32px] shadow-3xs hover:border-slate-300 transition-all duration-300 relative overflow-hidden group">
@@ -23,10 +24,10 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                   <div className="w-10 h-10 bg-slate-900 text-white rounded-[32px] flex items-center justify-center">
                     <Database aria-hidden="true" size={18} />
                   </div>
-                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Active Tenants</h2>
+                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Workspaces shown</h2>
                 </div>
                 <p className="text-2xl md:text-4xl font-black font-mono text-[var(--text)] tracking-tight">{telemetry.tenants.length}</p>
-                <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-2">Isolated workspaces in sync</p>
+                <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-2">At most 100 returned</p>
               </div>
 
               <div className="bg-[var(--surface)] border border-[var(--line)] p-4 md:p-8 rounded-[32px] shadow-3xs hover:border-slate-300 transition-all duration-300 relative overflow-hidden group">
@@ -37,12 +38,12 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                   <div className="w-10 h-10 bg-slate-900 text-white rounded-[32px] flex items-center justify-center">
                     <Activity aria-hidden="true" size={18} />
                   </div>
-                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Global Ledger Rows</h2>
+                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">Ledger Rows</h2>
                 </div>
                 <p className="text-2xl md:text-4xl font-black font-mono text-[var(--text)] tracking-tight">
-                  {telemetry.tenants.reduce((acc, t) => acc + t.txCount, 0).toLocaleString()}
+                  Not available
                 </p>
-                <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-2">Total transactional assertions</p>
+                <p className="text-[9px] font-bold text-[var(--muted)] uppercase tracking-wider mt-2">Counts are incomplete</p>
               </div>
 
               <div className="bg-[var(--surface)] border border-[var(--line)] p-4 md:p-8 rounded-[32px] shadow-3xs hover:border-slate-300 transition-all duration-300 relative overflow-hidden group">
@@ -53,10 +54,10 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                   <div className="w-10 h-10 bg-rose-500/10 text-rose-600 rounded-[32px] flex items-center justify-center">
                     <AlertOctagon aria-hidden="true" size={18} />
                   </div>
-                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">API Incidents (400+)</h2>
+                  <h2 className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest">API incidents (500+)</h2>
                 </div>
                 <p className="text-2xl md:text-4xl font-black font-mono text-rose-600 tracking-tight">{totalErrors}</p>
-                <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider mt-2">Aggregated active warning nodes</p>
+                <p className="text-[9px] font-bold text-rose-500 uppercase tracking-wider mt-2">Local 5xx logs, including simulated events</p>
               </div>
             </div>
 
@@ -78,7 +79,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                 {/* Bulk Synchronization Trigger (Sync all users at once) */}
                 <button
                   type="button"
-                  disabled={bulkSyncing || telemetry.tenants.length === 0}
+                  disabled={!workspacePolicyWritesAvailable || bulkSyncing || telemetry.tenants.length === 0}
                   onClick={handleBulkApplyBaseline}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-md transition-all flex items-center gap-2 border border-indigo-400/30 disabled:opacity-40"
                  aria-label="Sync to All Workspaces">
@@ -115,6 +116,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                 )}
               </AnimatePresence>
 
+              {!globalConfigLoaded && <p role="alert" className="text-sm text-white">Global configuration was not loaded; saving is disabled.</p>}
               <form onSubmit={handleSaveGlobalConfig} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-6 items-end">
                 {/* Multiplier 1 */}
                 <div className="space-y-2">
@@ -230,7 +232,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                 <div className="space-y-2">
                   <button
                     type="submit"
-                    disabled={updatingGlobal}
+                    disabled={updatingGlobal || !globalConfigLoaded}
                     className="w-full h-11 bg-[#0047AB] hover:bg-[#0047AB]/90 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
                    aria-label="Save baseline pricing">
                     {updatingGlobal ? (
@@ -357,7 +359,7 @@ export function SystemTelemetryPanel({ model }: { model: SystemCommandCenterMode
                   <div className="w-2.5 h-6 bg-slate-900 rounded-full" />
                   <div>
                     <h2 className="text-lg font-black uppercase tracking-tight italic">Multi-Tenant Ledger Matrix</h2>
-                    <p className="text-[10px] text-[var(--muted)] font-bold tracking-wide uppercase mt-0.5">Click any workspace parameters row to customize limits & plans as Admin</p>
+                    <p className="text-[10px] text-[var(--muted)] font-bold tracking-wide uppercase mt-0.5">Workspace policy editing is temporarily unavailable.</p>
                   </div>
                 </div>
               </div>
@@ -377,8 +379,8 @@ rows={[...telemetry.tenants].sort((a, b) => b.requestCount - a.requestCount).map
 return { tenant, isSpiking, usedDollars, activeUsers, costPerUser }; })}
 rowKey={({ tenant }) => tenant.id}
 rowHeaderClassName={'font-normal text-start'}
-rowClassName={"hover:bg-[#0047AB]/5 cursor-pointer transition-colors group"}
-rowProps={({ tenant }) => ({ "onClick": () => startEditing(tenant), "title": "Click to view and edit limits as systems administrator" })}
+rowClassName={workspacePolicyWritesAvailable ? "hover:bg-[#0047AB]/5 cursor-pointer transition-colors group" : "group"}
+rowProps={({ tenant }) => workspacePolicyWritesAvailable ? ({ "onClick": () => startEditing(tenant), "title": "Click to view and edit limits as systems administrator" }) : ({})}
 emptyRow={<tr>
                         <td colSpan={10} className="py-8 text-center text-[var(--muted)] font-bold uppercase tracking-widest text-[10px]">
                           No workspaces detected on server
@@ -400,12 +402,12 @@ columns={[
                                 {tenant.plan || 'sandbox'}
                               </span>) },
 { header: "Max Seats", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs font-bold", cell: ({ tenant }) => (tenant.maxSeats || 3) },
-{ header: "Compute Bal", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-650 font-bold", cell: ({ tenant }) => ((tenant.computeCreditBalance || 0).toLocaleString()) },
+{ header: "Compute Bal", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-650 font-bold", cell: () => ('Not available') },
 { header: "Quota ($)", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-emerald-650 font-bold", cell: ({ tenant }) => (formatPlatformUsdQuota(tenant.apiQuotaMonthlyLimitCents || 0)) },
 { header: "Used ($)", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-rose-650 font-bold", cell: ({ usedDollars }) => (<>${usedDollars}</>) },
 { header: "Cost/User", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-purple-650 font-bold", cell: ({ costPerUser }) => (<>${costPerUser}</>) },
-{ header: "Tx Rows", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-[var(--muted)]", cell: ({ tenant }) => ((tenant.txCount || 0).toLocaleString()) },
-{ header: "AI Requests", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-600", cell: ({ tenant }) => ((tenant.requestCount || 0).toLocaleString()) },
+{ header: "Tx Rows", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-[var(--muted)]", cell: () => ('Not available') },
+{ header: "Approx. Requests", headClassName: "py-4 px-4 text-right", className: "py-4 px-4 text-right font-mono text-xs text-indigo-600", cell: ({ tenant }) => ((tenant.requestCount || 0).toLocaleString()) },
 { header: "Status", headClassName: "py-4 px-4 text-center", className: "py-4 px-4 text-center", cell: ({ tenant, isSpiking }) => (isSpiking ? (
                                 <span className="bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-lg text-[9px] font-medium uppercase tracking-wider inline-flex items-center gap-1 shadow-3xs">
                                   Spiking
@@ -416,7 +418,7 @@ columns={[
                                 </span>
                               ) : (
                                 <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-lg text-[9px] font-medium uppercase tracking-wider group-hover:bg-[#0047AB] group-hover:text-white group-hover:border-[#0047AB] transition-all">
-                                  OPTIMAL
+                                  NO RECORDED 5XX
                                 </span>
                               )) }
 ]}

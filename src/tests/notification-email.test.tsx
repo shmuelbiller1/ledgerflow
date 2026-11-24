@@ -122,3 +122,48 @@ describe('The choice in the bell', () => {
     assert.deepEqual(calls.find(c => c.method === 'PUT' && c.url.endsWith('/notification-email'))!.body, { mode: 'daily' });
   });
 });
+
+test('an unavailable email preference is not shown as off or saved from a guess', async t => {
+  setComponentWorkspace('owner');
+  let reads = 0;
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input).includes('/api/v1/account/notification-email')) {
+      reads++;
+      return reads === 1 ? Response.json({ message: 'unavailable' }, { status: 503 }) : Response.json({ status: 'success', mode: 'daily' });
+    }
+    return Response.json(null);
+  });
+  useNotificationStore.setState({ notifications: [], isDrawerOpen: true } as never);
+  render(<NotificationDrawer />);
+  fireEvent.click(screen.getByRole('button', { name: 'Choose notifications' }));
+  assert.match((await screen.findByRole('alert')).textContent || '', /Email notification choices could not be loaded/);
+  assert.equal(screen.queryByLabelText('By email too'), null);
+  assert.equal((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled, true);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry loading choices' }));
+  assert.equal((await screen.findByLabelText('By email too') as HTMLSelectElement).value, 'daily');
+  cleanup();
+  getSupabase().realtime.disconnect();
+  await getSupabase().auth.dispose();
+});
+
+test('a partial preference save never claims the email change was saved', async t => {
+  setComponentWorkspace('owner');
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/api/v1/account/notification-email')) {
+      return init?.method === 'PUT' ? Response.json({ message: 'unavailable' }, { status: 503 }) : Response.json({ status: 'success', mode: 'off' });
+    }
+    return Response.json({ status: 'success', data: {} });
+  });
+  useNotificationStore.setState({ notifications: [], isDrawerOpen: true } as never);
+  render(<NotificationDrawer />);
+  fireEvent.click(screen.getByRole('button', { name: 'Choose notifications' }));
+  const select = await screen.findByLabelText('By email too') as HTMLSelectElement;
+  fireEvent.change(select, { target: { value: 'daily' } });
+  await waitFor(() => assert.equal((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled, false));
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  assert.match((await screen.findByRole('alert')).textContent || '', /In-app choices were saved, but the email choice could not be confirmed/);
+  assert.equal(select.value, 'daily');
+  cleanup();
+  getSupabase().realtime.disconnect();
+  await getSupabase().auth.dispose();
+});

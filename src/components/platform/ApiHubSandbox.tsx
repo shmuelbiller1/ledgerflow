@@ -1,6 +1,6 @@
 
 
-import { Copy, RefreshCw, Database, Shield, Play } from 'lucide-react';
+import { Copy, RefreshCw, Database, Play } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 
@@ -12,7 +12,7 @@ import { BRAND_NAME } from '../../config/brand';
 import { COMMAND_MANIFEST } from '../../lib/commands.generated';
 import CommandForm from '../common/CommandForm';
 export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubModel> }) {
- const { formId, currentWorkspace, runSandboxCommand, sandboxMethod, publicKeys, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
+ const { formId, currentWorkspace, runSandboxCommand, sandboxMethod, sandboxEndpoint, setSandboxEndpoint, sandboxCredType, setSandboxCredType, sandboxSelectedKey, setSandboxSelectedKey, sandboxResult, setSandboxResult, sandboxStatus, setSandboxStatus, sandboxLatency, setSandboxLatency, sandboxLoading, sandboxLang, setSandboxLang, fieldDesc, setFieldDesc, fieldAmountCents, setFieldAmountCents, fieldDate, setFieldDate, fieldDryRun, setFieldDryRun, fieldIdempotencyKey, setFieldIdempotencyKey, fieldCOAName, setFieldCOAName, fieldCOAType, setFieldCOAType, fieldCOACode, setFieldCOACode, fieldProjectName, setFieldProjectName, fieldProjectCode, setFieldProjectCode, fieldMatchDesc, setFieldMatchDesc, fieldAIPrompt, setFieldAIPrompt, getEndpointPath, getSandboxPayload, runSandboxRequest } = model;
  return (<div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in duration-300">
           <div className="lg:col-span-5 space-y-6">
             <div className="ledger-card p-6 space-y-6">
@@ -44,8 +44,8 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                     <option value="GET_v1_ledger">GET /api/v1/ledger (Check Chart of Accounts)</option>
                     <option value="POST_v1_ledger">POST /api/v1/ledger (Provison COA Ledger Node)</option>
                     <option value="GET_v1_transactions">GET /api/v1/transactions (Sync Decisive Postings)</option>
-                    <option value="POST_v1_transactions">POST /api/v1/transactions (Ingest Posting + Bayesian Learn)</option>
-                    <option value="POST_v1_transactions_bulk">POST /api/v1/transactions/bulk (10x Bulk Ingest Engine)</option>
+                    <option disabled value="POST_v1_transactions">POST /api/v1/transactions (form unavailable)</option>
+                    <option disabled value="POST_v1_transactions_bulk">POST /api/v1/transactions/bulk (form unavailable)</option>
                     <option value="GET_v1_ledger_diagnostics">GET /api/v1/ledger/diagnostics (10x Ledger Sanity Diagnostics)</option>
                     <option value="GET_v1_projects">GET /api/v1/projects (Query Active Ventures)</option>
                     <option value="POST_v1_projects">POST /api/v1/projects (Map Corporate Scenario Submodule)</option>
@@ -62,6 +62,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                     </optgroup>
                   </select>
                 </Labelled>
+                <p className="text-xs text-[var(--muted)]">The transaction forms are unavailable because they cannot supply balanced journal lines. Registered command forms execute real actions, not automatic dry runs.</p>
               </div>
 
               {/* Credentials auth select */}
@@ -80,12 +81,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                   </button>
                   <button
                     aria-pressed={sandboxCredType === 'key'}
-                    onClick={() => {
-                      setSandboxCredType('key');
-                      if (publicKeys.length > 0 && !sandboxSelectedKey) {
-                        setSandboxSelectedKey(publicKeys[0].id);
-                      }
-                    }}
+                    onClick={() => setSandboxCredType('key')}
                     className={cn(
                       "flex-1 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border cursor-pointer text-center",
                       sandboxCredType === 'key' ? "bg-slate-950 text-white border-slate-950" : "bg-[var(--surface)] text-[var(--text)] border-[var(--line)] hover:bg-[var(--ink)]"
@@ -95,26 +91,21 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                   </button>
                 </div>
 
+                {sandboxEndpoint === 'POST_ledger_match' && <p className="text-xs text-[var(--muted)]">Ledger matching requires a signed-in session; developer API keys are not supported on this route.</p>}
+                {sandboxEndpoint === 'GET_v1_metrics' && <p role="note" className="text-xs text-amber-700">Shifting metrics can include assumptions and fallback values. The field named net operating cash flow is revenue minus expense, not a cash-flow statement. Use reports for financial decisions.</p>}
                 {sandboxCredType === 'key' && (
                   <div className="space-y-2 pt-2">
-                    {publicKeys.length === 0 ? (
-                      <div className="text-[10px] text-amber-600 font-bold bg-amber-50 p-2.5 border border-amber-200 rounded-lg">
-                        ⚠️ No active developer API keys exist. Use the <strong>Auth Keys</strong> tab first or stick to Active Admin JWT credentials.
-                      </div>
-                    ) : (
-                      <select
-                        aria-label="API bearer key"
-                        value={sandboxSelectedKey}
-                        onChange={(e) => setSandboxSelectedKey(e.target.value)}
-                        className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-[11px] font-mono focus:outline-none"
-                      >
-                        {publicKeys.map((k) => (
-                          <option key={k.id} value={k.id}>
-                            {k.name} ({k.id.substring(0, 12)}...)
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <label htmlFor={`${formId}-sandbox-key`} className="text-xs font-semibold">Full API key (ID and secret)</label>
+                    <input
+                      id={`${formId}-sandbox-key`}
+                      type="password"
+                      autoComplete="off"
+                      value={sandboxSelectedKey}
+                      onChange={e => setSandboxSelectedKey(e.target.value)}
+                      placeholder="KeyID.SecretKey"
+                      className="w-full bg-[var(--surface)] border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-[11px] font-mono focus:outline-none"
+                    />
+                    <p className="text-xs text-[var(--muted)]">Paste the complete key you saved when it was created. Saved key IDs alone cannot authenticate. The key stays in this page's memory and is not included in the examples below.</p>
                   </div>
                 )}
               </div>
@@ -257,6 +248,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 {/* POST PROJECT inputs */}
                 {sandboxEndpoint === 'POST_v1_projects' && (
                   <div className="space-y-3 animate-in fade-in duration-150">
+                    <p role="note" className="text-xs text-amber-700">This creates a real project. Repeating the request can create another project, even after a lost response. Check the project list before retrying.</p>
                     <div className="space-y-1">
                       <Labelled labelClassName="text-[9px] font-black uppercase text-[var(--muted)]" label="Venture/Project Name">
                         <input
@@ -341,11 +333,11 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 hidden={sandboxEndpoint.startsWith('COMMAND_')}
                 disabled={sandboxLoading}
                 className="w-full py-3.5 bg-slate-950 text-white font-black uppercase tracking-wider text-xs rounded-xl hover:bg-slate-800 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer hover:scale-[1.01]"
-               aria-label={sandboxLoading ? 'Calculating Double-Entry Matrix' : 'Execute aperiodic API query'}>
+               aria-label={sandboxLoading ? 'Sending API request' : 'Execute aperiodic API query'}>
                 {sandboxLoading ? (
                   <>
                     <RefreshCw aria-hidden="true" className="animate-spin" size={14} />
-                    Calculating Double-Entry Matrix...
+                    Sending API request...
                   </>
                 ) : (
                   <>
@@ -403,7 +395,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
 {/* Display generated source code dynamically */}
 {sandboxLang === 'curl' ? (
 `curl -X ${sandboxMethod(sandboxEndpoint)} "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEndpoint)}${sandboxEndpoint.startsWith('GET_') && !sandboxEndpoint.includes('workspaces') ? '?workspaceId='+(currentWorkspace?.id || '') : ''}" \\
-  -H "Authorization: Bearer ${sandboxCredType === 'session' ? '<YOUR_ADMIN_SESSION_TOKEN>' : (sandboxSelectedKey || '<YOUR_API_KEY>')}" \\
+  -H "Authorization: Bearer ${sandboxCredType === 'session' ? '<YOUR_ADMIN_SESSION_TOKEN>' : '<YOUR_API_KEY>'}" \\
 ${sandboxMethod(sandboxEndpoint) === 'POST' ? `  -H "Content-Type: application/json" \\
   -d '${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 2)}'` : ''}`
 ) : sandboxLang === 'python' ? (
@@ -411,7 +403,7 @@ ${sandboxMethod(sandboxEndpoint) === 'POST' ? `  -H "Content-Type: application/j
 
 url = "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEndpoint)}"
 headers = {
-    "Authorization": "Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : (sandboxSelectedKey || 'API_KEY')}",
+    "Authorization": "Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : 'API_KEY'}",
     "Content-Type": "application/json"
 }
 ${sandboxMethod(sandboxEndpoint) === 'GET' ? `params = { "workspaceId": "${currentWorkspace?.id || ''}" }
@@ -426,7 +418,7 @@ const url = "https://${window.location.host}/api/v1/${getEndpointPath(sandboxEnd
 fetch(url, {
   method: '${sandboxMethod(sandboxEndpoint)}',
   headers: {
-    'Authorization': 'Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : (sandboxSelectedKey || 'API_KEY')}',
+    'Authorization': 'Bearer ${sandboxCredType === 'session' ? 'SESSION_TOKEN' : 'API_KEY'}',
     'Content-Type': 'application/json'
   }${sandboxMethod(sandboxEndpoint) === 'POST' ? `,\n  body: JSON.stringify(${JSON.stringify(getSandboxPayload(sandboxEndpoint), null, 2).replace(/\n/g, '\n  ')})` : ''}
 })
@@ -451,9 +443,9 @@ fetch(url, {
                     <span className="text-[10px] text-[var(--muted)] font-mono font-bold uppercase">Latency: <strong className="text-[var(--text)]">{sandboxLatency} ms</strong></span>
                     <span className={cn(
                       "px-2 px-1 py-0.5 rounded-md text-[10px] font-black tracking-wider uppercase font-mono text-white",
-                      sandboxStatus >= 200 && sandboxStatus < 300 ? "bg-emerald-500" : "bg-rose-500"
+                      (sandboxStatus === -1 || (sandboxStatus >= 200 && sandboxStatus < 300)) ? "bg-emerald-500" : "bg-rose-500"
                     )}>
-                      Status {sandboxStatus}
+                      {sandboxStatus === 0 ? 'No response' : sandboxStatus === -1 ? 'HTTP 2xx (exact status unavailable)' : `Status ${sandboxStatus}`}
                     </span>
                   </div>
                 )}
@@ -462,7 +454,7 @@ fetch(url, {
               {!sandboxLoading && sandboxResult == null && (
                 <div className="p-4 md:p-8 text-center text-[var(--muted)] italic text-xs space-y-2 border border-dashed border-[var(--line)] bg-[var(--ink)]/50 rounded-xl">
                   <p>Execute an API query inside the left configuration deck to view operational responses in real-time.</p>
-                  <p className="text-[10px] text-slate-350 font-mono">Payload parameters are completely sanitised & verified against your active database ledger nodes.</p>
+                  <p className="text-[10px] text-slate-350 font-mono">Responses and refusals appear here after the request completes.</p>
                 </div>
               )}
 
@@ -471,7 +463,7 @@ fetch(url, {
                   <RefreshCw aria-hidden="true" size={24} className="animate-spin text-slate-550" />
                   <div className="space-y-1">
                     <p className="text-xs font-bold text-slate-700">Inquiring Integrity Ledger Gateways...</p>
-                    <p className="text-[10px] text-slate-450">Verifying signature key matching and double-entry transaction locks</p>
+                    <p className="text-[10px] text-slate-450">Waiting for the server response</p>
                   </div>
                 </div>
               )}
@@ -490,10 +482,6 @@ fetch(url, {
                     <pre className="font-mono text-xs leading-relaxed">
                       {JSON.stringify(sandboxResult, null, 2)}
                     </pre>
-                  </div>
-                  <div className="flex justify-between items-center bg-[var(--ink)] border border-slate-220/80 rounded-xl px-4 py-3 text-[10px] text-[var(--muted)] font-medium">
-                    <span className="flex items-center gap-1.5"><Shield aria-hidden="true" size={12} className="text-emerald-600" /> Double-entry verified successfully</span>
-                    <span className="font-mono text-slate-600">Computation: {sandboxStatus === 201 || sandboxEndpoint.includes('POST_brain') ? '15 units computed' : '1 unit computed'}</span>
                   </div>
                 </div>
               )}

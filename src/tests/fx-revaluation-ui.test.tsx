@@ -7,7 +7,8 @@ import './helpers/dom';
 import test, { afterEach, beforeEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useAuthStore } from '../stores/useAuthStore';
 import FxRevaluationPanel from '../components/finance/FxRevaluationPanel';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 import { addDaysYMD } from '../lib/fiscalCalendar';
@@ -71,6 +72,53 @@ describe('the revaluation panel', () => {
   // created here, so nothing has to be disposed — the panel is only ever rendered and clicked.
   afterEach(() => cleanup());
 
+  test('switching books clears a preview before posting', async () => {
+    stubRoutes({ '/revaluation/preview': { body: PLAN } });
+    render(<FxRevaluationPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await screen.findByRole('button', { name: 'Post it' });
+    const ws = useAuthStore.getState().workspaces[0];
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'other-books', workspaces: [ws, { ...ws, id: 'other-books', name: 'Other books' }] }));
+    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null);
+    assert.ok(screen.queryByText('INV-1') === null);
+  });
+
+  test('a delayed preview from old books cannot populate new books', async () => {
+    let finish!: (response: Response) => void;
+    globalThis.fetch = (() => new Promise<Response>(resolve => { finish = resolve; })) as typeof fetch;
+    render(<FxRevaluationPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await waitFor(() => assert.ok(finish));
+    const ws = useAuthStore.getState().workspaces[0];
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'other-books', workspaces: [ws, { ...ws, id: 'other-books', name: 'Other books' }] }));
+    await act(async () => { finish(Response.json(PLAN)); });
+    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null);
+    assert.ok(screen.queryByText('INV-1') === null);
+  });
+
+  test('a delayed posting response is not shown in a new workspace', async () => {
+    let finish!: (response: Response) => void;
+    globalThis.fetch = (async input => String(input).includes('/preview') ? Response.json(PLAN) : new Promise<Response>(resolve => { finish = resolve; })) as typeof fetch;
+    render(<FxRevaluationPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Post it' }));
+    await waitFor(() => assert.ok(finish));
+    const ws = useAuthStore.getState().workspaces[0];
+    act(() => useAuthStore.setState({ currentWorkspaceId: 'other-books', workspaces: [ws, { ...ws, id: 'other-books', name: 'Other books' }] }));
+    await act(async () => { finish(Response.json({ status: 'success', data: { ...PLAN, posted: true, transactionId: 'old-transaction' } })); });
+    assert.ok(screen.queryByText(/Posted for/) === null);
+    assert.ok(screen.queryByRole('button', { name: 'Undo it' }) === null);
+  });
+
+  test('a new sign-in invalidates the previous preview even for the same user', async () => {
+    stubRoutes({ '/revaluation/preview': { body: PLAN } });
+    render(<FxRevaluationPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await screen.findByRole('button', { name: 'Post it' });
+    await act(async () => { useAuthStore.getState().setUser(useAuthStore.getState().user); });
+    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null);
+  });
+
   test('the preview says what moves, in money and in the rates behind it', async () => {
     stubRoutes({ '/revaluation/preview': { body: PLAN } });
     render(<FxRevaluationPanel />);
@@ -132,26 +180,23 @@ describe('the revaluation panel', () => {
     assert.equal(calls[2].headers?.['Idempotency-Key'], firstKey);
   });
 
-  test('after it is posted, the panel says when it reverses and offers to undo it', async () => {
+  test('after posting, unsafe undo is paused with an explanation and sends no request', async () => {
     const calls = stubRoutes({
       '/commands/period.fxrevaluation': { body: { status: 'success', data: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } } },
-      '/commands/period.fxrevaluationundo': { body: { status: 'success', data: { transactionId: 'tx-reversal' } } },
       '/revaluation/preview': { body: PLAN },
     });
     render(<FxRevaluationPanel />);
+    assert.ok(screen.getByText(/Undo is temporarily unavailable while historical balance handling is reviewed/));
     fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
     await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Post it' })));
     fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
     await waitFor(() => assert.ok(screen.getByText(new RegExp(`reversing on ${TOMORROW}`))));
-    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null, 'a second press is not offered');
-    fireEvent.click(screen.getByRole('button', { name: 'Undo it' }));
-    await waitFor(() => assert.equal(calls.length, 3));
-    assert.deepEqual(calls[2].body, { workspaceId: 'component-workspace', input: { date: TODAY } }, 'undo names the day it undoes through the command API');
-    assert.match(calls[2].path, /\/commands\/period\.fxrevaluationundo$/);
-    assert.ok(calls[2].headers?.['Idempotency-Key'], 'undo carries its own retry key');
-    assert.notEqual(calls[2].headers?.['Idempotency-Key'], calls[1].headers?.['Idempotency-Key'], 'undo is a distinct idempotent operation');
-    await waitFor(() => assert.ok(screen.getByText('The revaluation is reversed.')));
-    assert.ok(screen.queryByRole('button', { name: 'Undo it' }) === null, 'the bare undo response clears the posted plan instead of crashing or offering undo again');
+    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null);
+    const undo = screen.getByRole('button', { name: 'Undo it' }) as HTMLButtonElement;
+    assert.equal(undo.disabled, true);
+    assert.ok(screen.getByText(/undoing an older revaluation can change historical balances/i));
+    fireEvent.click(undo);
+    assert.equal(calls.length, 2);
   });
 
   test('historical month-end asks for that day’s rates and tolerates an incomplete preview payload', async () => {

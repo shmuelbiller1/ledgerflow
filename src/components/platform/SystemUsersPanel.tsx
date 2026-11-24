@@ -10,7 +10,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 import type { SystemCommandCenterModel } from './SystemCommandCenter';
 export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel }) {
- const { formatPlatformUsdQuota, formId, usersList, editingUser, setEditingUser, savingUser, userFormState, setUserFormState, startEditingUser, handleSaveUser } = model;
+ const { formatPlatformUsdQuota, formId, usersList, usersError, editingUser, setEditingUser, savingUser, userFormState, setUserFormState, startEditingUser, handleSaveUser } = model;
 
   /**
    * One row per platform user: who they are, their role, the two limits (or "System Default" when
@@ -59,7 +59,9 @@ export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel })
                       <h2 className="text-[12px] font-black uppercase tracking-widest text-[var(--text)]">Platform User Ledger</h2>
                     </div>
                   </div>
-                  <TanStackDataGrid
+                  <p className="px-4 pt-4 text-sm text-[var(--muted)]">Showing at most 100 users; this is not a complete directory.</p>
+                  {usersError && <p role="alert" className="p-4 text-sm text-rose-700">{usersError}</p>}
+                  {!usersError && <TanStackDataGrid
                     caption="Platform users"
                     data={usersList}
                     columns={columns}
@@ -72,7 +74,7 @@ export function SystemUsersPanel({ model }: { model: SystemCommandCenterModel })
                     columnNames={['User Details', 'Role', 'Custom Limit ($)', 'Compute Limit (Cr)', 'Actions']}
                     emptyState={<EmptyState title="No user records yet" description="Users appear here when they sign in to this deployment." />}
                     filteredEmptyState={<EmptyState title="No user matches your search" description="Try another email, role or id." />}
-                  />
+                  />}
                 </div>
               </div>
 

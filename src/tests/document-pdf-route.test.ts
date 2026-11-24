@@ -80,6 +80,16 @@ describe('Document PDF downloads', { skip: !url && 'LF_TEST_DATABASE_URL not set
     assert.match(pdf, /Consulting/);
   });
 
+  test('the POST PDF alias accepts the workspace in its body and refuses an outsider', async () => {
+    const post = (uid: string) => fetch(`${base}/api/v1/documents/invoice/${id('inv')}/pdf`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-test-uid': uid }, body: JSON.stringify({ workspaceId: ws }),
+    });
+    const res = await post('owner-1');
+    assert.equal(res.status, 200); assert.equal(res.headers.get('content-type'), 'application/pdf');
+    assert.match(pdfText(Buffer.from(await res.arrayBuffer())), /INV-0007/);
+    assert.equal((await post('stranger-1')).status, 403);
+  });
+
   test("an estimate's PDF lists its lines (estimates keep `lines`, not `items`)", async () => {
     const res = await download('view-1', 'estimate', id('est'));
     assert.equal(res.status, 200);

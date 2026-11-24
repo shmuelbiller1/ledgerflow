@@ -196,6 +196,8 @@ export function useApiHubModel() {
 
   const generateNewKey = async () => {
     if (!currentWorkspace?.id || !user) return;
+    const requestedWorkspace = currentWorkspace.id;
+    const requestedUser = user.uid;
     setIsRegenerating(true);
     try {
       // a refusal throws with the server's own message, which is the sentence this toast was built from
@@ -210,8 +212,13 @@ export function useApiHubModel() {
           rateLimitPerMinute: perMinute,
         },
       });
+      if (useAuthStore.getState().currentWorkspaceId !== requestedWorkspace || useAuthStore.getState().user?.uid !== requestedUser) {
+        toast.info('A key was created in the previous workspace. Its secret is not shown after a workspace change; revoke it if it is not needed.');
+        return;
+      }
+      if (!data.apiKey) throw new Error('The server did not return the new key secret. Check the key list before trying again.');
       keyGeneration.current += 1;
-      setApiKey(data.apiKey ?? '');
+      setApiKey(data.apiKey);
       setIsCopied(false);
       toast.success('Developer API Key Provisioned', {
         description: 'New deep authentication token is ready for use. Store this safely.'
@@ -236,7 +243,8 @@ export function useApiHubModel() {
 
       toast.success('Key Revoked.');
       void loadWorkspaceKeys();
-      if (apiKey.startsWith(keyId)) {
+      if (sandboxSelectedKey.startsWith(`${keyId}.`)) setSandboxSelectedKey('');
+      if (apiKey.startsWith(`${keyId}.`)) {
         keyGeneration.current += 1;
         setApiKey('');
         setIsCopied(false);
@@ -276,8 +284,9 @@ export function useApiHubModel() {
     try {
       const auth = sandboxCredType === 'session'
         ? (user ? await getIdToken() : '')
-        : (sandboxSelectedKey || apiKey || publicKeys[0]?.id || '');
-      if (!auth) throw new Error('No API key selected or generated yet. Choose User Session instead, or generate a key.');
+        : sandboxSelectedKey.trim();
+      if (!auth) throw new Error('Enter the full API key, including its secret, or choose User Session.');
+      if (sandboxCredType === 'key' && (!auth.startsWith('lf_id_') || auth.split('.').length !== 2 || !auth.split('.')[1])) throw new Error('Enter the full API key in KeyID.SecretKey format.');
       const answer = await runCommand({
         path: `/api/v1/commands/${command}`,
         method: 'POST',
@@ -285,7 +294,8 @@ export function useApiHubModel() {
         body: { workspaceId: currentWorkspace?.id, input },
       });
       setSandboxLatency(Math.round(performance.now() - startedAt));
-      setSandboxStatus(200);
+      // runCommand hides the exact successful HTTP status; do not invent one.
+      setSandboxStatus(-1);
       setSandboxResult(answer ?? { ok: true });
       return true;
     } catch (error) {
@@ -406,12 +416,21 @@ export function useApiHubModel() {
       toast.error("Please select a workspace before running queries.");
       return;
     }
+    if (sandboxEndpoint === 'POST_v1_transactions' || sandboxEndpoint === 'POST_v1_transactions_bulk') {
+      toast.error('This form is unavailable: it does not provide the required balanced journal lines.');
+      return;
+    }
+    if (sandboxEndpoint === 'POST_ledger_match' && sandboxCredType === 'key') {
+      toast.error('Ledger matching requires a signed-in user session, not a developer API key.');
+      return;
+    }
     setSandboxLoading(true);
     setSandboxResult(null);
     setSandboxStatus(null);
     setSandboxLatency(null);
 
     const startTime = performance.now();
+    let responseStatus: number | null = null;
     try {
       let endpointUrl = '';
       let method = 'GET';
@@ -534,9 +553,9 @@ export function useApiHubModel() {
         const token = user ? await getIdToken() : '';
         authHeader = `Bearer ${token}`;
       } else {
-        const tokenToUse = sandboxSelectedKey || apiKey || (publicKeys[0] ? publicKeys[0].id : '');
-        if (!tokenToUse) {
-          throw new Error('No API Key selected or generated yet. Please select User Session instead or generate a key.');
+        const tokenToUse = sandboxSelectedKey.trim();
+        if (!tokenToUse.startsWith('lf_id_') || tokenToUse.split('.').length !== 2 || !tokenToUse.split('.')[1]) {
+          throw new Error('Enter the full API key in KeyID.SecretKey format, or choose User Session.');
         }
         authHeader = `Bearer ${tokenToUse}`;
       }
@@ -555,25 +574,32 @@ export function useApiHubModel() {
         body: bodyData ? JSON.stringify(bodyData) : undefined
       });
 
+      responseStatus = res.status;
       const endTime = performance.now();
       const duration = Math.round(endTime - startTime);
       setSandboxLatency(duration);
       setSandboxStatus(res.status);
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: unknown = { message: 'Empty response' };
+      if (text) {
+        try { data = JSON.parse(text); } catch { data = { responseText: text }; }
+      }
       setSandboxResult(data);
 
       void fetchLogs();
       void loadBillingStatus();
-      toast.success(`API Ingestion Completed in ${duration}ms`, {
-        description: `HTTP Status ${res.status}`
-      });
+      if (res.ok) {
+        toast.success(`API request completed in ${duration}ms`, { description: `HTTP status ${res.status}` });
+      } else {
+        toast.error('API request refused', { description: `HTTP status ${res.status}. See the response below.` });
+      }
 
     } catch (e) {
       console.error(e);
       const endTime = performance.now();
       setSandboxLatency(Math.round(endTime - startTime));
-      setSandboxStatus(500);
+      setSandboxStatus(responseStatus ?? 0); // Keep a received status even if reading its body failed.
       setSandboxResult({ error: errorMessage(e) });
       toast.error('Sandbox Execution Faulted', { description: errorMessage(e) });
     } finally {

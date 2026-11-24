@@ -368,7 +368,7 @@ export const SCREEN_HELP: Record<string, Record<string, string>> = {
       "One triage queue for what needs an accountant's review: open entry questions, held invoices, purchase orders and expense claims awaiting approval, unposted manual journal adjustments, and open period-lock exceptions. Filter by category and jump straight to the screen and record where each item is answered, approved, posted or closed. The queue reads current workspace state and posts nothing on its own.",
   },
   settings: {
-    "branding-profiles": "Choose the logo colour, address and footer that PDFs use for each label value, such as an entity or a branch. A value without its own branding inherits from its parent label, and then from the books. Owners and accountants edit it here; the saved branding applies to PDFs made after the save.",
+    "branding-profiles": "Preview existing branding overrides and inherited values for each label. Saving label-specific branding and applying it to PDFs are not available yet. To change PDF branding, use Branding & PDFs for the books.",
     "tax-profiles": "Review declared country, place, accounting basis and registrations for the books and each label value. Grey values inherit from the nearest parent or the books. Owners and accountants edit supported profile fields here; save confirms the server response and keeps the draft on refusal. A saved declaration is not a verified registration or a completed tax filing.",
     "scheduled-reports":
       "Choose a report to be emailed by itself after each finished week or month: the profit and loss, the balance sheet or receivables aging. The figures are in the email with a spreadsheet attached, and each period is sent once. Send now emails the last finished period straight away.",

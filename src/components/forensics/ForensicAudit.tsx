@@ -10,10 +10,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Brain,
-  History
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { civilDayOfMonth, civilMonthYear } from '../../lib/calendarDate';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
@@ -21,6 +19,12 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { runCommand } from '../../lib/runCommand';
 
 
+type Anomaly = { id: string; description: string; amountCents: number; reason: string };
+type Scan = { scope: string; state: 'loading' | 'ready' | 'error'; anomalies: Anomaly[] };
+function validAnomalies(value: unknown): value is Anomaly[] {
+  return Array.isArray(value) && value.every(row => row && typeof row.id === 'string' &&
+    typeof row.description === 'string' && Number.isSafeInteger(row.amountCents) && typeof row.reason === 'string');
+}
 
 const ForensicAudit = React.memo(() => {
   const transactions = useLedgerStore(s => s.transactions);
@@ -63,31 +67,28 @@ const ForensicAudit = React.memo(() => {
   // 2. Z-SCORE ANOMALY DETECTION
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId);
   const isGuest = useAuthStore(s => s.isGuest);
-  type Anomaly = import("../../types").Transaction & { zScore: number };
-  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
-  const [, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<Scan | null>(null);
+  const canScan = !isGuest && transactions.length >= 5 && Boolean(currentWorkspaceId);
+  const scan = canScan && scanResult?.scope === currentWorkspaceId ? scanResult : null;
 
   useEffect(() => {
-    async function scan() {
-      if (isGuest || transactions.length < 5 || !currentWorkspaceId) return;
-      setIsScanning(true);
+    if (!canScan || !currentWorkspaceId) return;
+    let active = true;
+    async function runScan(scope: string) {
+      setScanResult({ scope, state: 'loading', anomalies: [] });
       try {
-        const data = await runCommand<{ anomalies?: Anomaly[] }>({
-          path: '/api/v1/forensics/anomaly-scan',
-          method: 'POST',
-          body: { workspaceId: currentWorkspaceId },
-        }) ?? {};
-        if (data.anomalies) {
-          setAnomalies(data.anomalies);
-        }
+        const data = await runCommand<{ anomalies?: unknown }>({
+          path: '/api/v1/forensics/anomaly-scan', method: 'POST', body: { workspaceId: scope },
+        });
+        if (!validAnomalies(data?.anomalies)) throw new Error('Invalid anomaly response');
+        if (active) setScanResult({ scope, state: 'ready', anomalies: data.anomalies });
       } catch {
-        // Ignore background scan errors when offline or unauthenticated
-      } finally {
-        setIsScanning(false);
+        if (active) setScanResult({ scope, state: 'error', anomalies: [] });
       }
     }
-    void scan();
-  }, [isGuest, transactions, currentWorkspaceId]);
+    void runScan(currentWorkspaceId);
+    return () => { active = false; };
+  }, [canScan, transactions, currentWorkspaceId]);
 
   // 3. COMPLIANCE STATS
   const complianceStats = useMemo(() => {
@@ -127,8 +128,6 @@ const ForensicAudit = React.memo(() => {
     const confidence = Math.max(0, 100 - totalDiff);
     return `Pattern divergence is currently ${confidence > 90 ? 'nominal' : 'concerning'} (Confidence: ${confidence.toFixed(1)}%).`;
   }, [benfordAnalysis]);
-
-  const CURRENCY = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
   return (
     <div className="space-y-12 pb-24">
@@ -200,41 +199,26 @@ const ForensicAudit = React.memo(() => {
                     <Brain className="text-indigo-600" size={24} />
                     Statistical Outliers
                  </h2>
-                 <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">Z-Score Deviation Map (&gt;2.5σ)</p>
+                 <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">Server sample: at most 200 entries; not a complete audit. The scan may include drafts and mixed currencies.</p>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-[9px] font-medium uppercase tracking-wider border border-amber-500/20">
-                 High Sensitivity Active
+                 Limited sample
               </div>
            </div>
 
            <div className="space-y-4">
-              {anomalies.length > 0 ? anomalies.map((t, _i: number) => (
-                 <div key={t.id} className="p-6 bg-[var(--ink)] rounded-[32px] border border-[var(--line)] flex items-center justify-between group hover:border-indigo-600 transition-all">
-                    <div className="flex items-center gap-6">
-                       <div className="w-12 h-12 bg-[var(--surface)] rounded-[32px] flex items-center justify-center text-[var(--text)] border border-[var(--line)] font-black text-sm">
-                          {civilDayOfMonth(t.date)}
-                       </div>
-                       <div>
-                          <p className="text-sm font-black text-[var(--text)] tracking-tight">{t.description}</p>
-                          <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest flex items-center gap-2 mt-1">
-                             {t.lines?.[0]?.accountName} • <span className="text-rose-600">Deviation: {t.zScore.toFixed(2)}σ</span>
-                          </p>
-                       </div>
+              {!canScan ? <p role="status">The server scan needs a signed-in workspace and at least five loaded entries.</p>
+                : !scan || scan.state === 'loading' ? <p role="status">Scanning…</p>
+                : scan.state === 'error' ? <p role="alert">The anomaly scan is unavailable. No result is shown.</p>
+                : scan.anomalies.length > 0 ? scan.anomalies.map(t => (
+                 <div key={t.id} className="p-6 bg-[var(--ink)] rounded-[32px] border border-[var(--line)] flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-black text-[var(--text)] tracking-tight">{t.description}</p>
+                      <p className="text-xs text-[var(--muted)]">{t.reason}</p>
                     </div>
-                    <div className="text-right">
-                       <p className="text-lg font-black text-[var(--text)] mono-value tabular-nums">{CURRENCY.format(Math.abs(t.totalAmountCents) / 100)}</p>
-                       <p className="text-[9px] font-black text-[var(--muted)] flex items-center justify-end gap-1 mt-1">
-                          <History size={10} />
-                          {civilMonthYear(t.date)}
-                       </p>
-                    </div>
+                    <p className="text-sm text-[var(--text)]">{t.amountCents.toLocaleString()} minor units (currency not supplied)</p>
                  </div>
-              )) : (
-                 <div className="h-60 flex flex-col items-center justify-center text-[var(--muted)] space-y-4 border-2 border-dashed border-[var(--line)] rounded-[32px]">
-                    <ShieldAlert size={48} className="opacity-10" />
-                    <p className="text-xs font-medium uppercase tracking-wider opacity-40">No significant statistical anomalies detected.</p>
-                 </div>
-              )}
+              )) : <p role="status">No outliers were returned for this limited sample.</p>}
            </div>
         </div>
 

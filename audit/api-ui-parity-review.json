@@ -1,0 +1,2674 @@
+{
+  "schema_version": 1,
+  "revision": "49b90b7cee28892d5bee1ff66c3504b3f58513ef",
+  "revision_scope": "HEAD plus current working-tree changes; revision alone does not identify the audited tree",
+  "scope_and_limits": "The scanner has inventoried 386 route registrations and triaged unmatched static caller records; all matrix rows have at least one scenario attached. This is not a complete route-by-route behavioral, auth, contract, runtime or browser audit: some evidence is refusal-only, mocked, injected, or a narrow scenario, and static matches are not proof of working workflows or absence of consumers. Further success, failure, role, state-transition, UI, financial and provider verification remains open.",
+  "original_report_summary": {
+    "route_registrations": 384,
+    "no_static_caller_found": 188,
+    "possible_dynamic_match": 151,
+    "matched_static": 45
+  },
+  "current_report_summary": {
+    "resolved_route_registrations": 386,
+    "route_status": {
+      "matched_static": 82,
+      "no_static_caller_found": 133,
+      "possible_dynamic_match": 171
+    },
+    "caller_records": 320,
+    "transport_sites": 231,
+    "caller_status": {
+      "matched_static": 110,
+      "possible_dynamic_match": 167,
+      "unresolved": 41,
+      "unresolved_dynamic": 2
+    },
+    "unresolved_route_registrations": 0,
+    "unmounted_route_registrations": 1,
+    "middleware_mounts_for_review": 37
+  },
+  "confirmed_findings": [
+    {
+      "id": "AUP-01",
+      "severity": "high",
+      "classification": "confirmed_product_gap",
+      "title": "Label-specific branding cannot be saved or applied to PDF documents",
+      "evidence": [
+        "src/components/platform/settings/BrandingProfilesSettings.tsx:154",
+        "server.ts:136",
+        "src/server/routes/workspaceRoutes.ts:156",
+        "src/server/services/pdfService.ts:65",
+        "src/server/services/pdfService.ts:157",
+        "docs/archive/COORDINATION_ARCHIVE.md:1695"
+      ],
+      "impact": "The proposed PUT /branding-profiles has no server registration in this revision. The PDF service reads workspace.branding, not brandingProfiles. Previously the screen and help claimed label branding would apply to PDFs; saving led to 404.",
+      "mitigation": "Save is disabled and the submit handler guarded; the screen and English/Hebrew help disclose that edits are local and PDFs use books branding. Existing profiles remain inspectable.",
+      "remaining_work": "Full fix is still open: server-owner must implement an authorized, concurrency-safe write contract and label resolution in PDF generation, with end-to-end tests before enabling save. No server, accounting, or permission bypass was introduced."
+    },
+    {
+      "id": "AUP-03",
+      "severity": "high",
+      "classification": "confirmed_product_bug_fixed",
+      "title": "API Platform marked HTTP failures as successes and displayed invented verification and usage claims",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:553",
+        "src/components/platform/ApiHubSandbox.tsx:440",
+        "src/tests/api-hub-response.test.tsx:16"
+      ],
+      "impact": "A non-2xx response produced a success toast, and every displayed response claimed double-entry verification and unmeasured computation units, even when the endpoint was a status query or refused the request.",
+      "fix": "Preserve HTTP status and response body including non-JSON bodies, distinguish a network failure from HTTP 500, show error feedback for non-2xx, and remove unverified claims.",
+      "remaining_work": "Named commands now show HTTP 2xx with exact status unavailable instead of an invented 200. Live API and browser checks remain open."
+    },
+    {
+      "id": "AUP-02",
+      "severity": "medium",
+      "classification": "confirmed_workflow_limitation",
+      "title": "No dedicated stock-closing action in the stock closing panel",
+      "evidence": [
+        "src/components/reporting/StockClosingPanel.tsx:8",
+        "src/components/reporting/StockClosingPanel.tsx:62",
+        "src/lib/commandManifests.generated/inventory.ts:27",
+        "src/components/platform/ApiHubSandbox.tsx:57",
+        "src/components/platform/useApiHubModel.ts:270"
+      ],
+      "impact": "The panel can read a closing but does not offer a take-closing action; the named command is available through the API Platform. Absence of a direct POST caller does not imply the operation is entirely inaccessible.",
+      "remaining_work": "Product owner to decide whether to add a discoverable owner-only action and confirm locked-period, stale scope, idempotency and refusal behavior. No financial mutation flow was added."
+    },
+    {
+      "id": "AUP-04",
+      "severity": "high",
+      "classification": "confirmed_product_bug_mitigated",
+      "title": "Admin workspace edits used fabricated or incomplete telemetry, and bulk sync could report success after HTTP refusal",
+      "evidence": [
+        "src/components/platform/SystemCommandCenter.tsx",
+        "src/components/platform/SystemTelemetryPanel.tsx",
+        "src/server/routes/adminRoutes.ts:39-146",
+        "src/schemas.ts:383-397",
+        "src/tests/system-command-center-connections.test.tsx"
+      ],
+      "impact": "Previously workspace edits and bulk sync could overwrite unrelated billing fields using browser-derived defaults, and bulk sync never inspected HTTP responses. The server telemetry caps the list at 100, queries shards and transactions only for the first 30, and estimates log attribution; derived balances cannot safely be written back as base balances.",
+      "mitigation": "Reads now use authenticated admin telemetry/users endpoints with explicit failures; workspace edit and bulk sync controls and handlers are disabled. The UI identifies the limits and suppresses unreliable credit and transaction totals. This intentionally suspends functionality; it is not a completed bulk-sync fix.",
+      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. Telemetry failure currently prevents access to other Admin Panel tabs."
+    },
+    {
+      "id": "AUP-05",
+      "severity": "high",
+      "classification": "confirmed_product_bug_fixed_in_ui",
+      "title": "Global config save expected the wrong response field and failed to protect an unloaded default",
+      "evidence": [
+        "src/server/routes/adminRoutes.ts:383-443",
+        "src/components/platform/SystemCommandCenter.tsx",
+        "src/tests/system-command-center-connections.test.tsx"
+      ],
+      "impact": "PUT returns data, not globalAdminConfig. The previous UI replaced state with undefined after success; default values could be submitted after a failed GET. Server responses can contain metadata that a strict update schema rejects.",
+      "fix": "Require a valid loaded configuration before saving; consume data from the PUT response, retain only schema fields, and report success. Mocked test verifies two sequential saves and no metadata in either payload.",
+      "remaining_work": "Backend and deployed behavior are not live tested; server config is process-local and its synchronization guarantees need separate investigation."
+    },
+    {
+      "id": "AUP-06",
+      "severity": "high",
+      "classification": "confirmed_product_bug_fixed_in_ui",
+      "title": "Playground selected key IDs instead of the full bearer credential",
+      "evidence": [
+        "src/server/auth/apiAuthenticate.ts:103-145",
+        "src/components/platform/useApiHubModel.ts",
+        "src/components/platform/ApiHubSandbox.tsx",
+        "src/tests/api-parity-auth-http.test.ts",
+        "src/tests/api-hub-response.test.tsx"
+      ],
+      "impact": "Key IDs alone are not credentials: the real middleware refuses them. The old selector chose IDs even when a full newly provisioned token was present. Inserting a pasted secret in example snippets would have exposed it.",
+      "fix": "Require a full key in a password input for direct and command requests, do not place it in generated examples, clear state on user/workspace switch, and locally reject developer keys for the session-only ledger matching route.",
+      "verification": "Real authentication middleware rejected a missing token and a key ID without secret; mocked UI tests cover full-key header, direct and command actions, secret-free snippets and workspace change. A valid key against a real database and provider remains untested."
+    },
+    {
+      "id": "AUP-07",
+      "severity": "high",
+      "classification": "confirmed_product_bug_mitigated",
+      "title": "Playground transaction forms and API docs used a non-contract payload and promised a dry run",
+      "evidence": [
+        "src/server/routes/transactions/crudRoutes.ts:130-155",
+        "src/server/routes/transactions/helpers.ts",
+        "src/server/commands/ledgerBulk.ts:10-33",
+        "src/components/platform/useApiHubModel.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx",
+        "src/tests/api-hub-response.test.tsx"
+      ],
+      "impact": "The single transaction form sent flat fields with no transaction envelope or balanced lines; the bulk form also supplied unbalanced rows. Both exposed a dryRun field that the actual route does not promise to honor. The documentation wrongly claimed automatic balancing.",
+      "mitigation": "Both unsafe forms are disabled and guarded, and the transaction documentation now shows a balanced object and says it creates an entry. Proper transaction forms and verified preview support remain to be implemented. The command forms are explicitly described as real actions.",
+      "verification": "Mocked component tests prove the disabled actions send no POST, including a programmatic dry-run selection; documentation example passes the transaction schema with server-provided uid and balances to zero. No posting or database test was performed."
+    },
+    {
+      "id": "AUP-08",
+      "severity": "high",
+      "classification": "reproduced_ui_risk_needs_server_fix",
+      "title": "Time-to-invoice retry state is lost when the Time screen remounts",
+      "evidence": [
+        "src/components/collaboration/TimeView.tsx:58",
+        "src/components/collaboration/TimeView.tsx:120-160",
+        "src/server/services/timeService.ts:346-378",
+        "audit/time-invoice-retry-probe.tsx",
+        "docs/COORDINATION.md"
+      ],
+      "impact": "A simulated successful invoice-create followed by a failed time-link request and a screen remount sent a second invoice-create request for the same approved time. The current same-mount recovery ref is not durable. Issue #97 is closed but this distinct remount case remains a risk.",
+      "verification": "A fault-injection component probe recorded two create requests and two failed link requests; it does not prove actual database persistence or an independently duplicated posting.",
+      "remaining_work": "Server owner to implement atomic or durable idempotent create-and-link, with concurrency, unknown-response and remount/reload tests. The accounting flow was not patched in this audit."
+    },
+    {
+      "id": "AUP-09",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Invoice send log and watched-record list hid failed reads as empty lists",
+      "evidence": [
+        "src/components/sales/InvoiceEmailDialog.tsx",
+        "src/server/routes/emailRoutes.ts:58",
+        "src/components/collaboration/WatchingPanel.tsx",
+        "src/server/routes/taskRoutes.ts:66",
+        "src/tests/api-parity-invoice-email.test.tsx",
+        "src/tests/api-parity-watching.test.tsx"
+      ],
+      "impact": "A refused or failed request was displayed as no emails or no watched records, concealing unknown data.",
+      "mitigation": "Both screens show a refusal and retry; malformed success envelopes are refused. A pending watch-list read does not permit new watches.",
+      "remaining_work": "Mocked component tests verify request and feedback, not real database, authentication or email delivery."
+    },
+    {
+      "id": "AUP-10",
+      "severity": "medium",
+      "classification": "confirmed_source_defect",
+      "title": "Workspace developer list reports an empty success when its database query fails",
+      "evidence": [
+        "src/server/routes/workspaceApiRoutes.ts:34",
+        "src/server/routes/workspaceApiRoutes.ts:51"
+      ],
+      "impact": "A database query failure is caught and translated into HTTP 200 success with zero workspaces, so API consumers cannot distinguish failed lookup from a genuinely empty owned-workspace list. Only owned workspaces are queried.",
+      "mitigation": "Reported to the server owner; no server logic changed.",
+      "remaining_work": "Server owner should return a failure for database errors, clarify owned-only versus member list, and add database-fault and client regression tests. No database fault was injected here."
+    },
+    {
+      "id": "AUP-11",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Receipt scan sent failed document downloads to OCR as though they were image bytes",
+      "evidence": [
+        "src/components/forensics/Vault.tsx",
+        "src/services/aiService.ts",
+        "src/tests/agent7-2026-11-16-vault-remediations.test.tsx"
+      ],
+      "impact": "An HTTP error page or missing document was converted to a file and sent to the AI reader instead of stopping at the failed download. This could mislead a user and unnecessarily invoke a provider.",
+      "mitigation": "Check response.ok, surface the HTTP status and stop before OCR; unsafe document URLs now replace the existing loading toast.",
+      "remaining_work": "Mocked 404 regression and existing Vault tests pass; actual external documents, OCR service, auth and downstream posting were not tested."
+    },
+    {
+      "id": "AUP-14",
+      "severity": "high",
+      "classification": "isolated_database_reproduced_contract_mismatch",
+      "title": "Billing status omits the subscription fields required to show Manage Portal",
+      "evidence": [
+        "src/components/platform/settings/BillingSettings.tsx",
+        "src/server/routes/billingRoutes.ts:185-218",
+        "src/model/workspace.ts",
+        "audit/billing-webhook-order-probe.ts"
+      ],
+      "impact": "Manage Portal is conditioned on billingStatus.stripeSubscriptionId, but the status response does not include that property; paymentStatus is also absent. A cached workspace may separately contain paymentStatus.",
+      "mitigation": "Server-owner handoff in docs/COORDINATION.md; no billing changes made.",
+      "remaining_work": "Test owner/viewer and status-failure/workspace-switch behavior with actual authentication; decide an authorized status contract. The local status response omitted both properties even when stored; UI behavior is source-derived, not browser-tested."
+    },
+    {
+      "id": "AUP-15",
+      "severity": "high",
+      "classification": "isolated_database_reproduced",
+      "title": "Billing verification and webhook use separate idempotency boundaries",
+      "evidence": [
+        "src/server/routes/billingRoutes.ts:124-184",
+        "src/server/routes/stripeWebhookRoutes.ts:34-102",
+        "src/tests/cmd1-protocol-boundaries.test.ts:187-216",
+        "docs/COORDINATION.md",
+        "audit/billing-webhook-order-probe.ts"
+      ],
+      "impact": "On isolated PostgreSQL, real webhook-first then verify-session granted 2,000,000 credits for a 1,000,000-credit plan, while verify-first granted 1,000,000. Stripe retrieval was mocked and the billing user injected. The separate source-derived failure window after the verification claim remains untested.",
+      "mitigation": "Handed to AI #1 for atomic shared entitlement/idempotency design and fault/order/concurrency regression tests; server code unchanged.",
+      "remaining_work": "AI #1 to resolve shared atomic idempotency, add concurrent delivery and claim/update failure tests, and verify with real authentication/provider as appropriate."
+    },
+    {
+      "id": "AUP-16",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Billing usage could remain stale across workspaces or disappear on failure",
+      "evidence": [
+        "src/components/platform/settings/UsagePanel.tsx",
+        "src/server/routes/workspaceRoutes.ts:220-226",
+        "src/tests/api-parity-usage.test.tsx",
+        "src/tests/workspace-usage.test.tsx"
+      ],
+      "impact": "The previous workspace usage remained visible until the next fetch finished, and an error silently hid the panel. A malformed usage object could break rendering.",
+      "mitigation": "Key displayed usage by workspace/user/request, ignore obsolete responses, validate meter shape, and show loading plus retryable error.",
+      "remaining_work": "Isolated DB/router test passed meter values, viewer and outsider cases with injected identity; UI tests remain mocked. No live browser or production auth."
+    },
+    {
+      "id": "AUP-17",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Public status page described configuration checks as working services",
+      "evidence": [
+        "src/components/system/StatusPage.tsx",
+        "src/server/services/statusService.ts",
+        "src/server/routes/statusRoutes.ts",
+        "src/tests/status-page.test.tsx"
+      ],
+      "impact": "Status service marks sign-in, email, payments and bank feeds operational from configured environment alone; page counted them as working and claimed everything worked despite not testing those providers. Malformed responses could crash the page.",
+      "mitigation": "Distinguish configuration from live provider checks, exclude those rows from the operational-check count, qualify the headline and handle malformed status responses.",
+      "remaining_work": "UI and fake-database status-service tests passed; no deployed endpoint, live database, provider connectivity or actual payment test."
+    },
+    {
+      "id": "AUP-18",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Sign-in activity hid failures and mislabeled other authentication events as sign-ins",
+      "evidence": [
+        "src/components/platform/settings/SecuritySettings.tsx",
+        "src/server/routes/authRoutes.ts:89-136",
+        "src/server/services/authAuditService.ts",
+        "src/tests/api-parity-signin-activity.test.tsx",
+        "https://github.com/shmuelbiller1/ledgerflow/issues/945"
+      ],
+      "impact": "Fetch failure or malformed response appeared as no recent sign-ins; logout and token refresh events were displayed as sign-ins, and prior-account results could remain visible after switching user. The route accepts login, logout, and token_refresh but not failed_login; the screen cannot be presented as complete failed-attempt monitoring.",
+      "mitigation": "Identify event types correctly, disclose the bounded/incomplete history, show loading and retryable errors, and isolate results by signed-in user.",
+      "remaining_work": "Mocked UI tests only; no live authentication, database/RLS or browser verification. Failed-login recording is part of open issue #945 and remains in the server-owner lane."
+    },
+    {
+      "id": "AUP-12",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Private links could display missing-token links, claim copying without a clipboard, or act on stale contexts",
+      "evidence": [
+        "src/components/sales/CustomerPortalLink.tsx",
+        "src/components/sales/EstimateSignLink.tsx",
+        "src/server/routes/customerPortalRoutes.ts",
+        "src/server/routes/estimateSignRoutes.ts",
+        "src/tests/api-parity-private-links.test.tsx"
+      ],
+      "impact": "An accepted response without a token yielded /c/undefined or /e/undefined; absent clipboard support was reported as copied. A late request could update cache or copy a link after switching context. An uncertain portal revoke/rotation could leave an old link presented as current.",
+      "mitigation": "Reject missing tokens, accurately report clipboard availability, guard stale user/workspace/customer/estimate results and repeated activation; hide the cached portal link after an uncertain change and require reloading authoritative state.",
+      "remaining_work": "Isolated database/router tests now cover portal link creation/rotation/revocation and estimate signing with injected identities; mock UI covers error and stale contexts. No live provider, actual browser clipboard or production auth/deployment verification."
+    },
+    {
+      "id": "AUP-13",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Entry-link read failures could look like an empty list",
+      "evidence": [
+        "src/components/transactions/EntryLinks.tsx",
+        "src/server/routes/taskRoutes.ts:103-131",
+        "src/tests/api-parity-entry-links.test.tsx",
+        "src/tests/entry-links.test.tsx"
+      ],
+      "impact": "A failed GET left an empty list for writers and hid the section for readers, potentially obscuring existing relationships and enabling writes while the list was unknown.",
+      "mitigation": "Show loading and retryable read errors, validate link lists, isolate state by workspace/user/transaction, block writes when state is unknown, prevent duplicate pending writes and require a fresh read after uncertain mutation responses.",
+      "remaining_work": "Isolated database/router test passed link creation, scoped read, deletion and role cases with injected identities; UI tests remain mocked. No live authentication or browser verification."
+    },
+    {
+      "id": "AUP-19",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Admin audit viewer could present failed reads as empty results or display stale filters",
+      "evidence": [
+        "src/components/admin/AuditLogViewer.tsx",
+        "src/server/routes/adminRoutes.ts:316-336",
+        "src/tests/audit-log-viewer.test.tsx"
+      ],
+      "impact": "HTTP refusals and network errors previously fell through to an empty or stale list; overlapping requests could show results for an earlier filter, and the record detail hardcoded PRODUCTION regardless of environment.",
+      "mitigation": "Surface read failures and malformed records, order requests, clear on user change, label the result as limited, and remove the unsupported environment claim.",
+      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. Route returns doc.data() without explicitly attaching doc.id; older rows lacking an id are rejected rather than silently displayed, and need a server-owner contract decision."
+    },
+    {
+      "id": "AUP-20",
+      "severity": "medium",
+      "classification": "confirmed_product_gap",
+      "title": "Failed notification preference reads were treated as default choices",
+      "evidence": [
+        "src/components/layout/NotificationDrawer.tsx",
+        "src/hooks/useNotificationFeed.ts",
+        "src/server/routes/accountRoutes.ts:172-186",
+        "src/tests/notification-email.test.tsx"
+      ],
+      "impact": "A failed profile preference read became empty/default preferences and a failed email-mode read became off, so the UI could misrepresent existing choices and allow writes based on guessed state. Two independent writes could partially succeed while reporting a generic failure.",
+      "mitigation": "Require successful reads and a valid email mode before saving, offer retry, isolate identity, block duplicate submits, and disclose partial save uncertainty while retaining the draft. Guest mode shows email preferences as unavailable.",
+      "remaining_work": "Isolated database tests passed email mode read/write and digest delivery with injected user and mocked mail transport. No actual provider, live auth, browser or atomic multi-write verification."
+    },
+    {
+      "id": "AUP-21",
+      "severity": "high",
+      "classification": "source_confirmed_concurrency_risk",
+      "title": "Inbox batch filing omits an available version guard and applies a response to the current cache",
+      "evidence": [
+        "src/components/ledger/InboxView.tsx:136-171",
+        "src/server/services/ledgerBatchUpdate.ts:140-154",
+        "src/lib/recordVersion.ts:25-29",
+        "src/tests/eu-c1-review-reasons.test.tsx",
+        "docs/COORDINATION.md",
+        "audit/inbox-version-scope-probe.tsx"
+      ],
+      "impact": "A mocked fault-injection probe observed an Inbox request omit the cached version and an old response patch a switched workspace cache containing the same ID. Server source skips the version check without the value, so a concurrent permitted edit may be overwritten if other ledger guards pass. No actual database overwrite or production ID collision was established.",
+      "mitigation": "Handed to AI #1 for authoritative concurrency design and isolated DB/browser regressions. No money/posting code changed.",
+      "remaining_work": "Exercise concurrent same-entry edits, legacy missing timestamps, 409 handling, workspace/user transitions and server-accepted-but-response-lost behavior. Mocked UI tests do not prove accounting or persistence."
+    },
+    {
+      "id": "AUP-22",
+      "severity": "high",
+      "classification": "mocked_hook_reproduced_stale_opening",
+      "title": "Same-count edits on the cutoff day do not refresh server opening balances",
+      "evidence": [
+        "src/hooks/useServerOpening.ts",
+        "src/lib/serverBalances.ts",
+        "src/stores/useLedgerStore.ts",
+        "audit/opening-refresh-probe.test.tsx",
+        "src/tests/l123-step3-balances.test.tsx"
+      ],
+      "impact": "Opening fetch key depends on workspace, cutoff date and transaction count, not contents or versions. A mocked hook probe changed a cutoff-day entry without changing count or date and observed no new request and the old opening. Since entriesAfter excludes the cutoff day, computed balances can remain stale after such an edit. Real concurrent DB/UI edit behavior not tested.",
+      "mitigation": "AI #1 handoff; no accounting/store/server changes made.",
+      "remaining_work": "Test actual committed cutoff-day edits and remote changes, scope and race cases; design safe refresh/invalidation without excess request churn."
+    },
+    {
+      "id": "AUP-23",
+      "severity": "medium",
+      "classification": "ui_mitigated_component_mocked",
+      "title": "Schedule success payload could crash or silently omit the schedule",
+      "evidence": [
+        "src/components/platform/settings/ScheduleSettings.tsx",
+        "src/tests/job-schedule-ui.test.tsx"
+      ],
+      "impact": "Previously a success envelope was cast without validation; missing schedule silently rendered nothing and malformed jobs/date/outcomes could throw.",
+      "mitigation": "Validate rendered fields, job outcomes and IDs; report unreadable schedule. Mocked UI tests cover malformed payloads.",
+      "remaining_work": "Validate live authenticated schedule response and scheduler behavior."
+    },
+    {
+      "id": "AUP-24",
+      "severity": "high",
+      "classification": "ui_mitigated_mocked_sdk",
+      "title": "Stale Plaid Link callback could connect in the old workspace and malformed tokens left the UI loading",
+      "evidence": [
+        "src/components/finance/PlaidConnectButton.tsx",
+        "src/tests/plaid-link-lifecycle.test.tsx",
+        "src/server/routes/plaidRoutes.ts",
+        "src/tests/plaid.test.ts"
+      ],
+      "impact": "Before the fix a fake Plaid SDK callback captured in one workspace still sent a token exchange after switching workspaces; a 200 response lacking link_token left the button disabled. A request already sent before a switch may still commit despite client abort.",
+      "mitigation": "Scope the launcher to workspace and user, reject stale callbacks and duplicate callbacks, abort obsolete requests, validate link-token and write response, show a recovery warning when connection state is uncertain. Tested with fake SDK/mock fetch; real-router isolated DB tests use fake Plaid.",
+      "remaining_work": "Validate actual Plaid lifecycle/provider and account switch in browser; assess server-side idempotency and uncertain-result recovery for an exchange already sent."
+    },
+    {
+      "id": "AUP-25",
+      "severity": "medium",
+      "classification": "isolated_database_reproduced",
+      "title": "Closed-period bank-line commands return generic HTTP 500 instead of an actionable refusal",
+      "evidence": [
+        "audit/bank-lock-status-probe.sh",
+        "src/tests/security-s8-s38-s39-isolation.test.ts",
+        "src/server/commands/reconciliations.ts",
+        "src/server/routes/transactions/reconcileRoutes.ts"
+      ],
+      "impact": "The synthetic isolated-DB S-39 fixture returns HTTP 500 and “An internal server error occurred.” for named reconciliations.banklinepay and reconciliations.banklinesplit calls on a closed-period bank line. The test confirms the counted rows remain unchanged. This is a refusal-message/status problem, not a demonstrated financial write. The legacy UI-facing routes share command definitions but their exact closed-period response has not been independently tested.",
+      "mitigation": "Reported to AI #1; no server/accounting code changed. Probe intentionally asserts current behavior and should not be treated as a desired regression test.",
+      "remaining_work": "Map the underlying closed-period refusal to an actionable 4xx for named and legacy routes; add exact response and no-write tests, including the UI."
+    },
+    {
+      "id": "AUP-26",
+      "severity": "medium",
+      "classification": "isolated_database_reproduced",
+      "title": "Legacy project creation repeats even with the same idempotency header",
+      "evidence": [
+        "src/tests/cmd1-developer-writes.test.ts",
+        "src/server/routes/developerApiRoutes.ts",
+        "src/components/platform/useApiHubModel.ts",
+        "src/components/platform/ApiHubSandbox.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/tests/api-hub-response.test.tsx"
+      ],
+      "impact": "On an isolated local Express router/database with a real test-scoped API key, two identical POST /api/v1/projects requests using the same Idempotency-Key produced two 201 responses and two distinct project IDs. API Hub exposes this endpoint and sample integrations. An uncertain response followed by retry can therefore create a duplicate; production occurrence and session-auth behavior were not demonstrated.",
+      "mitigation": "The API Hub project playground and project documentation now warn that retry can create another project and advise checking the project list. This is not server-side idempotency.",
+      "remaining_work": "AI #1 should decide a compatible idempotency/recovery contract for the legacy endpoint; cover repeated, changed-payload, concurrent and lost-response requests, and actual UI/provider auth."
+    },
+    {
+      "id": "AUP-27",
+      "severity": "low",
+      "classification": "isolated_database_reproduced",
+      "title": "Legacy project API returns HTTP 500 when the workspace developer quota is exceeded",
+      "evidence": [
+        "src/tests/cmd1-developer-writes.test.ts",
+        "src/server/services/developerUsageQuota.ts",
+        "src/server/routes/developerApiRoutes.ts"
+      ],
+      "impact": "The isolated scoped-API-key test observes POST /api/v1/projects returning HTTP 500 with a QUOTA_EXCEEDED message, while the named project.create command returns 429 for the corresponding quota condition. The test confirms no forbidden project write; no production or browser behavior was measured.",
+      "mitigation": "Reported to server owner; no quota or server code changed.",
+      "remaining_work": "AI #1 should choose and test a consistent client-actionable quota response without breaking existing integrations."
+    },
+    {
+      "id": "AUP-28",
+      "severity": "high",
+      "classification": "isolated_database_reproduced",
+      "title": "Developer metrics summary counts drafts and forecasts and sums raw foreign amounts",
+      "evidence": [
+        "audit/developer-read-probe.test.ts",
+        "src/server/routes/metricsAuditRoutes.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx",
+        "src/tests/api-hub-response.test.tsx"
+      ],
+      "impact": "Local full Express app and PostgreSQL, real test-scoped API key, synthetic entries: GET /api/v1/metrics/summary reported gross revenue of 70,000 cents where GET /api/v1/metrics reported 30,000 cents for the same books. The summary counted draft and forecast entries and used 10,000 raw EUR cents rather than 20,000 USD cents at rate 2. An API Hub document had described the summary as financial figures. No live data or production impact measured.",
+      "mitigation": "API Hub summary documentation warns not to use this endpoint as an authoritative financial report. This does not change external API results.",
+      "remaining_work": "AI #1: align summary with posted, converted book amounts and agreed period/currency semantics, and test draft, forecast, void, mixed currency and supported book currencies against authoritative reports."
+    },
+    {
+      "id": "AUP-29",
+      "severity": "high",
+      "classification": "isolated_database_reproduced",
+      "title": "Shifting metrics can present fabricated fallback figures as real metrics",
+      "evidence": [
+        "audit/developer-read-probe.test.ts",
+        "src/server/routes/metricsAuditRoutes.ts",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubSandbox.tsx",
+        "src/tests/api-hub-response.test.tsx"
+      ],
+      "impact": "Local full app/database: with zero operating expense, GET /api/v1/metrics returned monthlyBurnCents 400,000. Source shows further fallback/assumption values and labels revenue minus expense netOperatingCashFlowCents; this is not a cash-flow statement. Browser consumers or external integrations may mistake these for observed metrics; production impact unmeasured.",
+      "mitigation": "API Hub docs and sandbox warn that shifting values include assumptions/fallbacks and that the cash-flow-named field is not a cash-flow statement. API results remain unchanged.",
+      "remaining_work": "AI #1: remove or explicitly distinguish assumptions and unavailable data; define truthful metric/currency semantics, including zero and foreign-currency cases, and test real API consumers."
+    },
+    {
+      "id": "AUP-30",
+      "severity": "high",
+      "classification": "isolated_database_reproduced",
+      "title": "Legacy bank CSV parser silently drops invalid rows and substitutes dates",
+      "evidence": [
+        "audit/bank-csv-observation.test.ts",
+        "src/server/routes/logsUploadRoutes.ts",
+        "src/components/ledger/BankFeedImport.tsx",
+        "src/components/ledger/Ledger.tsx",
+        "src/hooks/useSystemContext.ts",
+        "src/tests/af001-csv-bank-account.test.tsx"
+      ],
+      "impact": "The local app and isolated DB accepted a synthetic CSV, returned 200 with an invalid-amount row omitted, and changed an invalid date to the current UTC day without returning row warnings. The upload alone did not write ledger rows. The staged UI can send imported transactions to the ledger action, risking incomplete or incorrectly dated entries if not carefully checked; downstream write and production behavior were not tested.",
+      "mitigation": "BankFeedImport now warns about omissions and date substitution and requires users to confirm comparison of row count, dates and amounts before importing. This is a caution, not a parser fix or guarantee of comparison.",
+      "remaining_work": "AI #1: return actionable per-row errors or fail closed without substituting dates or values; review two-column amount parsing, timezone/format semantics and import/retry/UI behavior; replace the observation with desired regression tests."
+    },
+    {
+      "id": "AUP-31",
+      "severity": "high",
+      "classification": "isolated_database_contract_and_component_reproduced",
+      "title": "Forensic screen expects fields absent from anomaly-scan responses",
+      "evidence": [
+        "audit/forensic-route.test.ts",
+        "src/server/routes/labelingRoutes.ts",
+        "src/components/forensics/ForensicAudit.tsx",
+        "src/tests/api-parity-forensic-scan.test.tsx",
+        "audit/forensic-full-loop.test.tsx"
+      ],
+      "impact": "Local actual route returns a four-field outlier, whereas the prior screen treated it as a full transaction and invoked zScore.toFixed, causing a rendering error when a result was present; empty, skipped and failed scans could misleadingly appear clean. The server scans up to 200 unordered records and compares raw amounts without excluding drafts or converting currencies. Production impact is unmeasured.",
+      "mitigation": "The component renders only actual response fields and raw minor units without inventing a currency or score; it distinguishes unrun, loading, error, malformed and empty scans, suppresses old workspace responses, and warns of sample and currency limits. Focused mocked UI tests and local DB route contract test pass. A DOM component-to-local-app/DB integration test now renders a real returned outlier with a synthetic JWT.",
+      "remaining_work": "AI #1: define meaningful, deterministic sample, posted-state and mixed-currency semantics, actionable route results, and add server/UI/browser regression coverage."
+    },
+    {
+      "id": "AUP-32",
+      "severity": "high",
+      "classification": "isolated_database_reproduced",
+      "title": "Legacy compute metering ignores retry idempotency keys",
+      "evidence": [
+        "src/tests/cmd1-billing-compute.test.ts",
+        "src/server/routes/billingRoutes.ts",
+        "docs/COORDINATION.md"
+      ],
+      "impact": "Isolated router/DB tests with injected identity observe repeated legacy compute recording with the same idempotency key creates distinct traces and increases metering twice, while named billing.recordcompute replays once. No direct current UI caller was identified and neither the actual application auth mount nor production impact was tested.",
+      "mitigation": "No behavior changed. Named command offers idempotency for compatible consumers; this is not a fix for legacy clients.",
+      "remaining_work": "AI #1: define and implement compatible legacy retry handling or document the legacy semantics; test mounted route, concurrent requests and uncertain outcomes."
+    },
+    {
+      "id": "AUP-33",
+      "severity": "high",
+      "classification": "mocked_component_reproduced_ui_fixed",
+      "title": "Opening import preview could be reused after switching books",
+      "evidence": [
+        "src/components/common/OpeningDocumentsDialog.tsx",
+        "src/tests/opening-documents-scope.test.tsx",
+        "audit/open-items-http.test.ts"
+      ],
+      "impact": "A mocked component test reproduced that a preview checked for one workspace remained enabled after switching to another. Confirm would use the new workspace and the old checked file; the server validates the file again, but matching contacts could allow posting into the wrong books. Delayed responses could also update or close the new dialog. A real cross-workspace posting was not attempted.",
+      "mitigation": "The dialog resets its draft and preview on identity/session, workspace or document-side change, rejects obsolete async results, prevents simultaneous clicks, and warns that a failed or lost import response may leave some lines saved. The actual dialog preview/confirm was exercised against the local app and disposable database with a synthetic identity.",
+      "remaining_work": "An already-sent request cannot be undone by the UI; confirm writes one document at a time and may partly succeed. Validate real authentication, browser switching and concurrent/retry behavior; server ownership remains with AI #1."
+    },
+    {
+      "id": "AUP-34",
+      "severity": "critical",
+      "classification": "local_app_database_reproduced_server_unfixed",
+      "title": "Undoing a historical FX revaluation changes a prior as-of balance",
+      "evidence": [
+        "audit/fx-preview-http.test.ts",
+        "src/server/services/fxRevaluationService.ts",
+        "src/server/routes/transactions/periodRoutes.ts",
+        "src/components/finance/FxRevaluationPanel.tsx",
+        "docs/COORDINATION.md"
+      ],
+      "impact": "In a disposable DB, actual HTTP run of a 31 October revaluation posted its next-day 1 November reversal. A 15 November balance API read showed zero net receivables impact. An owner HTTP undo on 24 November voided that already-past reversal and posted a mirror on the later date; the same 15 November balance read then showed +18000 cents. This changes historical reporting in this fixture. This is local synthetic-token evidence, not a claim about production books. The named command shares the service but was not independently exercised for this case.",
+      "mitigation": "FxRevaluationPanel warns before posting and disables its undo action until the accounting owner fixes the issue. The server, direct API, named command and other callers remain available and are not fixed by this UI restriction.",
+      "remaining_work": "AI #1: determine correct temporal accounting for an already-effective scheduled reversal, preserving earlier as-of reports and closed periods; prevent unsafe direct and command requests, review the post-reversal undo accounting design, and test dates/timezones, locks, snapshots and concurrency. Replace the observation assertion with a desired-behavior regression after fixing."
+    },
+    {
+      "id": "AUP-35",
+      "severity": "high",
+      "classification": "mocked_component_reproduced_ui_fixed",
+      "title": "FX preview could remain actionable after changing workspace",
+      "evidence": [
+        "src/components/finance/FxRevaluationPanel.tsx",
+        "src/tests/fx-revaluation-ui.test.tsx"
+      ],
+      "impact": "A mocked component reproduction showed a plan from one workspace still displayed and Post enabled after switching to another workspace. The panel would send the currently selected workspace with a plan reviewed for different books. This is a UI risk; a real cross-workspace posting was not attempted.",
+      "mitigation": "The panel remounts for changed identity/session or workspace, prevents simultaneous requests, and ignores obsolete responses. Mocked tests cover workspace switches after and during preview, a late posting response, and same-user reauthentication. An already-sent posting may still complete in its original books.",
+      "remaining_work": "Verify actual browser switches, auth, and uncertain-response recovery against the deployed environment; users should check the original books before retrying a request whose response was lost."
+    }
+  ],
+  "scanner_defects_fixed": [
+    {
+      "problem": "Direct helper calls and shorthand properties hid actual frontend requests.",
+      "examples": [
+        "POST /api/v1/inventory/adjust: src/services/stockRequests.ts:44-49",
+        "POST /api/v1/inventory/count: src/services/stockRequests.ts:44-52",
+        "GET and POST /api/v1/account/recovery-codes: src/components/platform/settings/RecoveryCodesPanel.tsx:13",
+        "GET /api/v1/admin/audit-logs: src/components/admin/AuditLogViewer.tsx:12,34,52"
+      ],
+      "fix": "One-hop direct function-call argument tracing; preserve transport and call-site evidence."
+    },
+    {
+      "problem": "Simple URL-builder arrows and known conditional methods were not resolved.",
+      "examples": [
+        "PUT /api/v1/workspaces/:workspaceId/stages: src/components/collaboration/stageStore.ts:19,50",
+        "GET /tags and POST /tags/change: src/components/platform/settings/TagsSettings.tsx:24-28,53,72"
+      ],
+      "fix": "Evaluate simple arrow expression builders and conditionals with statically known object or absent arguments."
+    },
+    {
+      "problem": "A dynamic query string caused a static pathname to be considered dynamic.",
+      "examples": [
+        "GET /api/v1/inventory/stock-closing: src/components/reporting/StockClosingPanel.tsx:16"
+      ],
+      "fix": "Classify path confidence using only the URL pathname."
+    },
+    {
+      "problem": "Conditional spreads that only add request body data concealed known HTTP methods.",
+      "examples": [
+        "POST /api/v1/invoices/public/:token/pay: src/components/sales/PublicInvoicePage.tsx:48"
+      ],
+      "fix": "Resolve conditional object spreads only when both branches preserve the same method."
+    },
+    {
+      "problem": "Imported constants in server template strings caused real routes to be omitted.",
+      "examples": [
+        "GET and DELETE /api/csp-report/summary: src/server/routes/cspReportRoutes.ts:71,75"
+      ],
+      "fix": "Resolve static interpolated constants before constructing route paths."
+    },
+    {
+      "problem": "Existing route-contract guard missed direct app.get registrations in adminRoutes.ts after those real routes gained UI callers.",
+      "examples": [
+        "GET /api/v1/admin/telemetry",
+        "GET /api/v1/admin/users"
+      ],
+      "fix": "The guard reads exact admin app.get route declarations instead of adding a blanket admin prefix to the allowlist. It is still a coarse method-blind guard, not proof of endpoint health."
+    }
+  ],
+  "known_remaining_scanner_limitations": [
+    "Many calls through useCallback, local mutable variables, multi-hop wrappers, sandbox middleware dispatch, generated commands and external consumers remain unresolved.",
+    "Possible dynamic matches include literal-segment wildcard overlaps; they are candidates, not proof of a screen calling a route. Express ordering is not modeled.",
+    "The inventory includes source files, not a runtime execution trace; it does not verify user roles, payloads, responses, data persistence or live provider behavior.",
+    "Scanner does not model disabled UI controls or handler guards; a listed caller for a paused transaction form is not currently reachable from that form."
+  ],
+  "unmatched_route_triage_summary": {
+    "reviewed_no_ui_consumer_identified": 30,
+    "non_ui_consumer": 17,
+    "documented_external_api": 12,
+    "alternate_mount": 22,
+    "alternate_command_available": 14,
+    "frontend_caller_missed": 29,
+    "sdk_consumer": 4,
+    "alternate_method_consumer": 1,
+    "workflow_gap": 1,
+    "alternate_command_consumer": 3
+  },
+  "unmatched_route_triage": [
+    {
+      "method": "GET",
+      "path": "/api/activity-feed",
+      "definition": {
+        "file": "src/server/routes/labelingRoutes.ts",
+        "line": 52
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Authenticated audit-log read capped at 20; literal-path search found no browser caller. The stored activityFeed is not proof this endpoint populates it. External use remains unknown.",
+      "evidence": [
+        "src/server/routes/labelingRoutes.ts:52",
+        "src/stores/useLedgerStore.ts:137"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/cron/daily",
+      "definition": {
+        "file": "src/server/routes/cronRoutes.ts",
+        "line": 25
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Vercel Cron invokes this route.",
+      "evidence": [
+        "vercel.json:32",
+        "src/server/jobs/jobRegistry.ts:37"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/csp-report",
+      "definition": {
+        "file": "src/server/routes/cspReportRoutes.ts",
+        "line": 61
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Browser CSP reporting, configured through headers rather than application fetch.",
+      "evidence": [
+        "vercel.json:48",
+        "src/server/routes/cspReportRoutes.ts:61"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/csp-report/summary",
+      "definition": {
+        "file": "src/server/routes/cspReportRoutes.ts",
+        "line": 75
+      },
+      "classification": "documented_external_api",
+      "reason": "Documented platform-admin operator endpoints; no browser caller found by literal search. Reset currently includes an audit write; historical issue #943 is closed.",
+      "evidence": [
+        "src/server/routes/cspReportRoutes.ts:71",
+        "src/server/routes/cspReportRoutes.ts:75",
+        "docs/SECURITY_CONTROLS.md:62"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/csp-report/summary",
+      "definition": {
+        "file": "src/server/routes/cspReportRoutes.ts",
+        "line": 71
+      },
+      "classification": "documented_external_api",
+      "reason": "Documented platform-admin operator endpoints; no browser caller found by literal search. Reset currently includes an audit write; historical issue #943 is closed.",
+      "evidence": [
+        "src/server/routes/cspReportRoutes.ts:71",
+        "src/server/routes/cspReportRoutes.ts:75",
+        "docs/SECURITY_CONTROLS.md:62"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "definition": {
+        "file": "src/server/routes/statusRoutes.ts",
+        "line": 14
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Liveness endpoint documented for operators.",
+      "evidence": [
+        "src/server/routes/statusRoutes.ts:8",
+        "docs/runbooks/database-down.md:16"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/aging",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 239
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:239"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/balance-sheet",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 202
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:202"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/balance-sheet-by-label",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 390
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:390"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/budget-actual-periods",
+      "definition": {
+        "file": "src/server/routes/operationalReportRoutes.ts",
+        "line": 149
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/operationalReportRoutes.ts:149"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/budget-vs-actual",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 502
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:502"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/by-label",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 373
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:373"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/cash-flow",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 467
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:467"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/explain",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 359
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:359"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/explain",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 366
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:366"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/general-ledger",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 578
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:578"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/group-summary",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 410
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:410"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/inventory-details",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 294
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:294"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/party-aging",
+      "definition": {
+        "file": "src/server/routes/operationalReportRoutes.ts",
+        "line": 60
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/operationalReportRoutes.ts:60"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/party-balances",
+      "definition": {
+        "file": "src/server/routes/operationalReportRoutes.ts",
+        "line": 89
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/operationalReportRoutes.ts:89"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/payment-methods",
+      "definition": {
+        "file": "src/server/routes/operationalReportRoutes.ts",
+        "line": 118
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/operationalReportRoutes.ts:118"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/pl",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 170
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:170"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/profit-and-loss",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 170
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:170"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/statement",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 600
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:600"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/stock-aging",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 313
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:313"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/reports/trial-balance",
+      "definition": {
+        "file": "src/server/routes/reportRoutes.ts",
+        "line": 437
+      },
+      "classification": "alternate_mount",
+      "reason": "The same report router is also mounted under /api/v1/reports. No caller to this alias alone is not evidence of a missing workflow.",
+      "evidence": [
+        "server.ts:128",
+        "server.ts:134",
+        "src/server/routes/reportRoutes.ts:437"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/error-logs",
+      "definition": {
+        "file": "src/server/routes/adminRoutes.ts",
+        "line": 338
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Admin-only error-log query; no direct UI caller found by path search, and telemetry is a different endpoint. External operator use is unknown.",
+      "evidence": [
+        "src/server/routes/adminRoutes.ts:338",
+        "src/components/platform/SystemCommandCenter.tsx"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/integrity/orphan-scan",
+      "definition": {
+        "file": "src/server/routes/adminRoutes.ts",
+        "line": 449
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Admin-only integrity scan; no direct browser caller identified by path search. This is not proof there is no other consumer.",
+      "evidence": [
+        "src/server/routes/adminRoutes.ts:449"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ai/process",
+      "definition": {
+        "file": "src/server/routes/aiRoutes.ts",
+        "line": 68
+      },
+      "classification": "alternate_mount",
+      "reason": "Same router is used by the frontend under /api/ai.",
+      "evidence": [
+        "server.ts:149",
+        "server.ts:150",
+        "src/services/aiService.ts:69"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audit/deep",
+      "definition": {
+        "file": "src/server/routes/metricsAuditRoutes.ts",
+        "line": 239
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform documents these as API requests for external consumers. Code samples are not themselves UI transport calls and do not prove live behavior.",
+      "evidence": [
+        "src/components/platform/ApiHubAnalysisDocs.tsx:66-127",
+        "src/server/routes/metricsAuditRoutes.ts"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/jobs/:job_id",
+      "definition": {
+        "file": "src/server/routes/metricsAuditRoutes.ts",
+        "line": 264
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform documents these as API requests for external consumers. Code samples are not themselves UI transport calls and do not prove live behavior.",
+      "evidence": [
+        "src/components/platform/ApiHubAnalysisDocs.tsx:66-127",
+        "src/server/routes/metricsAuditRoutes.ts"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/sessions",
+      "definition": {
+        "file": "src/server/routes/authRoutes.ts",
+        "line": 67
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Person-only device list; Security settings currently calls revoke-all, not the session list. No direct browser list caller found; per-device UI is not established.",
+      "evidence": [
+        "src/server/routes/authRoutes.ts:67",
+        "src/components/platform/settings/SecuritySettings.tsx:315"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/bank/map",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 22
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Developer API maps supplied transactions to account suggestions. No literal frontend caller found; external consumers unknown.",
+      "evidence": [
+        "src/server/routes/developerApiRoutes.ts:22",
+        "scripts/commands-baseline.ts:158"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/record-compute",
+      "definition": {
+        "file": "src/server/routes/billingRoutes.ts",
+        "line": 222
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy usage recording wrapper has a named command available in API Hub. Command availability does not prove a UI invokes the legacy address or identical validation.",
+      "evidence": [
+        "src/server/routes/billingRoutes.ts:222",
+        "src/lib/commandManifests.generated/billing.ts:6"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/brain/analyze",
+      "definition": {
+        "file": "src/server/routes/brainRoutes.ts",
+        "line": 22
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:485"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/brain/classify",
+      "definition": {
+        "file": "src/server/routes/brainRoutes.ts",
+        "line": 210
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform documents this endpoint. A displayed example is not a UI request and does not prove the endpoint or its documentation works end-to-end.",
+      "evidence": [
+        "src/components/platform/ApiHubCoreDocs.tsx:12-13",
+        "src/components/platform/ApiHubCoreDocs.tsx:261",
+        "src/components/platform/ApiHubCoreDocs.tsx:378",
+        "src/server/routes/brainRoutes.ts",
+        "src/server/routes/metricsAuditRoutes.ts"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/brain/classify-batch",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 284
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:519"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/commands",
+      "definition": {
+        "file": "src/server/routes/commandRoutes.ts",
+        "line": 44
+      },
+      "classification": "sdk_consumer",
+      "reason": "Explicitly called by the repository SDK, which is outside the frontend scan; no claim of a working live connection.",
+      "evidence": [
+        "sdk/ledgerflowClient.ts:124-155",
+        "sdk/ledgerflowClient.ts:211"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/commands/:name",
+      "definition": {
+        "file": "src/server/routes/commandRoutes.ts",
+        "line": 48
+      },
+      "classification": "sdk_consumer",
+      "reason": "Explicitly called by the repository SDK, which is outside the frontend scan; no claim of a working live connection.",
+      "evidence": [
+        "sdk/ledgerflowClient.ts:124-155",
+        "sdk/ledgerflowClient.ts:211"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/commands/:name/preview",
+      "definition": {
+        "file": "src/server/routes/commandRoutes.ts",
+        "line": 79
+      },
+      "classification": "sdk_consumer",
+      "reason": "Explicitly called by the repository SDK, which is outside the frontend scan; no claim of a working live connection.",
+      "evidence": [
+        "sdk/ledgerflowClient.ts:124-155",
+        "sdk/ledgerflowClient.ts:211"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/consolidation/close-status",
+      "definition": {
+        "file": "src/server/routes/consolidationRoutes.ts",
+        "line": 36
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Workspace-scoped close-status query; no literal browser caller found. The month-end screen is not evidence it calls this route.",
+      "evidence": [
+        "src/server/routes/consolidationRoutes.ts:36",
+        "src/components/ledger/MonthEndCloseView.tsx:328"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/consolidation/eliminate",
+      "definition": {
+        "file": "src/server/routes/consolidationRoutes.ts",
+        "line": 12
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper executes consolidation.verify; the named command is exposed in the generated command manifest. Behavior and access from other screens were not tested.",
+      "evidence": [
+        "src/server/routes/consolidationRoutes.ts:12",
+        "src/lib/commandManifests.generated/consolidation.ts:6"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents/:type/:id/pdf",
+      "definition": {
+        "file": "src/server/routes/documentRoutes.ts",
+        "line": 230
+      },
+      "classification": "alternate_method_consumer",
+      "reason": "The shared PDF download service uses GET, not POST; both server methods delegate to the same PDF handler. This is an alternate API method, not evidence of a broken download.",
+      "evidence": [
+        "src/services/documentDownloads.ts:27",
+        "src/components/sales/salesColumns.tsx:310",
+        "src/server/routes/documentRoutes.ts:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/email-events",
+      "definition": {
+        "file": "src/server/routes/emailRoutes.ts",
+        "line": 116
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Provider callback authenticated with email webhook secret.",
+      "evidence": [
+        "server.ts:148",
+        "src/server/routes/emailRoutes.ts:116"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/stock-closing",
+      "definition": {
+        "file": "src/server/routes/stockClosingRoutes.ts",
+        "line": 18
+      },
+      "classification": "workflow_gap",
+      "reason": "Read-only stock closing panel has no action to take a closing; generic API Platform exposes the inventory.stockclosing command. This is a workflow limitation, not an unused server operation.",
+      "evidence": [
+        "src/components/reporting/StockClosingPanel.tsx:8",
+        "src/lib/commandManifests.generated/inventory.ts:27",
+        "src/components/platform/ApiHubSandbox.tsx:57",
+        "src/components/platform/useApiHubModel.ts:270"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/label-transactions",
+      "definition": {
+        "file": "src/server/routes/labelingRoutes.ts",
+        "line": 78
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "API label suggestions route, described as Excel integration ready; no direct browser caller found. External integrations are unknown.",
+      "evidence": [
+        "src/server/routes/labelingRoutes.ts:76",
+        "scripts/commands-baseline.ts:130"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/lease/capitalize",
+      "definition": {
+        "file": "src/server/routes/leaseRoutes.ts",
+        "line": 28
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper invokes lease.capitalize; generated command is available in API Hub. No direct browser caller found and no posting tested.",
+      "evidence": [
+        "src/server/routes/leaseRoutes.ts:28",
+        "src/lib/commandManifests.generated/lease.ts:6"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/lease/rent-roll",
+      "definition": {
+        "file": "src/server/routes/leaseRoutes.ts",
+        "line": 126
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Computes a rent roll using supplied units and workspace invoices. Literal path search found no frontend caller; no claim about external consumers or mathematical correctness.",
+      "evidence": [
+        "src/server/routes/leaseRoutes.ts:126",
+        "docs/prompts/CMD-1-checklist.md:41"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/lease/trust-reconciliation",
+      "definition": {
+        "file": "src/server/routes/leaseRoutes.ts",
+        "line": 90
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Calculates a reconciliation from request figures. Literal path search found no frontend caller; no claim about external consumers or mathematical correctness.",
+      "evidence": [
+        "src/server/routes/leaseRoutes.ts:90",
+        "docs/prompts/CMD-1-checklist.md:41"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ledger",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 107
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:430"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ledger",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 132
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:434"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ledger/diagnostics",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 172
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:515"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ledger/match",
+      "definition": {
+        "file": "src/server/routes/ledgerMatchRoutes.ts",
+        "line": 14
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:477"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/amortization",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 88
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/depreciation",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 32
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/inventory/eoq",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 113
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/inventory/wac",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 64
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/kpi",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 135
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/temporal",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 181
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform presents a code example; this is documentation, not an in-app fetch. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts",
+        "src/components/platform/ApiHubCoreDocs.tsx:39-44",
+        "src/components/platform/ApiHubAnalysisDocs.tsx",
+        "src/components/platform/ApiHubIntegrationDocs.tsx",
+        "src/components/platform/ApiHubView.tsx:230"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/math/valuation",
+      "definition": {
+        "file": "src/server/routes/mathRoutes.ts",
+        "line": 213
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "No screen caller identified in this pass. The real router passed one worked HTTP example without authentication middleware; live, auth, edge cases, and browser execution are not verified.",
+      "evidence": [
+        "src/server/routes/mathRoutes.ts",
+        "src/tests/api-parity-math-http.test.ts"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/metrics",
+      "definition": {
+        "file": "src/server/routes/metricsAuditRoutes.ts",
+        "line": 15
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:473"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/metrics/summary",
+      "definition": {
+        "file": "src/server/routes/metricsAuditRoutes.ts",
+        "line": 179
+      },
+      "classification": "documented_external_api",
+      "reason": "API Platform documents this endpoint. A displayed example is not a UI request and does not prove the endpoint or its documentation works end-to-end.",
+      "evidence": [
+        "src/components/platform/ApiHubCoreDocs.tsx:12-13",
+        "src/components/platform/ApiHubCoreDocs.tsx:261",
+        "src/components/platform/ApiHubCoreDocs.tsx:378",
+        "src/server/routes/brainRoutes.ts",
+        "src/server/routes/metricsAuditRoutes.ts"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/openapi.json",
+      "definition": {
+        "file": "src/server/routes/apiKeysRoutes.ts",
+        "line": 13
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Public generated OpenAPI document used in the documented security scan; no browser caller found.",
+      "evidence": [
+        "src/server/routes/apiKeysRoutes.ts:13",
+        "docs/prompts/SEC-SCAN-1-api-and-web-scans.md:13"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/volume-summary",
+      "definition": {
+        "file": "src/server/routes/paymentRoutes.ts",
+        "line": 386
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Workspace payment-volume summary endpoint; no literal browser caller identified. External use and deployed provider state unverified.",
+      "evidence": [
+        "src/server/routes/paymentRoutes.ts:385"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 57
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:461"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/projects",
+      "definition": {
+        "file": "src/server/routes/developerApiRoutes.ts",
+        "line": 80
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:465"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/repost",
+      "definition": {
+        "file": "src/server/routes/repostRoutes.ts",
+        "line": 26
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Repost run/queue routes exist; no direct frontend caller found by path search. Month-end document repost is a different operation and does not establish this connection.",
+      "evidence": [
+        "src/server/routes/repostRoutes.ts:26",
+        "src/components/ledger/MonthEndCloseView.tsx:222"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/repost/queue",
+      "definition": {
+        "file": "src/server/routes/repostRoutes.ts",
+        "line": 46
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Repost run/queue routes exist; no direct frontend caller found by path search. Month-end document repost is a different operation and does not establish this connection.",
+      "evidence": [
+        "src/server/routes/repostRoutes.ts:46",
+        "src/components/ledger/MonthEndCloseView.tsx:222"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/revenue/recognize",
+      "definition": {
+        "file": "src/server/routes/revenueRoutes.ts",
+        "line": 24
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper invokes revenue.recognize; generated command is available in API Hub. No direct browser caller found and no posting tested.",
+      "evidence": [
+        "src/server/routes/revenueRoutes.ts:24",
+        "src/lib/commandManifests.generated/revenue.ts:6"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sandboxes/:sandboxId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 272
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sandboxes/:sandboxId/commands",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 274
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sandboxes/:sandboxId/records/:collection",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 136
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sandboxes/:sandboxId/records/:collection/:recordId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 152
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/sandboxes/:sandboxId/steps",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 280
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/sandboxes/:sandboxId/steps/:stepId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 292
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/sandboxes/:sandboxId/steps/:stepId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 288
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/sandboxes/:sandboxId/steps/order",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 284
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sandboxes/:sandboxId/tools",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 157
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/sandboxes/:sandboxId/tools/:tool",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 163
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Assistant-authenticated API; a browser caller is not required. This identifies its intended consumer, not proof of live assistant use.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:32",
+        "src/server/routes/sandboxRoutes.ts:386"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/status",
+      "definition": {
+        "file": "src/server/routes/apiStatusRoutes.ts",
+        "line": 11
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:422",
+        "src/components/platform/ApiHubSandbox.tsx:39"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/support/tickets/:id/messages",
+      "definition": {
+        "file": "src/server/routes/supportRoutes.ts",
+        "line": 13
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy support.reply command wrapper; SupportView instead calls support.message for workspace tickets. These are different command contracts; availability does not establish equivalence.",
+      "evidence": [
+        "src/server/routes/supportRoutes.ts:13",
+        "src/components/support/SupportView.tsx:161",
+        "src/lib/commandManifests.generated/support.ts:12"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/support/tickets/:id/status",
+      "definition": {
+        "file": "src/server/routes/supportRoutes.ts",
+        "line": 23
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy support.platformstatus wrapper; SupportView instead calls support.status. These have different scopes and permissions; not treated as equivalent.",
+      "evidence": [
+        "src/server/routes/supportRoutes.ts:23",
+        "src/components/support/SupportView.tsx:184",
+        "src/lib/commandManifests.generated/support.ts:11"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/system/telemetry/errors/digest",
+      "definition": {
+        "file": "src/server/routes/adminRoutes.ts",
+        "line": 368
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Requires system-job secret or admin and sends a digest; no literal UI caller or scheduled consumer was established.",
+      "evidence": [
+        "src/server/routes/adminRoutes.ts:368"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tax/:endpoint",
+      "definition": {
+        "file": "src/server/routes/externalDataRoutes.ts",
+        "line": 58
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Authenticated external tax-data proxy accepts tax_rates and us_rate_list only; literal search did not identify an application caller. No provider request was tested.",
+      "evidence": [
+        "src/server/routes/externalDataRoutes.ts:58",
+        "server.ts:123"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/transactions",
+      "definition": {
+        "file": "src/server/routes/transactions/crudRoutes.ts",
+        "line": 49
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:444"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/:id/reverse",
+      "definition": {
+        "file": "src/server/routes/transactions/reverseRoutes.ts",
+        "line": 15
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Transaction action sends this path.",
+      "evidence": [
+        "src/hooks/transactionActions/entryActions.ts:672"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/transactions/bank-lines/:id",
+      "definition": {
+        "file": "src/server/routes/transactions/reconcileRoutes.ts",
+        "line": 132
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper executes reconciliations.bankline, which is in the command manifest; no direct caller found. Distinguish bank-line pay/split UI from this PATCH.",
+      "evidence": [
+        "src/server/routes/transactions/reconcileRoutes.ts:132",
+        "src/lib/commandManifests.generated/reconciliations.ts:12",
+        "src/components/ledger/BankLineActionDialog.tsx:74"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/bank-lines/apply-rules",
+      "definition": {
+        "file": "src/server/routes/transactions/reconcileRoutes.ts",
+        "line": 111
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper executes reconciliations.bankrules, available as a generated command; no direct UI caller identified.",
+      "evidence": [
+        "src/server/routes/transactions/reconcileRoutes.ts:111",
+        "src/lib/commandManifests.generated/reconciliations.ts:15"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/batch-create",
+      "definition": {
+        "file": "src/server/routes/transactions/crudRoutes.ts",
+        "line": 224
+      },
+      "classification": "sdk_consumer",
+      "reason": "Explicitly called by the repository SDK, which is outside the frontend scan; no claim of a working live connection.",
+      "evidence": [
+        "sdk/ledgerflowClient.ts:124-155",
+        "sdk/ledgerflowClient.ts:211"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/close-year",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 151
+      },
+      "classification": "alternate_command_consumer",
+      "reason": "Month-end UI invokes period.yearclose; the legacy route delegates to the same command. The two URLs are not a missing dedicated UI by themselves; posting is not tested in this audit.",
+      "evidence": [
+        "src/components/ledger/MonthEndCloseView.tsx:251",
+        "src/server/routes/transactions/periodRoutes.ts:151-160"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/period-balances/rebuild",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 207
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper executes period.balancesrebuild, available as a generated command; no direct UI caller identified.",
+      "evidence": [
+        "src/server/routes/transactions/periodRoutes.ts:207",
+        "src/lib/commandManifests.generated/period.ts:16"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/recategorize",
+      "definition": {
+        "file": "src/server/routes/transactions/bulkRoutes.ts",
+        "line": 30
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Auto rules choose this path in a conditional expression.",
+      "evidence": [
+        "src/hooks/useAutoRules.ts:221"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/reconciliation/match",
+      "definition": {
+        "file": "src/server/routes/transactions/reconcileRoutes.ts",
+        "line": 196
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Programmatic B2B reconciliation endpoint; no direct UI caller found. The reconciliation screen has related behavior but was not shown to call this endpoint.",
+      "evidence": [
+        "src/server/routes/transactions/reconcileRoutes.ts:196",
+        "src/components/ledger/ReconciliationView.tsx"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/transactions/reconciliation/status",
+      "definition": {
+        "file": "src/server/routes/transactions/reconcileRoutes.ts",
+        "line": 160
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Programmatic B2B reconciliation endpoint; no direct UI caller found. The reconciliation screen has related behavior but was not shown to call this endpoint.",
+      "evidence": [
+        "src/server/routes/transactions/reconcileRoutes.ts:160",
+        "src/components/ledger/ReconciliationView.tsx"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/reset",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 248
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy demo-data reset wrapper executes transaction.reset; generated command is high-risk and available in the manifest. No destructive operation was executed.",
+      "evidence": [
+        "src/server/routes/transactions/periodRoutes.ts:248",
+        "src/lib/commandManifests.generated/transaction.ts:6"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/revaluation/preview",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 129
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "FX revaluation panel assigns the preview path before calling ask.",
+      "evidence": [
+        "src/components/finance/FxRevaluationPanel.tsx:62",
+        "src/components/finance/FxRevaluationPanel.tsx:103"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/revaluation/run",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 130
+      },
+      "classification": "alternate_command_consumer",
+      "reason": "The UI calls the corresponding named command rather than this legacy HTTP path; the route delegates to the same registered command. Endpoint equivalence is source-traced, not live-tested.",
+      "evidence": [
+        "src/components/finance/FxRevaluationPanel.tsx:95-118",
+        "src/server/routes/transactions/periodRoutes.ts:131-148",
+        "src/server/commands/periods.ts:222"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transactions/revaluation/undo",
+      "definition": {
+        "file": "src/server/routes/transactions/periodRoutes.ts",
+        "line": 140
+      },
+      "classification": "alternate_command_consumer",
+      "reason": "The UI calls the corresponding named command rather than this legacy HTTP path; the route delegates to the same registered command. Endpoint equivalence is source-traced, not live-tested.",
+      "evidence": [
+        "src/components/finance/FxRevaluationPanel.tsx:95-118",
+        "src/server/routes/transactions/periodRoutes.ts:131-148",
+        "src/server/commands/periods.ts:222"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/user/ai-key",
+      "definition": {
+        "file": "src/server/routes/apiKeysRoutes.ts",
+        "line": 97
+      },
+      "classification": "alternate_command_available",
+      "reason": "The legacy route invokes a person-scoped registered command exposed in the API Platform command list. No dedicated settings screen using this exact legacy route was found; command availability is not live verification.",
+      "evidence": [
+        "src/server/routes/apiKeysRoutes.ts:73-105",
+        "src/lib/commandManifests.generated/user.ts:9-10",
+        "src/components/platform/ApiHubSandbox.tsx:55"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/user/ai-key",
+      "definition": {
+        "file": "src/server/routes/apiKeysRoutes.ts",
+        "line": 73
+      },
+      "classification": "alternate_command_available",
+      "reason": "The legacy route invokes a person-scoped registered command exposed in the API Platform command list. No dedicated settings screen using this exact legacy route was found; command availability is not live verification.",
+      "evidence": [
+        "src/server/routes/apiKeysRoutes.ts:73-105",
+        "src/lib/commandManifests.generated/user.ts:9-10",
+        "src/components/platform/ApiHubSandbox.tsx:55"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/user/ai-key-status",
+      "definition": {
+        "file": "src/server/routes/apiKeysRoutes.ts",
+        "line": 108
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Person-only saved AI key status; no literal UI caller found. The key save/remove endpoints are separate; no provider health established.",
+      "evidence": [
+        "src/server/routes/apiKeysRoutes.ts:108"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 34
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "API Platform sandbox assigns this URL dynamically before sending it.",
+      "evidence": [
+        "src/components/platform/useApiHubModel.ts:426",
+        "src/components/platform/ApiHubSandbox.tsx:40"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 66
+      },
+      "classification": "alternate_command_available",
+      "reason": "Person-scope workspace.apicreate command wraps developer API creation; command available in manifest. No direct caller of this legacy route identified; other workspace creation paths may exist.",
+      "evidence": [
+        "src/server/routes/workspaceApiRoutes.ts:66",
+        "src/lib/commandManifests.generated/workspace.ts:35"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/audit-chain/verify",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 259
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "Owner/accountant audit-chain and ledger-anchor verification endpoint; no literal UI caller identified. No database verification run.",
+      "evidence": [
+        "src/server/routes/workspaceApiRoutes.ts:259"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/emails/log/:documentId",
+      "definition": {
+        "file": "src/server/routes/emailRoutes.ts",
+        "line": 58
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "InvoiceEmailDialog builds the URL from a base plus /log/{invoiceId}, so the scanner missed the helper chain. Fixed false empty success on load refusal; component mock tests cover error, retry and invalid shape.",
+      "evidence": [
+        "src/components/sales/InvoiceEmailDialog.tsx:25",
+        "src/components/sales/InvoiceEmailDialog.tsx:50",
+        "src/server/routes/emailRoutes.ts:58",
+        "src/tests/api-parity-invoice-email.test.tsx"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/invites",
+      "definition": {
+        "file": "src/server/routes/workspaceRoutes.ts",
+        "line": 397
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:59",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/:workspaceId/invites/:inviteId",
+      "definition": {
+        "file": "src/server/routes/workspaceRoutes.ts",
+        "line": 424
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:124",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/members",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 81
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:57",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/:workspaceId/members/:memberUid",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 242
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:113",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/roles",
+      "definition": {
+        "file": "src/server/routes/workspaceRoutes.ts",
+        "line": 339
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:58",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/workspaces/:workspaceId/roles/:uid",
+      "definition": {
+        "file": "src/server/routes/workspaceRoutes.ts",
+        "line": 390
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Team Settings calls through useTeamRequests.",
+      "evidence": [
+        "src/components/platform/settings/TeamSettings.tsx:101",
+        "src/hooks/useTeamRequests.ts:42"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 272
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Sandbox review reads a conditional base path.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/components/ledger/SandboxReviewView.tsx:115"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/accept",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 368
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Sandbox review composes the accept URL from its base.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/components/ledger/SandboxReviewView.tsx:156"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/assistant/turn",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 360
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Copilot conditionally calls the sandbox assistant turn path.",
+      "evidence": [
+        "src/components/intelligence/Copilot.tsx:55",
+        "src/components/intelligence/Copilot.tsx:119"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/commands",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 274
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/records/:collection",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 136
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/records/:collection/:recordId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 152
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/reject",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 372
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Sandbox review composes the reject URL from its base.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/components/ledger/SandboxReviewView.tsx:162"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/steps",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 280
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/steps/:stepId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 292
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/steps/:stepId",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 288
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/steps/:stepId/undo",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 376
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Sandbox review composes the undo URL from its base.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/components/ledger/SandboxReviewView.tsx:165"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/steps/order",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 284
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/token",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 349
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/tools",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 157
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/:sandboxId/tools/:tool",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 163
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Sandbox Review uses the run_report tool on this dynamic route; the scanner cannot resolve the base URL variable. Runtime behavior not tested in this slice.",
+      "evidence": [
+        "src/components/ledger/SandboxReviewView.tsx:78",
+        "src/components/ledger/SandboxReviewView.tsx:129",
+        "src/server/routes/sandboxRoutes.ts:163"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/assistant/turn",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 354
+      },
+      "classification": "frontend_caller_missed",
+      "reason": "Copilot conditionally calls the live read-only assistant turn path.",
+      "evidence": [
+        "src/components/intelligence/Copilot.tsx:55",
+        "src/components/intelligence/Copilot.tsx:119"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/sandboxes/remembered",
+      "definition": {
+        "file": "src/server/routes/sandboxRoutes.ts",
+        "line": 338
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The person sandbox router exposes this operation; the review UI uses separate review, accept, reject and undo operations, and the assistant server invokes shared services. No direct UI caller for this exact HTTP route was identified in this pass; external consumers and the need for a dedicated control are unverified.",
+      "evidence": [
+        "src/server/routes/sandboxRoutes.ts:1-33",
+        "src/server/routes/sandboxRoutes.ts:274-292",
+        "src/server/routes/sandboxRoutes.ts:315-349",
+        "src/components/ledger/SandboxReviewView.tsx:86-168",
+        "src/components/intelligence/Copilot.tsx:55-120"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/workspaces/:workspaceId/tax-returns/preview",
+      "definition": {
+        "file": "src/server/routes/taxRoutes.ts",
+        "line": 43
+      },
+      "classification": "reviewed_no_ui_consumer_identified",
+      "reason": "The tax screen lists and files through the base route but no direct /preview caller was found; screen calculations are not evidence of this endpoint.",
+      "evidence": [
+        "src/server/routes/taxRoutes.ts:43",
+        "src/components/reporting/TaxLiabilityView.tsx:91",
+        "src/components/reporting/TaxLiabilityView.tsx:125"
+      ]
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/workspaces/:workspaceId/time/:entryId",
+      "definition": {
+        "file": "src/server/routes/taskRoutes.ts",
+        "line": 171
+      },
+      "classification": "alternate_command_available",
+      "reason": "Legacy wrapper invokes time.update, available in generated commands. TimeView calls create, move, invoice and delete, but no PATCH in that screen was identified.",
+      "evidence": [
+        "src/server/routes/taskRoutes.ts:171",
+        "src/components/collaboration/TimeView.tsx:90",
+        "src/lib/commandManifests.generated/time.ts:16"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhook/plaid",
+      "definition": {
+        "file": "src/server/routes/plaidWebhookRoutes.ts",
+        "line": 106
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Plaid webhook is registered before body parsing.",
+      "evidence": [
+        "server.ts:72",
+        "src/server/routes/plaidWebhookRoutes.ts:105"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/webhook/stripe",
+      "definition": {
+        "file": "src/server/routes/stripeWebhookRoutes.ts",
+        "line": 13
+      },
+      "classification": "non_ui_consumer",
+      "reason": "Stripe webhook receives provider requests.",
+      "evidence": [
+        "src/server/routes/stripeWebhookRoutes.ts:10"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/workspaces/:workspaceId/export",
+      "definition": {
+        "file": "src/server/routes/workspaceApiRoutes.ts",
+        "line": 201
+      },
+      "classification": "alternate_mount",
+      "reason": "Same handler as versioned export. UI uses versioned route; this alias is not a missing export action.",
+      "evidence": [
+        "src/server/routes/workspaceApiRoutes.ts:200",
+        "src/hooks/useServerExport.ts:99"
+      ]
+    }
+  ],
+  "verification": {
+    "scanner": "node --test scripts/api-ui-parity.test.mjs: 8 passed after regeneration.",
+    "branding": "NODE_ENV=test SYSTEM_SALT=test-ledgerflow-salt-32b-deterministic npx tsx --test src/tests/branding-profiles-settings.test.tsx: 3 passed; focused existing branding axe test passed",
+    "api_hub": "13 component tests passed with mocked fetch, including credential handling, refusal, paused unsafe forms, documentation payload, workspace-switch secret clearing and late key-provision response.",
+    "types": "NODE_OPTIONS=--max-old-space-size=3200 npm run lint:types passed after schedule validation; default heap previously exhausted.",
+    "lint": "Project ESLint passed with two existing allowed no-explicit-any warnings in server files; targeted touched-file lint passed at max-warnings 0.",
+    "browser_and_database": "Isolated PostgreSQL and limited local Chromium fixture journeys were run; see w13_browser_local and first_hour_browser_local. Hosted Supabase auth, deployed browser and live provider acceptance remain untested.",
+    "admin_connections": "4 component tests passed with mocked fetch: authenticated telemetry read, disabled unsafe writes, HTTP refusal display, successful repeated config saves with schema-only payloads, users refusal. No live server/database/browser.",
+    "combined": "38 focused component, HTTP and audit-probe tests passed together, then an additional API Hub race test passed in a 13-test focused run. Probe intentionally reproduces unsafe mocked behavior.",
+    "fx_revaluation": "Existing pure-plan suite passed 22 tests, including JPY/KWD worked figures. Server posting, browser and live database not tested.",
+    "math_http": "8 tests against the real math router over local HTTP: 7 worked examples and one invalid-input refusal. Authentication middleware was deliberately not mounted; no deployment or UI verification.",
+    "auth_http": "2 tests against real apiAuthenticate middleware over local HTTP: missing token and key ID without secret rejected. No valid key or database tested.",
+    "time_retry_probe": "1 audit probe reproduced two invoice-create requests after a failed link and remount, with mocked fetch. No database writes.",
+    "connection_matrix": "audit/api-ui-verification-matrix.json records all scanner route registrations and explicitly distinguishes scanner-only from targeted HTTP and component evidence.",
+    "neighbouring": "40 tests passed in a separate run of real auth/math HTTP, route-contract guard, shared runCommand and command-form tests. An earlier run exposed a route-contract scanner false positive for two actual admin GET registrations; the guard now recognizes concrete app.get registrations rather than broadly allowing /admin.",
+    "email_and_watching": "6 focused mocked-fetch tests passed for invoice email-log and watch-list refusals, retry, malformed envelopes and stale invoice/workspace responses; neighboring suites also passed. Watches database group skipped without LF_TEST_DATABASE_URL.",
+    "unresolved_callers": "audit/api-ui-unresolved-caller-triage.json tracks all 43 scanner-unresolved caller records; derived candidate paths and partial manual traces are not behaviorally verified or necessarily exhaustive.",
+    "vault": "20 Vault/document-URL tests passed including a mocked 404 that confirms no OCR request is sent; provider is not exercised.",
+    "full_suite": "Node 22 broad run finished with 6,636 passed, 3 failed and 20 test-level skips out of 6,659 tests; many DB-gated suites also skipped. The bug-pattern failure and status polling copy failure were fixed and passed in targeted reruns. A-229 report-speed budget failed under broad load (2,396 ms vs 1,500 ms) and again when run alone on Node 22 (1,747 ms) and Node 24 (3,504 ms). No performance regression attribution is established. This run spanned edits and did not include every later-added test, so it is not a clean final-tree pass.",
+    "connection_regressions": "38 targeted tests passed across tasks, time, team settings, tags, numbering, recovery codes, report pack, journal templates, and account grouping. They include mocked UI and pure tests; 3 database suites skipped (templates, tasks, time). Relevant matrix rows identify only narrow mocked scenarios, not full contracts.",
+    "private_links": "Mocked private-link tests and existing portal/signature UI suites passed; database signature group skipped. Tests cover missing tokens, clipboard fallback, changed workspace/customer/estimate and uncertain revoke. No live server/provider/browser evidence.",
+    "entry_links": "4 new mocked UI scenarios and existing UI/pure regression passed. Existing entry-links database suite skipped. DELETE is source-traced, not behaviorally verified in the matrix. Subsequent isolated database tests passed selected server route scenarios; check matrix for exact scope.",
+    "billing_source_review": "Initial source review identified billing status/UI mismatch and verify/webhook ordering risks; later reproduced with isolated PostgreSQL and mocks: see billing_status_probe and billing_order_probe. Server ownership handed off; no server fix in this audit.",
+    "usage_and_public_status": "13 targeted tests passed across usage panel, public status UI and status service with mocked HTTP/fake database; usage DB suite skipped. No live provider/database/browser verification.",
+    "health_schedule": "30 targeted tests passed including actual statusRouter HTTP health response and missing-token schedule refusal, mocked schedule/status UI, and pure/fake-db schedule/status service. No valid-auth/DB/scheduler/deployment/provider evidence.",
+    "signin_activity": "21 focused tests passed including three mocked activity scenarios and existing MFA/integrity regressions. API response and accepted event types source-traced; no live auth/DB/RLS test. Issue #945 remains open as of 23 Nov 2026.",
+    "admin_audit_and_notification_preferences": "22 focused tests passed across bug-pattern guard, admin audit viewer and notification-email component/pure suites. Admin results/error/race and email refusal/partial-save are mocked; notification DB group skipped. An earlier combined component run was killed and passed after a focused rerun with a smaller Node heap.",
+    "node24_followup": "45 focused tests passed on Node 24.22.3 for new link, usage, sign-in, status/router, admin audit, notification and polling cases; DB groups skipped. The separate A-229 timing test failed on the same runtime.",
+    "inbox_probe": "One mocked fault-injection audit probe observed the missing expected version and conditional cache patch after a workspace switch; no server/database writes. It intentionally asserts the current risk, not a desired product behavior.",
+    "isolated_database": "Local PostgreSQL 16.16 initialized with the repository plain-Postgres auth stub and all 72 migrations. RLS SQL test passed. A targeted batch of 49 tests passed on Node 24 including database-backed portal, signatures, entry links, watches, tasks, time, usage, notification email, and protocol contracts. Some tests inject request.user or mock providers; not deployed end-to-end.",
+    "billing_order_probe": "An isolated PostgreSQL probe using actual routes, a locally signed synthetic Stripe webhook, mocked Stripe session retrieval and injected billing user reproduced order-dependent duplicate credits (2,000,000 vs 1,000,000). No real Stripe or production DB was used.",
+    "report_ledger_sandbox_db": "Node 24 isolated PostgreSQL batch: 290 passed; BR-02/BR-05 suite skipped because it requires an exact dedicated database URL (node reporter summarized 0 skipped tests despite skipped suite). Subsequently run separately: see dedicated_audit_db. Covers selected balances/reports/sandbox, posting and commands; not deployed end-to-end.",
+    "schedule_malformed": "23 Node 24 tests passed for schedule rules/UI and status HTTP, including malformed success envelopes. UI fetch mocked; unauthenticated mounted route only.",
+    "opening_refresh_probe": "1 mocked-hook fault probe observed no refresh after same-count cutoff-day edit. No real DB edit or actual browser proof.",
+    "billing_status_probe": "Same isolated billing probe asserted stored subscription/payment values are omitted from GET billing/status; injected user, mocked Stripe retrieval.",
+    "access_document_db": "Node 24 isolated DB batch: 51 passed, no skips. Selected access, sessions, key authorization, approval, attachment deletion, PDF/zip, scheduled-delivery and write-refusal scenarios. Tests use injected users or synthetic signed JWTs and mock delivery where applicable; not live auth, storage, email or deployed browser.",
+    "workspace_account_db": "Node 24 isolated DB batch: 162 passed, no skips. Selected workspace/account configuration, role, import, contact, schedule and export scenarios; injected identities or synthetic JWTs, some component/provider mocks. No deployed browser/live auth.",
+    "inventory_payments_db": "Node 24 isolated DB batch: 185 passed, no skips. Selected inventory, banking, payment and Plaid scenarios; injected identities and fake provider where used, no live provider/auth/browser.",
+    "plaid_lifecycle": "6 component tests passed using mocked fetch and fake Plaid SDK, including malformed link token, duplicate callback, stale callback and in-flight scope change. No live Plaid/browser proof; abort cannot undo already committed write.",
+    "transaction_operational_db": "Node 24 isolated DB batch: 205 passed, no skips. Selected worked transaction, period, asset, report and tax service/router cases; tests inject identities and some mock component fetch; not deployed browser/live auth or exhaustive financial verification.",
+    "security_sandbox_db": "Node 24 isolated DB security and sandbox batch: 109 passed, zero skipped. Local full-app tests use synthetic signed JWTs or injected identities; fake providers as applicable, no live Supabase/browser. An additional isolated S-39 fault probe confirmed generic 500 responses for two closed-period named commands (AUP-25).",
+    "posting_report_db": "Node 24 isolated DB batch: 206 passed, zero skipped. Selected inventory, accounting, payroll, recovery, mail and report refusal cases; injected identities and fake mail where applicable; not live provider/auth/browser or exhaustive financial correctness.",
+    "w13_browser_local": "Four Chromium fixture journeys passed (390px/1280px, light/dark): real mounted React screens to local real routers/isolated PostgreSQL to purchase, invoice, reload and value stock; report P&L fetched directly by test. Identity injected, requests forwarded and stores manually refreshed; not deployed end-to-end.",
+    "report_mount_comparison": "audit/report-mount-parity.test.ts: 20 cases passed, actual local Express app with synthetic JWT and isolated DB; selected GET/POST routes produce equivalent empty-book JSON on legacy/v1 mounts, with outsider refusal; most GET cases also check no-token 401. Not full nonempty-book correctness, browser or deployed auth.",
+    "first_hour_browser_local": "Two Chromium fixture keyboard journeys passed (390px/1280px) from customer and invoice creation to mocked PDF preview, fake-transport invoice email, payment and P&L, through real mounted UI and local router/DB. Identity injected and stores manually refreshed; no live Supabase auth, mail or deployment.",
+    "account_reconciliation_db": "59 tests passed on isolated DB; BR-02/BR-05 suite skipped due to dedicated database guard, despite node test summary listing zero skipped tests. Subsequently passed separately: see dedicated_audit_db. Some scenarios are unit/service mocks, not HTTP.",
+    "dedicated_audit_db": "Nine tests passed, zero skipped, on separately created lf_test database behind local port 55439 proxy, using 72 local migrations: BR-02/BR-05 reconciliation, FA-01 depreciation, RP-01/05/07/08 report scenarios. Local routers with injected identity; no live auth, deployed browser or external provider.",
+    "remaining_routes_db": "76 tests passed in Node 24 isolated DB/local router/full app, no skipped suites observed. Selected group/intercompany, branding, client query, mocked Stripe checkout, scoped API key and accounting scenarios; some tests are pure/mocked and provider/auth/browser boundaries are not generally live.",
+    "additional_routes": "98 tests passed in isolated Node 24 run; no skipped suites observed. Selected repost, period closing, credit, invite and AI routes, plus mixed mocked UI/pure tests. Injected identity or synthetic JWT; model mocked; not live providers/deployed authentication. React act warnings observed in period-closing UI test.",
+    "more_boundaries": "56 tests passed, no skipped suites observed: isolated DB SDK with scoped API key, sandbox-token isolation and tools, local OpenAPI route, and selected mocked UI tests. No general live auth or provider proof.",
+    "developer_reads": "Initially five local full-app/Postgres tests; expanded to 23 cases: see developer_read_endpoints and viewer_role_safety.",
+    "sandbox_person_routes": "audit/sandbox-person-routes.test.ts: three local full-app/Postgres tests with synthetic JWT and issued sandbox token cover sandbox list, remembered, token, commands/tools, draft edit/reorder/delete/reject and assistant record reads; no real model, hosted auth or deployed browser.",
+    "bank_csv": "audit/bank-csv-observation.test.ts: 2 passed on local full app/disposable DB using synthetic JWT; malformed amount silently dropped, invalid date substituted, outsider refused. Upload did not write ledger rows. Separate mocked component tests verify warning and acknowledgment; no deployed UI or full posting.",
+    "forensic_scan": "audit/forensic-route.test.ts: 2 local full-app/Postgres tests with synthetic JWT exercised outlier and outsider refusal. audit/forensic-full-loop.test.tsx: 1 DOM component → runCommand → real local app/DB case with synthetic identity. Mocked transport tests separately cover failure/malformed/scope race. No deployed browser or hosted auth.",
+    "additional_boundary_checks": "43 tests passed in cmd1-billing-compute, cmd1-consolidation and csp-report-only; DB router identities injected for first two, CSP HTTP cases use a local app. Legacy compute repetition is observed, not desired retry behavior.",
+    "developer_read_endpoints": "audit/developer-read-probe.test.ts: 23/23 local app and isolated DB cases with synthetic JWT. Viewer valid-body role changes (both methods), invite, confirmed reset and delete returned 403 and selected counts/roles/deletedAt stayed unchanged. Owner real-workspace confirmed reset returned 409 with transaction count unchanged; missing confirmation returned 400. Does not cover successful demo reset or all roles and effects. Other cases cover selected developer/account/command/public/lease reads, synthetic personal-key lifecycle, workspace list writes, CSV alias and external-data/AI refusals; FX transport injected. Two metrics cases record inaccurate behavior. No hosted auth, complete contracts or live provider.",
+    "full_node24_suite": "Full pre-latest-edits suite on dedicated local lf_test: 7,717 passed, 3 failed, 1 skipped (baseline-writing opt-in), total 7,721. The surface assertion expected old status wording; updated and focused 4/4 rerun passed. R-5 InboxView 1153 ms > 1000 ms and A-229 module loading 3343 ms > 1500 ms on concurrent broad run; performance behavior/environment and causality remain unproven. Not a green full-suite run; test file glob and some files were loaded before later changes. Focused serial rerun of performance tests: R-5 passed, A-229 still failed at 2177 ms vs 1500 ms; performance attribution remains unproven.",
+    "document_pdf_post_alias": "src/tests/document-pdf-route.test.ts: 9 passed; added actual isolated-DB document router POST invoice PDF and outsider refusal. Injected identity, not full app or deployed browser.",
+    "viewer_role_safety": "audit/developer-read-probe.test.ts: 23/23 local app and isolated DB cases with synthetic JWT. Viewer valid-body role changes (both methods), invite, confirmed reset and delete returned 403 and selected counts/roles/deletedAt stayed unchanged. Owner real-workspace confirmed reset returned 409 with transaction count unchanged; missing confirmation returned 400. Does not cover successful demo reset or all roles and effects.",
+    "latest_focused_ui": "9/9 forensic, CSV and status/surfaces component tests passed; latest targeted ESLint and full typecheck passed. Tests are local; CSV warning does not fix parsing.",
+    "selected_admin_reads": "audit/admin-read-probe.test.ts: 5/5 local actual app/DB synthetic-token cases: telemetry, users, audit logs, error logs and global config return 200 with selected top-level fields for trusted app_metadata admin; user_metadata admin spoof gets 403 and anonymous 401. No writes, response completeness, production identity or browser integration tested.",
+    "opening_items_http": "audit/open-items-http.test.ts 3/3: local real Express app and disposable DB, synthetic signed users; preview 155000 cents and no write, bookkeeper/outsider 403 and anonymous 401, invalid confirm no write, valid customer/vendor confirms yield AR +155000, AP -21000, opening equity -134000, sales 0; repeat customer confirm refuses duplicates. Actual DOM dialog preview and confirm added a further 1000-cent invoice via runCommand. No live auth/deployment; partial and concurrent failures not established.",
+    "opening_dialog_scope": "12/12 UI tests including five mocked workspace/side/session switches and late-response cases demonstrate AUP-33 mitigation. Request already sent may commit. See src/tests/opening-documents-scope.test.tsx.",
+    "invitation_numbering_lifecycle": "audit/invite-lifecycle-http.test.ts: 2/2 local actual app/Postgres tests with synthetic signed identity. Owner invite, public lookup, wrong user and anonymous rejection, acceptance and persisted membership/role, sequential reaccept rejection; owner role update, numbering update (F-007) and accountant read, owner member removal with post-removal refusal. No live email, hosted auth/browser, concurrent seat race, or exhaustive retries.",
+    "local_person_security_http": "audit/security-person-http.test.ts: 2/2 real local app/Postgres tests with synthetic JWT and test MFA factor. Audit list returns only own events; anonymous 401. Owner creates ten codes, stored without plaintext; another user without factor gets 409 and sees zero codes; first code use removes synthetic factor and cannot be reused. No hosted auth, real MFA, production or browser proof.",
+    "workspace_settings_http": "audit/workspace-settings-http.test.ts 3/3 actual local app/Postgres/synthetic JWT. Viewer reads tags but cannot rename, owner rename persists; viewer cannot save journal template, owner balanced save is listed and creates no transaction; viewer watches account and can delete own watch while other member/outsider cannot. No deployed browser or hosted auth.",
+    "fx_http_historical_observation": "audit/fx-preview-http.test.ts 2/2 in actual local Express/Postgres with synthetic JWTs and supplied rates: selected 18000/-20000/+2000 cents preview is balanced and posts nothing; run, sequential repeat refusal and undo tested. Observation: balance as of 15 Nov changes from 0 to 18000 cents after 24 Nov undo of 31 Oct revaluation with 1 Nov reversal (AUP-34). Not live provider, browser, deployed auth, locked periods or general correctness.",
+    "fx_undo_ui_safety": "src/tests/fx-revaluation-ui.test.tsx 13/13 mocked transport: preview/post scope and session tests, panel warns and disables unsafe undo with no request. Backend direct route/named command remains unfixed; a request already sent may complete.",
+    "public_status_local_full_loop": "audit/public-status-full-loop.test.ts 1/1: anonymous HTTP actual local app/DB and DOM StatusPage rendering; configuration-only caveat shown. No provider check or deployed browser.",
+    "demo_reset_http": "audit/demo-reset-http.test.ts: 1/1 actual local app/disposable DB synthetic JWT: viewer refused, confirmed owner reset of generated demo workspace removed one customer, preserved an audit and another workspace customer, and wrote a reset audit. Earlier probe checks real workspace refusal and missing confirmation. Not an exhaustive collection sweep or production test.",
+    "billing_portal_http": "audit/billing-portal-http.test.ts 1/1 actual local app/DB synthetic JWT, stubbed Stripe: owner obtains fake portal URL for test customer; viewer, outsider and anonymous refused before provider. No live Stripe or deployed UI; AUP-14 status contract remains unresolved.",
+    "current_node24_full_suite": "Full current source suite on fresh migrated disposable lf_test, Node 24, concurrency 4: 7,734 tests, 7,730 pass, 3 fail, 1 skip (baseline-writing opt-in). The failures were performance gates: R-5 eight views exceeded 1,000 ms (worst InboxView 2,432.94 ms); A-229 data-quality-checks 648.08 ms vs 500 ms; report-speed-all-views AccountRegisterView crossed 1,000 ms. Serial retest of those files: 4/5 pass, both R-5 cases pass, A-229 still fails loading 10 modules in 2,329.97 ms vs 1,500 ms. Cause/environment attribution unproven, no budgets changed; not a green suite. Audit probes are separate from npm test.",
+    "latest_audit_checks": "git diff --check and four audit JSON parses passed; scanner fixtures 8/8, bank CSV observation 2/2, and targeted lint on eight recent audit probes passed."
+  },
+  "historical_issue_checks": [
+    {
+      "issues": [
+        "https://github.com/shmuelbiller1/ledgerflow/issues/641",
+        "https://github.com/shmuelbiller1/ledgerflow/issues/648"
+      ],
+      "status": "Both closed according to gh issue view on 2026-11-23. Do not describe as a currently confirmed defect solely from historical notes.",
+      "trace": "FX panel posts via period.fxrevaluation command; current src/lib/fxRevaluation.ts uses convertMinorUnits. The existing pure-plan fx-revaluation.test.ts passed 22 tests, including JPY and KWD minor units. This is not an end-to-end posting or database test."
+    },
+    {
+      "issues": [
+        "https://github.com/shmuelbiller1/ledgerflow/issues/943",
+        "https://github.com/shmuelbiller1/ledgerflow/issues/824"
+      ],
+      "status": "Both closed according to gh issue view on 2026-11-23. Current CSP summary reset includes an audit write; do not repeat archived open-issue claims as current findings. No independent DB regression run."
+    }
+  ],
+  "additional_open_questions": [
+    "Admin user edit converts zero limits to null and displays zero as system default; validate intended zero semantics before changing privilege/billing behavior.",
+    "Admin telemetry controls other tabs: a telemetry load failure blocks user management and audit tabs, even if their routes are healthy.",
+    "Admin global config is persisted to admins/globalConfig and loaded into per-instance memory at app boot (serverKit.ts, server.ts); cross-instance live propagation and failure-to-load behavior need runtime investigation."
+  ]
+}

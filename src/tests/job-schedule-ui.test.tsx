@@ -72,6 +72,20 @@ describe('the schedule tab', () => {
     assert.ok(document.body.textContent?.includes('This run did not say what it did'));
   });
 
+  test('malformed success responses are reported as unreadable, not rendered as a healthy schedule', async () => {
+    const valid = payload(okRun).schedule;
+    for (const schedule of [null, {}, { ...valid, nextRunAt: null }, { ...valid, jobs: null },
+      { ...valid, jobs: [{ ...valid.jobs[0], outcome: 'unexpected' }] },
+      { ...valid, jobs: [{ ...valid.jobs[0], name: {} }] },
+      { ...valid, jobs: [valid.jobs[0], valid.jobs[0]] }]) {
+      stubFetchWithBodies(200, { status: 'ok', schedule });
+      render(<ScheduleSettings />);
+      await waitFor(() => assert.match(screen.getByRole('alert').textContent || '', /could not be read/i));
+      assert.equal(document.querySelectorAll('li').length, 0);
+      cleanup();
+    }
+  });
+
   test('a schedule that cannot be read is said plainly, and the jobs are not called a failure', async () => {
     stubFetchWithBodies(500, { status: 'error', message: 'The schedule could not be read. The jobs may still have run — the record of them is what is missing.' });
     render(<ScheduleSettings />);

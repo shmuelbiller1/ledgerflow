@@ -14,6 +14,7 @@ export function ApiHubDocMathKpi({ model }: { model: ReturnType<typeof useApiHub
 <pre className="font-mono text-[13px] leading-relaxed">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/kpi" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "netProfitCents": 1500000,
     "investmentCostCents": 10000000,
@@ -57,6 +58,7 @@ export function ApiHubDocMathTemporal({ model }: { model: ReturnType<typeof useA
 <pre className="font-mono text-[13px] leading-relaxed tabular-nums">
 {docLang === 'curl' ? `curl -X POST "https://api.ledgerflow.io/api/v1/math/temporal" \\
   -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "type": "tax",
     "amountCents": 1500000,
@@ -101,6 +103,7 @@ export function ApiHubDocPostProject({ model }: { model: ReturnType<typeof useAp
                     <p className="text-[var(--muted)]">
                        Registers a new corporate project resource inside your workspace ledger to enable targeted activity tracking.
                     </p>
+                    <p role="note" className="mt-2 text-sm text-amber-700">This legacy endpoint creates a new project on repeated requests, including retries after a lost response. Check the project list before retrying; an idempotency header does not make this endpoint safe to retry.</p>
                  </div>
 
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">

@@ -13,6 +13,26 @@ import type { ScheduledJobView, ScheduleView } from '../../../lib/jobSchedule';
 const OUTCOME_ICON = { ok: CheckCircle2, failed: AlertTriangle, unknown: HelpCircle } as const;
 const OUTCOME_WORD = { ok: 'ran', failed: 'went wrong', unknown: 'not reported' } as const;
 
+// The response crosses an HTTP boundary: a success status alone does not make its contents safe to render.
+function isScheduleView(value: unknown): value is ScheduleView {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const s = value as Record<string, unknown>;
+  if (!['ok', 'late', 'failed', 'never', 'not_configured'].includes(String(s.state)) ||
+      typeof s.headline !== 'string' || typeof s.detail !== 'string' ||
+      typeof s.nextRunAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s.nextRunAt) ||
+      !Number.isFinite(Date.parse(s.nextRunAt)) || !Array.isArray(s.jobs)) return false;
+  const ids = new Set<string>();
+  return s.jobs.every((value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const job = value as Record<string, unknown>;
+    if (typeof job.id !== 'string' || !job.id || ids.has(job.id) || typeof job.name !== 'string' ||
+        typeof job.what !== 'string' || typeof job.detail !== 'string' ||
+        !['ok', 'failed', 'unknown'].includes(String(job.outcome))) return false;
+    ids.add(job.id);
+    return true;
+  });
+}
+
 function JobRow({ job }: { job: ScheduledJobView }) {
   const Icon = OUTCOME_ICON[job.outcome];
   return (
@@ -41,8 +61,8 @@ export default function ScheduleSettings() {
       try {
         const data = await runCommand<{ status?: string; message?: string; schedule?: unknown }>({ path: '/api/v1/schedule' });
         if (!live) return;
-        if (data.status !== 'ok') throw new Error(String(data.message || ''), { cause: 'answered-no' });
-        setSchedule(data.schedule as ScheduleView);
+        if (!data || data.status !== 'ok' || !isScheduleView(data.schedule)) throw new Error('Invalid schedule response');
+        setSchedule(data.schedule);
       } catch (err) {
         // the server's own sentence when it answered, our words when it did not answer at all.
         // A refusal arrives as ServerCommandError carrying that sentence; a dead connection does not.

@@ -16,6 +16,8 @@ import { signatureProblem, signState } from '../lib/estimateSignature';
 import { layoutDocumentPdf } from '../server/services/pdfService';
 import PublicEstimatePage from '../components/sales/PublicEstimatePage';
 import { EstimateSignLink } from '../components/sales/EstimateSignLink';
+import { setComponentWorkspace } from './helpers/componentFixtures';
+import { useAuthStore } from '../stores/useAuthStore';
 
 describe('The rules', () => {
   test('who can sign what, and what a signature needs', () => {
@@ -139,6 +141,8 @@ describe('On screen', () => {
   });
 
   test('on the estimates list: Ask to sign makes the link and shows it', async () => {
+    const workspace = setComponentWorkspace();
+    useAuthStore.setState({ currentWorkspaceId: 'w1', workspaces: [{ ...workspace, id: 'w1' }] });
     globalThis.fetch = (async () => new Response(JSON.stringify({ status: 'success', token: `es_${'c'.repeat(48)}` }), { status: 200 })) as typeof fetch;
     render(<EstimateSignLink workspaceId="w1" estimate={{ id: 'e1', number: 'EST-1' }} />);
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ask the customer to sign estimate EST-1' })); });
