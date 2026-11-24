@@ -32,6 +32,7 @@ import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type BillEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
 import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 
 /** What the dialog saves: the bill, and for a new one whether it repeats (BE-08; never stored on the bill). */
 export type BillDraft = Partial<Bill> & { recurringInterval?: 'weekly' | 'monthly' | 'quarterly' | 'yearly'; attachmentFiles?: File[] };
@@ -320,6 +321,8 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // F-9/P2-63: refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
+  useUnsavedChangesGuard(dirty, 'You have unsaved changes to this bill. Leave anyway?');
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
   const draftValue = { bill, splits, memo, repeat };
   const restoreDraft = (kept: typeof draftValue) => {

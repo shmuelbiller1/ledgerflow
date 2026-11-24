@@ -34,6 +34,7 @@ import DocumentLineEditor, { type InvoiceEditorLine } from '../common/DocumentLi
 import { attachmentProblem } from '../../lib/attachments';
 import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 import { printElementById } from '../../lib/printRoot';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -289,6 +290,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // F-9/P2-63: refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
+  useUnsavedChangesGuard(dirty, 'You have unsaved changes to this invoice. Leave anyway?');
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
   const draftValue = { invoice, items, memo, terms };
   const restoreDraft = (kept: typeof draftValue) => {

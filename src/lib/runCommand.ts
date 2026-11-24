@@ -22,7 +22,7 @@ export class ServerCommandError extends Error {
    * person submit it again with a fresh id, recording it twice. A caller that can live without the
    * answer (it already knows the id it generated) should treat this as success.
    */
-  constructor(readonly status: number, message: string, readonly body?: unknown, readonly accepted = false) {
+  constructor(readonly status: number, message: string, readonly body?: unknown, readonly accepted = false, readonly requestId?: string) {
     super(message);
     this.name = 'ServerCommandError';
   }
@@ -100,7 +100,7 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
     // a refusal's body is sometimes not JSON at all (an HTML error page from a proxy); the status
     // is the part that matters, so read the body best-effort
     const refusal = await res.json().catch(() => ({}));
-    throw new ServerCommandError(res.status, refusalMessage(refusal, res.status), refusal);
+    throw new ServerCommandError(res.status, refusalMessage(refusal, res.status), refusal, false, requestIdOf(res));
   }
   let raw: unknown;
   // An empty body is not a cut connection. Many routes answer a write with 200 and no content, and
@@ -111,7 +111,7 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
   try {
     text = await res.text();
   } catch {
-    throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined);
+    throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined, false, requestIdOf(res));
   }
   if (text.trim() === '') raw = null;
   else {
@@ -121,7 +121,7 @@ export async function runCommand<T = unknown>(request: CommandRequest<T>): Promi
       // 200 headers, a body, and a connection cut in the middle of it. `accepted` says the server took
       // the request: an export must not read this as an empty archive, and a journal must not tell the
       // person to submit it again — both are marked here rather than guessed at by each caller.
-      throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined, true);
+      throw new ServerCommandError(res.status, 'The answer from the server was cut off. Try again.', undefined, true, requestIdOf(res));
     }
   }
   return parse ? parse(raw) : raw as T;
@@ -151,6 +151,20 @@ export async function runWrite<T = CommandBody>(request: CommandRequest<Record<s
   } catch (error) {
     if (writeWasAccepted(error)) return {};
     throw error;
+  }
+}
+
+/**
+ * F-22: the server already gives every answer an `x-request-id` (`requestContext`). Keep it on the
+ * error so the person can quote it to support and the log line can be found; a response with no
+ * readable headers (a test stub, a cut connection) simply carries nothing.
+ */
+function requestIdOf(res: Response): string | undefined {
+  try {
+    const headers = (res as { headers?: { get?: (name: string) => string | null } }).headers;
+    return headers?.get?.('x-request-id') || undefined;
+  } catch {
+    return undefined;
   }
 }
 

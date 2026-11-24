@@ -21,6 +21,8 @@ function fakeDatabase() {
   };
   const selects: Array<{ table: string; delta: boolean }> = [];
   const realtime: Array<(payload: unknown) => void> = [];
+  /** The `subscribe` status callbacks the production code registers (F-13). */
+  const statuses: Array<(status: string) => void> = [];
   let removedChannels = 0;
 
   const column = (c: string) => (r: FakeRow): unknown => {
@@ -69,7 +71,10 @@ function fakeDatabase() {
       return Promise.resolve({ error: null });
     },
     channel: () => {
-      const ch = { on: (_e: string, _f: unknown, cb: (p: unknown) => void) => { realtime.push(cb); return ch; }, subscribe: () => ch };
+      const ch = {
+        on: (_e: string, _f: unknown, cb: (p: unknown) => void) => { realtime.push(cb); return ch; },
+        subscribe: (cb?: (status: string) => void) => { if (cb) statuses.push(cb); return ch; },
+      };
       return ch;
     },
     removeChannel: () => { removedChannels++; return Promise.resolve('ok'); },
@@ -83,6 +88,7 @@ function fakeDatabase() {
     remove(name: string, id: string) { table(name).delete(id); },
     selects,
     fireRealtime(payload: unknown) { realtime.forEach(cb => cb(payload)); },
+    fireChannelStatus(status: string) { statuses.slice().forEach(cb => cb(status)); },
     get removedChannels() { return removedChannels; },
   };
 }
@@ -126,6 +132,25 @@ describe('Live lists fetch only what changed', () => {
 
     unsubscribe();
     assert.equal(fake.removedChannels, 1);
+  });
+
+  test('a channel that reached an error reloads in full instead of staying stale (F-13)', async () => {
+    const fake = fakeDatabase();
+    fake.put('payments', 'a', { workspaceId: 'w1', date: '2026-01-01' });
+    const seen: string[][] = [];
+    const unsubscribe = onSnapshot(
+      query(collection(fake.db, 'payments'), where('workspaceId', '==', 'w1'), orderBy('date', 'desc')),
+      snap => seen.push(snap.docs.map(d => d.id)));
+    await settle();
+    assert.deepEqual(seen.at(-1), ['a']);
+
+    // someone else adds a row while the realtime channel is dead: no event ever arrives
+    fake.put('payments', 'b', { workspaceId: 'w1', date: '2026-02-01' });
+    fake.fireChannelStatus('CHANNEL_ERROR');
+    await settle();
+    assert.deepEqual(seen.at(-1), ['b', 'a'], 'the list caught up with a full reload');
+    assert.equal(fake.selects.filter(s => !s.delta).length, 2, 'one reload after the first load');
+    unsubscribe();
   });
 
   test('a delete from a list cut by its limit reloads in full', async () => {

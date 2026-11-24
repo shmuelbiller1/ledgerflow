@@ -133,6 +133,16 @@ export interface AppErrorInfo {
 }
 
 /**
+ * F-22: the server's own request id (`x-request-id`), when the failure carried one. It lets the
+ * person quote a reference and support find the exact log line; a failure that never reached the
+ * server (or a stubbed test response) has none and says nothing.
+ */
+export function errorReference(error: unknown): string | null {
+  const id = (error as { requestId?: unknown } | null | undefined)?.requestId;
+  return typeof id === 'string' && id.trim() ? id : null;
+}
+
+/**
  * Enhanced Error Logger
  * Captures deep context for forensic debugging
  */
@@ -152,7 +162,9 @@ export function reportError(error: unknown, operationType: OperationType, path: 
   console.error(`[FORENSIC ERROR] ${(operationType || 'UNKNOWN').toUpperCase()}:`, JSON.stringify(errInfo, null, 2));
 
   const described = describeError(error, String(operationType || ''), uiLanguageNow());
-  toast.error(described.title, { description: described.remedy });
+  // a server refusal keeps its reference beside the remedy, so the person can quote it
+  const reference = errorReference(error);
+  toast.error(described.title, { description: reference ? `${described.remedy} (Reference ${reference})` : described.remedy });
 
   return errInfo;
 }
