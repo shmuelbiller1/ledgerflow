@@ -1,3 +1,4 @@
+import { isCollectionCapped } from '../../lib/ledgerCollections';
 import React, { useMemo, useState } from 'react';
 import { Contact } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,10 +36,12 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
   useLedgerCollections('bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [asOfDate, setAsOfDate] = usePageSyncedState(pageAsOfDate || '', pageAsOfDate || undefined, getLocalDateISO);
-  const isTruncated = Boolean(
-    truncated.customers || truncated.vendors || truncated.invoices || truncated.bills ||
-    truncated.payments || truncated.creditNotes || truncated.vendorCredits
+  const capped = useMemo(
+    () => (['bills', 'creditNotes', 'customers', 'invoices', 'payments', 'vendorCredits', 'vendors'] as const)
+      .filter(key => isCollectionCapped(truncated, key)),
+    [truncated],
   );
+  const isTruncated = capped.length > 0;
   const serverRows = useServerOperationalReport<ContactBalanceSummaryRow[]>(
     isTruncated && Boolean(workspaceId),
     workspaceId ? `/api/v1/reports/party-balances?${new URLSearchParams({ workspaceId, asOfDate })}` : '',
@@ -112,6 +115,9 @@ export const ContactBalanceSummaryView: React.FC<{ asOfDate?: string }> = ({ asO
       emptyMessage={reportText('r.no-customers-or-vendors-match-the-search', 'No customers or vendors match the search.')}
       sumKeys={['receivableCents', 'payableCents', 'netCents']}
       getRowId={(r) => r.key}
+      cappedCollections={serverRows ? [] : capped}
+      cappedWhat={reportText('r.this-contact-balance-summary', 'this contact balance summary')}
+      cappedTestId="contact-balance-summary-capped"
     />
   );
 };

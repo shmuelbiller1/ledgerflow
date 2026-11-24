@@ -17,6 +17,7 @@ import { Labelled } from '../ui/Labelled';
 import { EmptyState } from '../ui/EmptyState';
 import { LoadingState } from '../ui/LoadingState';
 import { projectTasksFromProject } from '../../lib/projectTemplates';
+import { splitRuleProblems, splitRulesSaveProblem, formatSplitPercentage } from '../../lib/projectSplitRules';
 import type { ProjectsModel } from './Projects';
 import { inBackground } from '../../lib/inBackground';
 import { percentWidthStyle } from '../../lib/percentBar';
@@ -301,15 +302,25 @@ export function ProjectsView({ withOccurrenceKeys, isProjectTx, formId, projects
                         <div key={key} className="space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-semibold text-[var(--muted)]">{rule.partnerName}</span>
-                            <span className="text-[10px] font-bold font-mono text-[var(--text)]">{rule.percentage}%</span>
+                            <span className="text-[10px] font-bold font-mono text-[var(--text)]">{formatSplitPercentage(rule.percentage)}%</span>
                           </div>
                           <div className="h-1 w-full bg-[var(--line)] rounded-full overflow-hidden">
                             <div className="h-full bg-[var(--brass)]" style={percentWidthStyle(rule.percentage)} />
                           </div>
+                          {/* R-10 (#924): the line says what is wrong with it, in the place the number is */}
+                          {splitRuleProblems(selectedProject.splitRules ?? []).filter(problem => 'line' in problem && problem.line === selectedProject.splitRules!.indexOf(rule) + 1).map(problem => (
+                            <p key={problem.kind} role="alert" className="text-[10px] text-[var(--negative,#b91c1c)]">{problem.message}</p>
+                          ))}
                         </div>
                       ))}
                       {!selectedProject.splitRules?.length && (
                         <p className="text-[10px] text-[var(--muted)] font-bold italic">No split allocations configured.</p>
+                      )}
+                      {/* and the set as a whole: a share set that does not add to 100 splits nothing */}
+                      {Boolean(selectedProject.splitRules?.length) && splitRulesSaveProblem(selectedProject.splitRules!) && (
+                        <p role="status" data-testid="split-rules-total" className="text-[10px] text-[var(--muted)]">
+                          {splitRulesSaveProblem(selectedProject.splitRules!)}
+                        </p>
                       )}
                     </div>
                   </div>

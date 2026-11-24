@@ -9,6 +9,7 @@ import {formatCurrency,getLocalDateISO} from '../../lib/utils';
 import {validWithholdingMonth,vendorWithholdingReport} from '../../lib/vendorWithholdingReport';
 import {downloadCsv} from '../../lib/csvExport';
 import {RelatedRecordEditButton} from '../common/RecordDetailsLauncher';
+import ReportEmptyState from './ReportEmptyState';
 import type {Payment} from '../../types';
 import { useReportText } from './useReportText';
 
@@ -62,6 +63,18 @@ function ScopedReport(){
         { header: reportText('r.saved-certificate-references', 'Saved certificate references'), cell: row => <><bdi>{row.certificates.join('; ')||reportText('r.none-saved', 'None saved')}</bdi>{row.missingReferences>0&&<p>{row.missingReferences} {reportText('r.withholding-payments-have-no-readable-saved-refe', 'withholding payments have no readable saved reference.')}</p>}</> },
         { header: reportText('r.details', 'Details'), cell: row => <RelatedRecordEditButton target={{kind:'vendors',id:row.vendorId}}/> },
       ]} /></div>
-    {valid&&!loading&&!report.rows.length&&<p>{confirmed?reportText('r.no-posted-vendor-payments-are-recorded-for-this', 'No posted vendor payments are recorded for this month. Choose another month or record a vendor payment through its existing payment editor.'):reportText('r.no-posted-vendor-payments-appear-in-this-preview', 'No posted vendor payments appear in this preview for the month. Refresh complete history before concluding that none are recorded.')}</p>}
+    {valid&&!loading&&!report.rows.length&&(payments.length===0
+      ? <ReportEmptyState
+          title={reportText('r.no-payments-loaded-yet', 'No payments loaded yet')}
+          description={reportText('r.this-report-reads-recorded-vendor-payments-recor', 'This report reads the vendor payments in this browser: record or import a vendor payment and it appears here.')}
+        />
+      : <ReportEmptyState
+          title={confirmed
+            ? reportText('r.no-posted-vendor-payments-are-recorded-for-this', 'No posted vendor payments are recorded for this month. Choose another month or record a vendor payment through its existing payment editor.')
+            : reportText('r.no-posted-vendor-payments-appear-in-this-preview', 'No posted vendor payments appear in this preview for the month. Refresh complete history before concluding that none are recorded.')}
+          description={confirmed
+            ? reportText('r.choose-another-month-or-record-a-vendor-payment', 'Choose another month, or record a vendor payment through its existing payment editor.')
+            : reportText('r.refresh-complete-history-before-concluding-that-none', 'Refresh complete history before concluding that none are recorded.')}
+        />)}
   </section>;
 }

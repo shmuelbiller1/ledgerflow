@@ -4,6 +4,9 @@ import { Download, Search, LucideIcon } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
 import { ShowMoreRows } from '../common/ShowMoreRows';
 import { usePagedRows } from '../../hooks/usePagedRows';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
+import { CappedCollectionsNote } from '../common/LoadedEntriesOnlyNote';
+import type { LedgerKey } from '../../lib/ledgerCollections';
 import { useReportText, fill } from './useReportText';
 
 export interface ColumnDef<T> {
@@ -42,6 +45,15 @@ export interface PartyReportLayoutProps<T> {
   getRowId?: (item: T, index: number) => string;
   /** Columns (cents) to total in a footer row over the rows shown, e.g. ['balanceCents'] (I-14) */
   sumKeys?: Array<keyof T & string>;
+  /**
+   * R-11 / #926: the lists this report reads that can be capped in this browser. When one was
+   * capped the report says so above the table, so a short list is not read as the whole ledger.
+   */
+  cappedCollections?: readonly LedgerKey[];
+  /** what those lists make, e.g. "this balance summary" (only used with `cappedCollections`) */
+  cappedWhat?: string;
+  /** the id the capped note is found by in tests, e.g. "customer-balance-summary-capped" */
+  cappedTestId?: string;
 }
 
 export function PartyReportLayout<T>({
@@ -69,8 +81,16 @@ export function PartyReportLayout<T>({
   emptyMessage = 'No records found matching criteria.',
   getRowId = (_, i) => String(i),
   sumKeys = [],
+  cappedCollections,
+  cappedWhat = 'this report',
+  cappedTestId = 'party-report-capped',
 }: PartyReportLayoutProps<T>) {
   const reportText = useReportText();
+  // the header cards and the footer must read in the same currency as the cells. A caller that passes
+  // `currency` is followed; one that does not (Journal Sheet, Depreciation Ledger, Budget vs Actual) falls
+  // back to the book currency, never to a hardcoded USD (R-11 / #926 family).
+  const bookCurrency = useBookCurrency();
+  const moneyCurrency = currency || bookCurrency;
   // R-5: a year of rows draws its first page at once; the footer totals and the export keep every row
   const paged = usePagedRows(data, `${startDate || ''}|${endDate || ''}|${asOfDate || ''}|${searchTerm || ''}`);
   return (
@@ -93,7 +113,7 @@ export function PartyReportLayout<T>({
               {totalLabel}
             </div>
             <div className="text-base font-mono font-bold text-neutral-900 dark:text-white">
-              {totalDisplay ?? formatCurrency(totalAmountCents, currency)}
+              {totalDisplay ?? formatCurrency(totalAmountCents, moneyCurrency)}
             </div>
           </div>
 
@@ -103,7 +123,7 @@ export function PartyReportLayout<T>({
                 {secondaryTotalLabel}
               </div>
               <div className="text-base font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                {formatCurrency(secondaryTotalCents, currency)}
+                {formatCurrency(secondaryTotalCents, moneyCurrency)}
               </div>
             </div>
           )}
@@ -167,6 +187,10 @@ export function PartyReportLayout<T>({
         )}
       </div>
 
+      {cappedCollections && cappedCollections.length > 0 && (
+        <CappedCollectionsNote testId={cappedTestId} keys={cappedCollections} what={cappedWhat} />
+      )}
+
       {/* Report Table */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-xs">
         {/* the table scrolls inside its box so the header (and totals) stay in view (I-14) */}
@@ -192,7 +216,7 @@ footer={sumKeys.length > 0 && data.length > 0 && <><tr>
                   {columns.map((col, i) => (
                     <td key={col.key} className={`px-4 py-3 ${col.align === 'right' ? 'text-right font-mono' : col.align === 'center' ? 'text-center' : 'text-left'}`}>
                       {(sumKeys as string[]).includes(col.key)
-                        ? formatCurrency(data.reduce((sum, item) => sum + (Number((item as Record<string, unknown>)[col.key]) || 0), 0))
+                        ? formatCurrency(data.reduce((sum, item) => sum + (Number((item as Record<string, unknown>)[col.key]) || 0), 0), moneyCurrency)
                         : i === 0 ? fill(reportText('r.total-0', 'Total ({0})'), { 0: data.length }) : ''}
                     </td>
                   ))}

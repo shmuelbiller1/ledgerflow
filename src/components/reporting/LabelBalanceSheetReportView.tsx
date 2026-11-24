@@ -8,6 +8,7 @@ import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { LABEL_ROLES, labelRole } from '../../lib/labelRoles';
 import { runCommand } from '../../lib/runCommand';
 import { useReportText, fill } from './useReportText';
+import ReportEmptyState from './ReportEmptyState';
 import { LoadingState } from '../ui/LoadingState';
 
 type Kind = 'asset' | 'liability' | 'equity';
@@ -63,7 +64,10 @@ export default function LabelBalanceSheetReportView() {
     <section aria-labelledby="bs-by-label-title" className="space-y-4">
       <h2 id="bs-by-label-title" className="text-lg font-bold text-[var(--text)]">{reportText('r.balance-sheet-by-label', 'Balance sheet by label')}</h2>
       {dimensions.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">{reportText('r.no-labels-yet-add-one-property-project-location', 'No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.')}</p>
+        <ReportEmptyState
+          title={reportText('r.no-labels-yet-add-one-property-project-location', 'No labels yet: add one (Property, Project, Location…) in Settings → Labels, and put it on lines.')}
+          description={reportText('r.this-statement-splits-the-balance-sheet-by-one-labe', 'This statement splits the balance sheet by one label at a time; with no labels it has nothing to split.')}
+        />
       ) : (
         <div className="flex flex-wrap items-end gap-3 text-sm">
           <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.label', 'Label')}

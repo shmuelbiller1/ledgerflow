@@ -10,6 +10,7 @@ import { purchaseRegister, registerTotals, salesRegister } from '../../lib/itemR
 import { RowTable } from '../ui/RowTable';
 import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
+import ReportEmptyState from './ReportEmptyState';
 
 const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)] text-[var(--text)]';
 const qty = (n: number) => String(Math.round(n * 1e6) / 1e6);
@@ -60,7 +61,16 @@ export default function ItemRegisterReportView() {
         <label className="flex flex-col gap-1 text-[var(--muted)]">{reportText('r.to', 'To')}<input type="date" value={to} onChange={e => setTo(e.target.value)} className={field} /></label>
       </div>
       {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
-      {!loading && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{side === 'sales' ? reportText('r.no-invoice-stock-lines', 'No invoice lines with a stock item in this period.') : reportText('r.no-bill-stock-lines', 'No bill lines with a stock item in this period.')}</p>}
+      {/* R-11 / #926: "nothing loaded" is not "nothing in this period" */}
+      {!loading && rows.length === 0 && ((items || []).length === 0
+        ? <ReportEmptyState
+            title={reportText('r.no-items-loaded-yet-2', 'No items loaded yet')}
+            description={reportText('r.add-items-in-inventory-then-the-lines-that-moved', 'Add items in Inventory; the invoice and bill lines that moved them then appear here.')}
+          />
+        : <ReportEmptyState
+            title={side === 'sales' ? reportText('r.no-invoice-stock-lines', 'No invoice lines with a stock item in this period.') : reportText('r.no-bill-stock-lines', 'No bill lines with a stock item in this period.')}
+            description={reportText('r.choose-another-period-or-pick-a-single-item-above', 'Choose another period, or pick a single item above to see only its lines.')}
+          />)}
       {rows.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
           <RowTable

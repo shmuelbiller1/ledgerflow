@@ -10,6 +10,7 @@ import { stockSourcesUses, stockSourcesUsesCsv, type FlowLine, type ItemSourcesU
 import { runCommand } from '../../lib/runCommand';
 import { GroupedRowTable } from '../ui/RowTable';
 import type { BandRow } from '../../lib/tableBands';
+import ReportEmptyState from './ReportEmptyState';
 import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
 
@@ -80,7 +81,10 @@ export default function StockSourcesUsesReportView() {
       {startDate > endDate && <p role="status" className="text-xs text-amber-700 dark:text-amber-400">{reportText('r.the-period-starts-after-it-ends', 'The period starts after it ends.')}</p>}
       {key && !shown && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
       {shown?.error && <p role="alert" className="text-sm text-rose-600">{shown.error}</p>}
-      {rows && rows.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
+      {rows && rows.length === 0 && <ReportEmptyState
+        title={reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}
+        description={reportText('r.choose-another-period-or-receive-stock-in-inventor-2', 'Choose another period, or receive stock in Inventory; what came in and what went out of the period is listed here.')}
+      />}
       {rows?.map(r => <ItemFlow key={r.itemId} row={r} currency={currency} />)}
     </section>
   );

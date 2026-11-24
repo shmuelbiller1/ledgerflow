@@ -32,6 +32,7 @@ export const TransactionsByCustomerView: React.FC<{ startDate?: string; endDate?
       paymentStore: (s) => s.payments,
       collections: ['creditNotes', 'customers', 'invoices', 'payments'],
       computeFn: computeTransactionsByCustomer,
+      cappedWhat: 'these customer transactions',
       typeColors: {
         Invoice: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
         'Credit Note': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',

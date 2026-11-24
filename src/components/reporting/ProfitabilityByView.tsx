@@ -9,7 +9,8 @@ import { RangeReportSourceNote } from './RangeReportSourceNote';
 import { formatCurrency } from '../../lib/utils';
 import { csvMoneyForBook, downloadCsv } from '../../lib/csvExport';
 import { useReportText } from './useReportText';
-import { useAuthStore } from '../../stores/useAuthStore';
+import ReportEmptyState from './ReportEmptyState';
+import { useBookCurrency } from '../../hooks/useBookCurrency';
 import { LoadingState } from '../ui/LoadingState';
 
 type By = ProfitabilityBy;
@@ -25,7 +26,10 @@ const field = 'px-2 py-1.5 border border-[var(--line)] rounded bg-[var(--panel)]
 export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selectedYear }) => {
   const reportText = useReportText();
   // #910 family: revenue, cost and budget are in the base currency, so the file's decimals come from it
-  const moneyCell = csvMoneyForBook(useAuthStore(s => s.getCurrentWorkspace()?.currency) || 'USD');
+  const bookCurrency = useBookCurrency();
+  const moneyCell = csvMoneyForBook(bookCurrency);
+  // R-11 / #926: the same currency on screen — a JPY book must not print $ on its rows
+  const money = (cents: number) => formatCurrency(cents, bookCurrency);
   const { loading } = useLedgerCollections('customers', 'invoices', 'inventory', 'transactions', 'accounts', 'projects');
   const [by, setBy] = useState<By>('customer');
   const initial = yearRange(selectedYear ?? new Date().getFullYear());
@@ -101,7 +105,10 @@ export const ProfitabilityByView: React.FC<{ selectedYear?: number }> = ({ selec
       </p>
       {!validPeriod && <p role="alert" className="text-sm text-rose-600">{reportText('r.the-start-date-is-after-the-end-date', 'The start date is after the end date.')}</p>}
       {loading && <LoadingState label={reportText('r.loading', 'Loading…')} rows={3} />}
-      {!loading && validPeriod && lines.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.nothing-sold-or-spent-in-this-period', 'Nothing sold or spent in this period.')}</p>}
+      {!loading && validPeriod && lines.length === 0 && <ReportEmptyState
+        title={reportText('r.nothing-sold-or-spent-in-this-period', 'Nothing sold or spent in this period.')}
+        description={reportText('r.this-report-reads-issued-invoices-cost-of-good', 'This report reads issued invoices, cost of goods sold and posted entries: choose another period, sell something, or group by another dimension.')}
+      />}
       {lines.length > 0 && (
         <div role="region" aria-label={reportText('r.scrollable-profitability-table', 'Scrollable profitability table')} tabIndex={0} className="overflow-x-auto rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">{/* NOSONAR: S6845 — tabIndex on scrollable region is the intentional axe scrollable-region-focusable pattern */}
           <RowTable
@@ -117,28 +124,28 @@ rowHeaderClassName={''}
 rowClassName={"border-b border-[var(--line)]/50"}
 footer={<><tr className="font-semibold">
                 <th scope="row" className="text-left py-1 px-2">{reportText('r.total', 'Total')}</th>
-                <td className="text-right font-mono py-1 px-2">{formatCurrency(total.revenue)}</td>
-                <td className="text-right font-mono py-1 px-2">{formatCurrency(total.cost)}</td>
+                <td className="text-right font-mono py-1 px-2">{money(total.revenue)}</td>
+                <td className="text-right font-mono py-1 px-2">{money(total.cost)}</td>
                 {by === 'project' && (
                   <>
-                    <td className="text-right font-mono py-1 px-2">{total.hasBudget ? formatCurrency(total.budget) : '—'}</td>
+                    <td className="text-right font-mono py-1 px-2">{total.hasBudget ? money(total.budget) : '—'}</td>
                     <td className={`text-right font-mono py-1 px-2 ${total.hasBudget && total.budgetRemaining < 0 ? 'text-rose-600' : ''}`}>
-                      {total.hasBudget ? formatCurrency(total.budgetRemaining) : '—'}
+                      {total.hasBudget ? money(total.budgetRemaining) : '—'}
                     </td>
                     <td className="text-right font-mono py-1 px-2">{total.budgetUsedPct == null ? '—' : `${total.budgetUsedPct}%`}</td>
                   </>
                 )}
-                <td className="text-right font-mono py-1 px-2">{formatCurrency(total.margin)}</td>
+                <td className="text-right font-mono py-1 px-2">{money(total.margin)}</td>
                 <td className="text-right font-mono py-1 px-2">{total.pct === null ? '—' : `${total.pct}%`}</td>
               </tr></>}
 columns={[
 { header: by === 'customer' ? reportText('r.customer', 'Customer') : by === 'item' ? reportText('r.item', 'Item') : reportText('r.project', 'Project'), headClassName: "text-left font-semibold py-1 px-2", className: "text-left font-normal py-1 px-2", cell: l => (<><bdi>{l.label}</bdi>{l.estimate && <span className="text-xs text-[var(--muted)]"> {reportText('r.cost-estimated', '(cost estimated)')}</span>}</>) },
-{ header: reportText('r.revenue', 'Revenue'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (formatCurrency(l.revenueCents)) },
-{ header: reportText('r.cost', 'Cost'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (formatCurrency(l.costCents)) },
-by === 'project' && { header: reportText('r.cost-budget', 'Cost budget'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (l.budgetCents == null ? '—' : formatCurrency(l.budgetCents)) },
-by === 'project' && { header: reportText('r.budget-left', 'Budget left'), headClassName: "text-right font-semibold py-1 px-2", cellProps: l => ({ "className": `text-right font-mono py-1 px-2 ${typeof l.budgetRemainingCents === 'number' && l.budgetRemainingCents < 0 ? 'text-rose-600' : ''}` }), cell: l => (l.budgetRemainingCents == null ? '—' : formatCurrency(l.budgetRemainingCents)) },
+{ header: reportText('r.revenue', 'Revenue'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (money(l.revenueCents)) },
+{ header: reportText('r.cost', 'Cost'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (money(l.costCents)) },
+by === 'project' && { header: reportText('r.cost-budget', 'Cost budget'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (l.budgetCents == null ? '—' : money(l.budgetCents)) },
+by === 'project' && { header: reportText('r.budget-left', 'Budget left'), headClassName: "text-right font-semibold py-1 px-2", cellProps: l => ({ "className": `text-right font-mono py-1 px-2 ${typeof l.budgetRemainingCents === 'number' && l.budgetRemainingCents < 0 ? 'text-rose-600' : ''}` }), cell: l => (l.budgetRemainingCents == null ? '—' : money(l.budgetRemainingCents)) },
 by === 'project' && { header: reportText('r.used-3', 'Used %'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (l.budgetUsedPct == null ? '—' : `${l.budgetUsedPct}%`) },
-{ header: reportText('r.margin-2', 'Margin'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (formatCurrency(l.marginCents)) },
+{ header: reportText('r.margin-2', 'Margin'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (money(l.marginCents)) },
 { header: reportText('r.margin', 'Margin %'), headClassName: "text-right font-semibold py-1 px-2", className: "text-right font-mono py-1 px-2", cell: l => (l.marginPct === null ? '—' : `${l.marginPct}%`) }
 ]}
 />

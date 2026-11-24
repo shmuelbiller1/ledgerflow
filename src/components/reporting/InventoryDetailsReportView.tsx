@@ -8,6 +8,7 @@ import { useUIStore } from '../../stores/useUIStore';
 import { formatCurrency, getLocalDateISO } from '../../lib/utils';
 import { purchasesByItem } from '../../lib/stockMoves';
 import { stockMovementText } from './stockMovementText';
+import ReportEmptyState from './ReportEmptyState';
 import { useReportText } from './useReportText';
 import { LoadingState } from '../ui/LoadingState';
 
@@ -48,7 +49,10 @@ export default function InventoryDetailsReportView() {
         <p role="alert">{reportText('r.the-stock-history-could-not-be-read', 'The stock history could not be read:')} {error || reportText('r.missing-report-rows', 'The response did not contain report rows.')}</p>
         <button type="button" className="min-h-11 rounded border px-3" onClick={retry}>{reportText('r.retry', 'Retry')}</button>
       </div>}
-      {items && items.length === 0 && <p className="text-sm text-[var(--muted)]">{reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}</p>}
+      {items && items.length === 0 && <ReportEmptyState
+        title={reportText('r.no-stock-and-no-movements-in-this-period', 'No stock and no movements in this period.')}
+        description={reportText('r.choose-another-period-or-receive-stock-in-inventor', 'Choose another period, or receive stock in Inventory; every movement of the period is listed here.')}
+      />}
       {purchases.length > 0 && <ReportSchedule rows={purchases} rowKey={p => p.itemId}
         caption={reportText('r.bought-in-the-period', 'Bought in the period')}
         columns={[
