@@ -18,3 +18,9 @@ Other unresolved issues include billing webhook order-dependent duplicate credit
 - Scanner fixtures 8/8, CSV observation 2/2, targeted lint, JSON parsing and `git diff --check` passed. Audit probes are separate from the full source-suite glob.
 
 No live Stripe, Plaid or production data was used. Full findings, route-by-route evidence and limitations remain in the JSON files; previously documented handoffs and release blockers remain open.
+
+## CI follow-up and visual review
+
+The scanner fixture is registered in the CI script-test job. Its root is the current working directory, query matching uses linear string operations, and revision metadata is read without invoking a PATH-resolved executable. The synthetic authentication test route has an explicit rate limiter. On the intermediate CI head, the lint/rules job, CodeQL check, and Sonar quality gate passed; that does not establish the final head's result.
+
+Linux Chromium baseline workflow runs 45439520913 and 45440170631 captured and rechecked affected visual tests. Review of representative before/after images: guest admin telemetry now shows refusal instead of a fabricated populated view; the opening-invoice dialog includes the partial-save warning; the guest bank-connect button is disabled; the watch summary shows unavailable after refusal rather than claiming zero or appearing perpetually loading. The guest task screenshot now explicitly waits for that settled state. The existing cramped phone opening-preview columns remain a usability concern. These screenshots use fixtures and do not verify hosted authentication, providers or accounting correctness.
