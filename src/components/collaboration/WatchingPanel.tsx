@@ -77,7 +77,7 @@ export default function WatchingPanel() {
 
   return (
     <details className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-sm">
-      <summary className="cursor-pointer font-semibold text-[var(--text)]">Records I watch ({watches ? watches.length : '…'})</summary>
+      <summary className="cursor-pointer font-semibold text-[var(--text)]">Records I watch ({watches ? watches.length : loadError ? 'unavailable' : '…'})</summary>
       <p className="mt-2 text-xs text-[var(--muted)]">Once a day you are told about any of these that changed, or was deleted, since you were last told.</p>
       {loadError && <div role="alert" className="mt-2 text-xs text-[var(--neg)]">Could not load watched records: {loadError} <button type="button" className="min-h-11 underline" onClick={() => setVersion(v => v + 1)}>Retry loading watched records</button></div>}
       <ul className="mt-2 divide-y divide-[var(--line)]">

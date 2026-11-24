@@ -21,6 +21,7 @@ test('failed watch-list load is not an empty list and can be retried', async t =
   render(<WatchingPanel />);
   fireEvent.click(screen.getByText(/Records I watch/));
   assert.match((await screen.findByRole('alert')).textContent || '', /Temporarily unavailable/);
+  assert.ok(screen.getByText('Records I watch (unavailable)'));
   assert.equal(screen.queryByText('You are not watching anything.'), null);
   assert.equal((screen.getByRole('button', { name: 'Watch it' }) as HTMLButtonElement).disabled, true);
   assert.equal(calls[0].url, '/api/v1/workspaces/component-workspace/tasks/watching');
