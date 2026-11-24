@@ -1,5 +1,5 @@
 import { useDialog } from '../../hooks/useDialog';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { toast } from 'sonner';
 import { useLedgerStore } from '../../stores/useLedgerStore';
@@ -53,14 +53,33 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
   const [file, setFile] = useState<File | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [accountMappings, setAccountMappings] = useState<AccountMapping[]>([]);
+  // J-11 (#903): a read is tied to the file it started for. `readSeq` numbers every picked file, so a
+  // slow read of a replaced file can never land its rows on the screen; the active reader is aborted
+  // when its file is replaced. A refused file shows `readError` in the dialog with retry guidance —
+  // not only a toast — and leaves nothing from earlier files actionable.
+  const [readError, setReadError] = useState<string | null>(null);
+  const [isReading, setIsReading] = useState(false);
+  const readSeqRef = useRef(0);
+  const activeReaderRef = useRef<FileReader | null>(null);
 
   const accounts = useLedgerStore(s => s.accounts) || [];
   const currentWorkspaceId = useAuthStore(s => s.currentWorkspaceId) || 'default';
   const user = useAuthStore(s => s.user);
   const { addEntity } = useEntityOperations();
 
-  // Helper to parse file into rows
-  const parseSpreadsheetData = async (data: ArrayBuffer | string, _fileName: string) => {
+  // J-11 (#903): a refused read clears every earlier result and says what to do next, in the dialog.
+  const failRead = (message: string, seq?: number) => {
+    if (seq !== undefined && seq !== readSeqRef.current) return;
+    setParsedRows([]);
+    setAccountMappings([]);
+    setReadError(message);
+    setIsReading(false);
+  };
+
+  // Helper to parse file into rows. `seq` is the read's file generation: everything it sets is
+  // discarded if the person picked another file while this read was in flight (#903).
+  const parseSpreadsheetData = async (data: ArrayBuffer | string, _fileName: string, seq: number) => {
+    if (seq !== readSeqRef.current) return;
     try {
       let json: unknown[][] = [];
 
@@ -73,11 +92,13 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         json = parseCsvChecked(data);
       } else {
         const excelRows = await parseExcelToRows(data as ArrayBuffer);
+        // J-11 (#903): the workbook read is async; if the file was replaced meanwhile, stop here.
+        if (seq !== readSeqRef.current) return;
         json.push(...excelRows);
       }
 
       if (json.length === 0) {
-        toast.error('The selected file appears to be empty.');
+        failRead('The selected file appears to be empty. Choose a QuickBooks .csv or .xlsx export with a transaction list.', seq);
         return;
       }
 
@@ -237,10 +258,12 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
       }
 
       if (rows.length === 0) {
-        toast.error('No valid transaction rows found in file.');
+        failRead('No valid transaction rows found in file. Check that this is a QuickBooks General Ledger or Transaction Detail export (.csv or .xlsx) with dated amounts, then choose the file again.', seq);
         return;
       }
 
+      // J-11 (#903): a replaced file's late parse never arms the new draft.
+      if (seq !== readSeqRef.current) return;
       setParsedRows(rows);
 
       // 2. Generate Account Mappings
@@ -273,12 +296,57 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
         };
       });
 
+      if (seq !== readSeqRef.current) return;
       setAccountMappings(mappings);
+      setReadError(null);
+      setIsReading(false);
       toast.success(`Parsed ${rows.length} transactions and ${mappings.length} accounts.`);
     } catch (err) {
       console.error('File parsing error:', err);
-      toast.error('Failed to parse file: ' + ((err as Error).message || 'Unknown error'));
+      failRead(`Could not read this file: ${(err as Error).message || 'unknown error'}. Choose a .csv or .xlsx QuickBooks export and try again.`, seq);
     }
+  };
+
+  // J-11 (#903): everything the picker shows comes from the chosen file. Earlier rows and mappings are
+  // cleared the moment a file is picked, the format is detected from the file's name and bytes (never
+  // from the read method — the old code sent every file to the workbook reader and a CSV failed as
+  // "is this a zip file?"), a refused file says what to do in the dialog, and a slow read of a
+  // replaced file can never arm the new draft.
+  const handleFiles = (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    const selectedFile = acceptedFiles[0];
+    const seq = readSeqRef.current + 1;
+    readSeqRef.current = seq;
+    activeReaderRef.current?.abort();
+    activeReaderRef.current = null;
+    setFile(selectedFile);
+    setParsedRows([]);
+    setAccountMappings([]);
+    setReadError(null);
+    setIsReading(true);
+    const reader = new FileReader();
+    activeReaderRef.current = reader;
+    reader.onerror = () => {
+      failRead(`${selectedFile.name} could not be read. Choose a .csv or .xlsx QuickBooks export and try again.`, seq);
+    };
+    reader.onabort = () => { /* superseded by a newer pick (#903); that read owns the screen now */ };
+    reader.onload = (e) => {
+      // J-11 (#903): a slow read of a replaced file never arms the new draft.
+      if (seq !== readSeqRef.current) return;
+      const buf = e.target?.result as ArrayBuffer | null;
+      if (!buf || buf.byteLength === 0) {
+        failRead(`${selectedFile.name} appears to be empty. Choose a QuickBooks .csv or .xlsx export with a transaction list.`, seq);
+        return;
+      }
+      // Explicit format detection (#903): zip bytes are a workbook whatever the name says (and a
+      // workbook renamed .csv still opens); everything else is text for the shared CSV reader, which
+      // refuses genuinely unsupported input out loud instead of guessing.
+      const head = new Uint8Array(buf.slice(0, 2));
+      const isZip = head[0] === 0x50 && head[1] === 0x4b;
+      const asWorkbook = isZip || /\.xlsx$/i.test(selectedFile.name);
+      void parseSpreadsheetData(asWorkbook ? buf : new TextDecoder('utf-8').decode(buf), selectedFile.name, seq);
+    };
+    reader.readAsArrayBuffer(selectedFile);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -291,20 +359,13 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
     },
     maxFiles: 1,
     onDropRejected: () => {
-      toast.error('That file type cannot be read here. Choose a .csv or .xlsx file; if your QuickBooks export saved an old .xls, open it in Excel or Google Sheets and save it as .xlsx first.');
+      const message = 'That file type cannot be read here. Choose a .csv or .xlsx file; if your QuickBooks export saved an old .xls, open it in Excel or Google Sheets and save it as .xlsx first.';
+      toast.error(message);
+      // J-11 (#903): a refused pick is a visible refusal — nothing from an earlier file stays actionable.
+      failRead(message);
     },
     onDrop: (acceptedFiles) => {
-      if (acceptedFiles.length > 0) {
-        const selectedFile = acceptedFiles[0];
-        setFile(selectedFile);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            void parseSpreadsheetData(e.target.result as ArrayBuffer, selectedFile.name);
-          }
-        };
-        reader.readAsArrayBuffer(selectedFile);
-      }
+      handleFiles(acceptedFiles);
     }
   });
 
@@ -324,8 +385,17 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
     const blob = new Blob([sampleCSV], { type: 'text/csv' });
     const sampleFile = new File([blob], 'QuickBooks_General_Ledger_Export.csv', { type: 'text/csv' });
+    // J-11 (#903): the sample is a pick like any other — it replaces whatever was in flight.
+    const seq = readSeqRef.current + 1;
+    readSeqRef.current = seq;
+    activeReaderRef.current?.abort();
+    activeReaderRef.current = null;
     setFile(sampleFile);
-    void parseSpreadsheetData(sampleCSV, sampleFile.name);
+    setParsedRows([]);
+    setAccountMappings([]);
+    setReadError(null);
+    setIsReading(true);
+    void parseSpreadsheetData(sampleCSV, sampleFile.name, seq);
   };
 
   // Summary Metrics for Step 3
@@ -556,7 +626,7 @@ function useQBOMigrationWizardModel({ isOpen, onClose }: { isOpen: boolean; onCl
 
   if (!isOpen) return null;
 
-  return { onClose, withOccurrenceKeys, overlayDialogProps, overlayTitleId, step, setStep, isProcessing, file, parsedRows, accountMappings, setAccountMappings, accounts, getRootProps, getInputProps, isDragActive, handleLoadSampleQBO, metrics, handleNext };
+  return { onClose, withOccurrenceKeys, overlayDialogProps, overlayTitleId, step, setStep, isProcessing, file, readError, isReading, parsedRows, accountMappings, setAccountMappings, accounts, getRootProps, getInputProps, isDragActive, handleLoadSampleQBO, metrics, handleNext };
 }
 
 export type QBOMigrationWizardModel = NonNullable<ReturnType<typeof useQBOMigrationWizardModel>>;
