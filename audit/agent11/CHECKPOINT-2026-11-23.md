@@ -27,13 +27,19 @@ Root `AGENTS.md`; `CLAUDE.md`; `CURRENT_WORK.md`; `AI10_SESSION_ADDENDUM_2026-11
 
 - `npx tsc --noEmit` — clean (needs `NODE_OPTIONS=--max-old-space-size=4096`; the default heap aborts).
 - ESLint on changed files — 0 errors.
-- Focused suites: `j11-quickbooks-picker` 6/6; `j2-qbo-migration-shared-csv`, `ledger-integrity-slice3`, `j6-invoice-pdf-item-wrap`, `j12-bill-limit-settings-roundtrip` (skip without `LF_TEST_DATABASE_URL`) — 25/25 together.
+- Focused suites: `j11-quickbooks-picker` 7/7 (incl. the PR-review regression test); `j2-qbo-migration-shared-csv`, `ledger-integrity-slice3`, `j6-invoice-pdf-item-wrap`, `j12-bill-limit-settings-roundtrip` (skip without `LF_TEST_DATABASE_URL`) — 25/25 + 7 together across runs.
 - `npm run build` — passes.
-- No local PostgreSQL in this sandbox: the DB-gated tests (J-12 round trip, extended #962 route test) and the full suite are **CI's** (owner rule, 18 Nov). PR #1036 CI started (run 45297842123 + CodeQL + Schemathesis); at checkpoint time checks were still pending — see the Drive addendum for the final recorded status.
+- No local PostgreSQL in this sandbox: the DB-gated tests (J-12 round trip, extended #962 route test) and the full suite are **CI's** (owner rule, 18 Nov).
+
+## Bot feedback on PR #1036 (investigated and answered)
+
+- **Gitar** found one real edge case in the J-11 fix (AF11-20261123-01a): a **rejected** drop did not supersede an in-flight read — no generation bump, no abort — so a slow read landing after a refusal could resurrect its rows and clear the alert. Confirmed, fixed in `2d914806` (`failRead` now supersedes: generation bump + reader abort on every refusal), regression test pinned with a FileReader whose `complete()` fires **even after** `abort()` — verified to fail before the fix and pass after. Answered on the Gitar thread (reply 4674086207).
+- **SonarCloud** Quality Gate passed (0 new issues); **CodeQL** passed. Nothing else pending.
+- CI on PR #1036 went fully green on head `14ea5773` (all unit shards incl. LA/Auckland timezone runs, browser shards 1–5, Lint/Typecheck/Database rules, Production build, Playwright smoke, CodeQL, Gitar, SonarCloud, Schemathesis, CycloneDX; "Browser tests (changed specs)" and "Docs checks" skip by path filter). A final CI run verifies head `2d914806` (the review fix).
 
 ## Unfinished tasks and next steps
 
-1. Monitor PR #1036 CI to green; read and answer every bot comment (Gitar, CodeRabbit/SonarCloud, CodeQL); fix legitimate findings and re-push; request merge only when green and nothing open.
+1. Monitor PR #1036 CI on head `2d914806` (the Gitar-fix push) to green; re-check for any new bot comments after the push (per COORDINATION rule); request merge only when green and nothing open — **Shmuel merges**.
 2. J-3 is blocked on AI #1's server design (above) — recorded under Messages.
 3. After this batch the AI #11 queue has **no other open items** (J-3 is `[~]` and blocked) — asked under Messages for the next batch.
 4. If a session resumes: branch `arena/450a23b6-ledgerflow`, PR #1036; the Drive folder `Ledgerflow Agent11 2026-11-23` holds this checkpoint, the findings register, and a `git diff` recovery patch; `2026-11-23_Agent11_MASTER_RECOVERY_INDEX_ADDENDUM.md` in the backups root links them.
