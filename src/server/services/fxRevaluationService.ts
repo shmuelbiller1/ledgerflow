@@ -362,6 +362,13 @@ export async function undoRevaluation(db: Firestore, input: { workspaceId: strin
     }
 
     const today = formatTzDate(new Date(), typeof workspace.timezone === 'string' ? workspace.timezone : 'UTC');
+    // AUP-34: once the scheduled reversal's date has come, it has taken effect and reports up to today
+    // already count it; the revaluation is fully reversed. Voiding it now (and posting a mirror today)
+    // would rewrite every as-of balance in between, so there is nothing left to undo.
+    const scheduledDate = String(scheduledData.date || '').slice(0, 10);
+    if (scheduledDate && scheduledDate <= today) {
+      throw new FxRevaluationError(409, `The revaluation for ${date} already reversed itself on ${scheduledDate}, so there is nothing to undo. Run a new revaluation if the rates need correcting.`);
+    }
     const lines = reversalLines(((found.lines as Array<{ accountId: string; accountName?: string; amountCents: number; description?: string }>) || []).map(l => ({
       accountId: l.accountId,
       accountName: String(l.accountName || ''),

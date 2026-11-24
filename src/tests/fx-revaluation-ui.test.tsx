@@ -180,23 +180,54 @@ describe('the revaluation panel', () => {
     assert.equal(calls[2].headers?.['Idempotency-Key'], firstKey);
   });
 
-  test('after posting, unsafe undo is paused with an explanation and sends no request', async () => {
+  test('right after posting today, undo is offered while the reversal is still tomorrow (AUP-34)', async () => {
     const calls = stubRoutes({
       '/commands/period.fxrevaluation': { body: { status: 'success', data: { ...PLAN, posted: true, transactionId: 'tx-abcdef12' } } },
+      '/commands/period.fxrevaluationundo': { body: { status: 'success', data: { transactionId: 'tx-reversal' } } },
       '/revaluation/preview': { body: PLAN },
     });
     render(<FxRevaluationPanel />);
-    assert.ok(screen.getByText(/Undo is temporarily unavailable while historical balance handling is reviewed/));
     fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
     await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Post it' })));
     fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
     await waitFor(() => assert.ok(screen.getByText(new RegExp(`reversing on ${TOMORROW}`))));
-    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null);
+    assert.ok(screen.queryByRole('button', { name: 'Post it' }) === null, 'a second press is not offered');
+    const undo = screen.getByRole('button', { name: 'Undo it' }) as HTMLButtonElement;
+    assert.equal(undo.disabled, false);
+    fireEvent.click(undo);
+    await waitFor(() => assert.equal(calls.length, 3));
+    assert.deepEqual(calls[2].body, { workspaceId: 'component-workspace', input: { date: TODAY } }, 'undo names the day it undoes through the command API');
+    assert.match(calls[2].path, /\/commands\/period\.fxrevaluationundo$/);
+    assert.ok(calls[2].headers?.['Idempotency-Key'], 'undo carries its own retry key');
+    assert.notEqual(calls[2].headers?.['Idempotency-Key'], calls[1].headers?.['Idempotency-Key'], 'undo is a distinct idempotent operation');
+    await waitFor(() => assert.ok(screen.queryByRole('button', { name: 'Undo it' }) === null, 'the undone plan is cleared'));
+  });
+
+  test('a month end whose reversal already happened offers no undo and says why (AUP-34)', async () => {
+    const date = dayBefore(`${TODAY.slice(0, 7)}-01`);
+    const reversalDate = addDaysYMD(date, 1);
+    const calls = stubRoutes({
+      '/revaluation/preview': [
+        { body: { status: 'ok', date, reversalDate, baseCurrency: 'USD', posted: false, summary: 'Type the rates', unpriced: ['EUR', 'GBP'] } },
+        { body: { ...PLAN, date, reversalDate, unpriced: [], currencies: ['EUR', 'GBP'] } },
+      ],
+      '/commands/period.fxrevaluation': { body: { status: 'success', data: { ...PLAN, date, reversalDate, posted: true, transactionId: 'tx-past0001' } } },
+    });
+    render(<FxRevaluationPanel />);
+    fireEvent.change(screen.getByLabelText('Date to value balances at'), { target: { value: date } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await waitFor(() => assert.ok(screen.getByLabelText(`1 EUR in USD on ${date}`)));
+    fireEvent.change(screen.getByLabelText(`1 EUR in USD on ${date}`), { target: { value: '1.2' } });
+    fireEvent.change(screen.getByLabelText(`1 GBP in USD on ${date}`), { target: { value: '1.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show what would move' }));
+    await waitFor(() => assert.ok(screen.getByRole('button', { name: 'Post it' })));
+    fireEvent.click(screen.getByRole('button', { name: 'Post it' }));
+    await waitFor(() => assert.ok(screen.getByText(new RegExp(`reversing on ${reversalDate}`))));
     const undo = screen.getByRole('button', { name: 'Undo it' }) as HTMLButtonElement;
     assert.equal(undo.disabled, true);
-    assert.ok(screen.getByText(/undoing an older revaluation can change historical balances/i));
+    assert.ok(screen.getByText(new RegExp(`already reversed itself on ${reversalDate}`)));
     fireEvent.click(undo);
-    assert.equal(calls.length, 2);
+    assert.equal(calls.filter(c => /fxrevaluationundo/.test(c.path)).length, 0, 'no undo request is sent');
   });
 
   test('historical month-end asks for that day’s rates and tolerates an incomplete preview payload', async () => {

@@ -46,36 +46,22 @@ describe('FX preview via real application', { skip: !enabled && 'requires LF_TES
     assert.equal((await callApi(base, 'POST', path, { token: tokens[2], body })).status, 403);
     assert.equal((await callApi(base, 'POST', path, { body })).status, 401);
   });
-  it('OBSERVATION: undo after a past reversal changes an earlier as-of balance', async () => {
+  it('AUP-34 (fixed): undo after the reversal took effect is refused and the earlier as-of balance stays', async () => {
     const body = { workspaceId: ws, date: '2026-10-31', rates: { EUR: 1.2, GBP: 1.5 } };
     const path = '/api/v1/transactions/revaluation';
     const run = await callApi(base, 'POST', `${path}/run`, { token: tokens[0], body });
     assert.equal(run.status, 200, JSON.stringify(run.json));
     const result = run.json as { posted: boolean; transactionId: string; reversalTransactionId: string };
     assert.ok(result.posted && result.transactionId && result.reversalTransactionId);
-    const original = (await db.collection('transactions').doc(result.transactionId).get()).data()!;
-    const scheduled = (await db.collection('transactions').doc(result.reversalTransactionId).get()).data()!;
-    type Line = { accountId: string; amountCents: number };
-    assert.deepEqual((scheduled.lines as Line[]).map(l => [l.accountId, l.amountCents]), (original.lines as Line[]).map(l => [l.accountId, -l.amountCents]));
     assert.equal((await callApi(base, 'POST', `${path}/run`, { token: tokens[0], body })).status, 409);
     assert.equal((await callApi(base, 'POST', `${path}/undo`, { token: tokens[1], body: { workspaceId: ws, date: body.date } })).status, 403);
     const balancePath = `/api/v1/balances?workspaceId=${ws}&asOf=2026-11-15`;
     const beforeUndo = await callApi(base, 'GET', balancePath, { token: tokens[0] });
     assert.equal(beforeUndo.status, 200, JSON.stringify(beforeUndo.json));
     const undo = await callApi(base, 'POST', `${path}/undo`, { token: tokens[0], body: { workspaceId: ws, date: body.date } });
-    assert.equal(undo.status, 200, JSON.stringify(undo.json));
-    const undoResult = undo.json as { transactionId: string; reversesTxId: string };
-    assert.equal(undoResult.reversesTxId, result.transactionId);
-    const reversal = (await db.collection('transactions').doc(undoResult.transactionId).get()).data()!;
-    assert.deepEqual((reversal.lines as Line[]).map(l => [l.accountId, l.amountCents]), (original.lines as Line[]).map(l => [l.accountId, -l.amountCents]));
-    assert.equal((await db.collection('transactions').doc(result.reversalTransactionId).get()).data()?.status, 'void');
-    // Observation, not a desired regression: a past as-of balance changes after today's undo.
+    assert.equal(undo.status, 409, JSON.stringify(undo.json));
+    assert.equal((await db.collection('transactions').doc(result.reversalTransactionId).get()).data()?.status, 'completed');
     const afterUndo = await callApi(base, 'GET', balancePath, { token: tokens[0] });
-    assert.equal(afterUndo.status, 200, JSON.stringify(afterUndo.json));
-    const beforeAccounts = (beforeUndo.json as { accounts: Record<string, number> }).accounts;
-    const afterAccounts = (afterUndo.json as { accounts: Record<string, number> }).accounts;
-    assert.equal(beforeAccounts[`${ws}_ar`] || 0, 0);
-    assert.equal(afterAccounts[`${ws}_ar`] || 0, 18000);
-    assert.equal((await callApi(base, 'POST', `${path}/undo`, { token: tokens[0], body: { workspaceId: ws, date: body.date } })).status, 409);
+    assert.deepEqual(afterUndo.json, beforeUndo.json, 'no earlier as-of balance changes');
   });
 });
