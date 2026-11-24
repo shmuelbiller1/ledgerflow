@@ -169,6 +169,7 @@ export default function UniformStructureReportView({
       ? [reportText('r.uniform-cache-other-workspace', 'The bookkeeping cache contains records from a different workspace.')] : []),
     ...(built.input.journalEntries.length === 0 && built.input.documents.length === 0
       ? [reportText('r.uniform-nothing-to-write', 'No journal entries or documents in this year — there is nothing to write.')] : []),
+    ...built.problems,
     ...out.problems,
   ];
   const uniqueBlockers = [...new Set(sourceBlockers)];

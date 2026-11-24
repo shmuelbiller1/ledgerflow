@@ -640,6 +640,7 @@ export function writeUniformFiles(input: UniformFixtureInput, options: UniformWr
   const summaryLines: string[] = [];
   for (const layout of UNIFORM_BKMV_RECORD_ORDER) {
     const count = counts.get(layout.code) ?? 0;
+    if (count === 0) continue; // only types present in BKMVDATA (SHAAM's minimal file: A000+A100+Z900)
     summaryLines.push(`${layout.code.padEnd(4, ' ')}${String(count).padStart(15, '0')}\r\n`);
   }
   const iniText = `${a000}\r\n${summaryLines.join('')}`;

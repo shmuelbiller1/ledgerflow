@@ -232,6 +232,42 @@ test('inventory never gets invented: M100 is empty and the gap is a note', () =>
   assert.ok([...result.notes, ...out.notes].some(note => /M100/.test(note)));
 });
 
+test('a foreign-currency document or payment blocks the file instead of being written as local money (Gitar #1037-1)', () => {
+  const books = source({
+    invoices: [
+      invoice({}),
+      { ...invoice({ id: 'inv2', number: '1002' }), currency: 'USD' } as Invoice,
+    ],
+    payments: [
+      {
+        id: 'p1', direction: 'received', method: 'cash', amountCents: 5000, currency: 'USD',
+        status: 'posted', date: '2025-03-05', unappliedCents: 0,
+        allocations: [{ documentId: 'inv1', documentType: 'invoice', amountCents: 5000 }],
+      } as unknown as Payment,
+    ],
+  });
+  const result = buildUniformBooksInput(books);
+  assert.deepEqual(result.input.documents.map(doc => doc.documentNo), ['1001'], 'the USD invoice is not written as ILS');
+  assert.ok(result.problems.some(problem => /Document 1002 is in USD/.test(problem) && /cannot be written/.test(problem)), result.problems.join(' | '));
+  assert.ok(result.problems.some(problem => /posted payment on 20250305 is in USD/.test(problem)), result.problems.join(' | '));
+  assert.deepEqual(result.input.documents[0].payments, [], 'no D120 rows from the USD payment');
+  // a base-currency document with the same shape passes with no problems
+  const clean = buildUniformBooksInput(source({ payments: [] }));
+  assert.deepEqual(clean.problems, []);
+});
+
+test('a document with no number is refused by the writer, never given the record id (Gitar #1037-4)', () => {
+  const books = source({
+    invoices: [invoice({ number: undefined }) as Invoice],
+    payments: [],
+  });
+  const result = buildUniformBooksInput(books);
+  assert.equal(result.input.documents[0].documentNo, '');
+  const out = writeUniformFiles(result.input, { ...OPTIONS, baseCurrency: result.baseCurrency });
+  assert.equal(out.canDownload, false);
+  assert.ok(out.problems.some(problem => /Document number .*is missing/.test(problem)), out.problems.join(' | '));
+});
+
 test('a journal account outside the chart is reported and still gets an account record', () => {
   const books = source({
     transactions: [tx('t1', '2025-03-01', [line('l1', 'ghost', 100), line('l2', 'a1', -100)])],

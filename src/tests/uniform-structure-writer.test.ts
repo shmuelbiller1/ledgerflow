@@ -308,6 +308,29 @@ test('the writer refuses a journal account with no B110 record', () => {
   assert.equal(out.problems.some(problem => /do not balance/.test(problem)), false, 'the pair itself balances');
 });
 
+test('INI.TXT omits record types with no records (Gitar #1037-3)', () => {
+  const input: UniformFixtureInput = { ...UNIFORM_FIXTURE, documents: [], inventory: [] };
+  const out = writeUniformFiles(input, OPTIONS);
+  const iniCodes = out.iniText.split('\r\n').filter(line => line.length > 0).slice(1).map(line => line.slice(0, 4));
+  // A100, B100, B110, Z900 only: no C100/D110/D120/M100 lines for absent records
+  assert.deepEqual(iniCodes, ['A100', 'B100', 'B110', 'Z900']);
+  assert.deepEqual(out.recordCounts.map(entry => entry.code), iniCodes, 'the screen and the file agree');
+  assert.equal(out.canDownload, true);
+});
+
+test('an over-long journal description is a named problem, never a silent cut (Gitar #1037-2)', () => {
+  const long = 'A description that runs well past the fifty characters the details field holds';
+  const input: UniformFixtureInput = {
+    ...UNIFORM_FIXTURE,
+    journalEntries: UNIFORM_FIXTURE.journalEntries.map((entry, index) =>
+      index === 0 ? { ...entry, details: long } : entry),
+  };
+  const out = writeUniformFiles(input, OPTIONS);
+  assert.equal(out.canDownload, false);
+  assert.ok(out.problems.some(problem => /Journal details \(field 1361\)/.test(problem) && /the field holds 50/.test(problem)), out.problems.join(' | '));
+  assert.equal(out.problems.some(problem => /do not balance/.test(problem)), false, 'only the details refuse the file');
+});
+
 test('record layouts used by the writer stay pinned to the spec widths', () => {
   assert.equal(UNIFORM_A100.width, 95);
   assert.equal(UNIFORM_B100.width, 317);

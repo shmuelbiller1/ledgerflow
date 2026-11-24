@@ -71,6 +71,8 @@ export interface UniformBooksSource {
 
 export interface UniformBooksResult {
   input: UniformFixtureInput;
+  /** Assembly-level refusals (e.g. foreign-currency money) the screen must show next to the writer's. */
+  problems: string[];
   /** Assembly-level limitations the screen must show (the writer adds its own `problems`). */
   notes: string[];
   skipped: {
@@ -123,7 +125,12 @@ function documentTaxRate(doc: ExportableDocument): number | undefined {
 }
 
 function documentNumber(doc: { number?: string; id: string }): string {
-  return doc.number || doc.id;
+  // No invented numbers: an unnumbered document is reported by the writer (field 1204 etc.).
+  return doc.number || '';
+}
+
+function documentCurrency(doc: ExportableDocument): string | undefined {
+  return 'currency' in doc ? doc.currency : undefined;
 }
 
 function inYear(date8: string, year: string): boolean {
@@ -139,7 +146,11 @@ function inYear(date8: string, year: string): boolean {
  */
 export function buildUniformBooksInput(source: UniformBooksSource): UniformBooksResult {
   const notes: string[] = [];
+  const problems: string[] = [];
   const skipped = { documents: 0, paymentsUnapplied: 0, allocationsToSkippedDocuments: 0 };
+  const base = String(source.baseCurrency || 'ILS').trim().toUpperCase();
+  const sameCurrency = (currency: string | undefined): boolean =>
+    !currency || String(currency).trim().toUpperCase() === base;
   const year = source.taxYear;
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
@@ -172,7 +183,8 @@ export function buildUniformBooksInput(source: UniformBooksSource): UniformBooks
         accountKey,
         debitCredit: amountCents > 0 ? '1' : '2',
         amountCents: Math.abs(amountCents),
-        details: (line.description || tx.description || '').slice(0, 50),
+        // full text: the writer reports a >50-character overflow as a problem instead of a silent cut
+        details: line.description || tx.description || '',
       });
     }
   }
@@ -224,6 +236,13 @@ export function buildUniformBooksInput(source: UniformBooksSource): UniformBooks
     if (!inYear(date8, year)) return;
     if (!statuses.has(doc.status)) {
       skipped.documents += 1;
+      return;
+    }
+    const currency = documentCurrency(doc);
+    if (!sameCurrency(currency)) {
+      // The figures are in the document's own currency; converting or relabelling them would
+      // misstate the file, so the document is left out and the download is blocked instead.
+      problems.push(`Document ${documentNumber(doc)} is in ${currency}; the Uniform Structure file needs ${source.baseCurrency} amounts, so it cannot be written.`);
       return;
     }
     const taxCents = documentTaxCents(doc);
@@ -287,20 +306,29 @@ export function buildUniformBooksInput(source: UniformBooksSource): UniformBooks
     const date8 = uniformDate8(payment.date);
     if (!inYear(date8, year) || payment.status !== 'posted') continue;
     const code = PAYMENT_METHOD_CODES[payment.method] ?? '9';
-    let applied = 0;
     for (const allocation of payment.allocations || []) {
-      const target = exportedDocumentIds.get(allocation.documentId);
-      if (!target) {
-        if (allocation.amountCents > 0) skipped.allocationsToSkippedDocuments += 1;
-        continue;
+      if (allocation.amountCents > 0 && !exportedDocumentIds.has(allocation.documentId)) {
+        skipped.allocationsToSkippedDocuments += 1;
       }
-      if (allocation.amountCents <= 0) continue;
+    }
+    const applicable = (payment.allocations || []).filter(allocation => {
+      const target = exportedDocumentIds.get(allocation.documentId);
+      return target && allocation.amountCents > 0;
+    });
+    if (applicable.length === 0) {
+      skipped.paymentsUnapplied += 1;
+      continue;
+    }
+    if (!sameCurrency(payment.currency)) {
+      problems.push(`A posted payment on ${date8} is in ${payment.currency}; the Uniform Structure file needs ${source.baseCurrency} amounts, so it cannot be written.`);
+      continue;
+    }
+    for (const allocation of applicable) {
+      const target = exportedDocumentIds.get(allocation.documentId)!;
       const document = documents.find(doc => doc.documentNo === target.documentNo && doc.documentType === target.documentType);
       if (!document) continue;
-      applied += 1;
       document.payments.push({ paymentMethod: code, amountCents: allocation.amountCents, date: date8 });
     }
-    if (applied === 0) skipped.paymentsUnapplied += 1;
   }
 
   if (skipped.documents > 0) {
@@ -330,5 +358,5 @@ export function buildUniformBooksInput(source: UniformBooksSource): UniformBooks
     documents,
     inventory: [],
   };
-  return { input, notes, skipped, baseCurrency: source.baseCurrency, withholdingFileNo: source.withholdingFileNo };
+  return { input, problems, notes, skipped, baseCurrency: source.baseCurrency, withholdingFileNo: source.withholdingFileNo };
 }

@@ -17,6 +17,7 @@ import { useDataNeedsStore } from '../stores/useDataNeedsStore';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useUIStore } from '../stores/useUIStore';
 import { formatCurrency } from '../lib/utils';
+import { REPORT_STRINGS_5 } from '../lib/i18n/reportTranslationsMore5';
 import { getSupabase } from '../lib/db/client';
 
 const LOADED = {
@@ -221,5 +222,24 @@ describe('Uniform Structure file screen', () => {
     assert.ok(screen.getByRole('columnheader', { name: 'רוחב' }));
     assert.ok(screen.getAllByRole('columnheader', { name: 'כמות' }).length >= 1, 'both data tables name their count column');
     assert.ok(screen.getByText(/הפקת קובץ, לא הגשה/));
+  });
+
+  test('every uniform Hebrew string is Hebrew or Latin — no stray scripts (Gitar #1037-5)', () => {
+    const offenders: string[] = [];
+    for (const entry of REPORT_STRINGS_5) {
+      if (!entry.key.startsWith('r.uniform-')) continue;
+      for (const ch of entry.he) {
+        const c = ch.codePointAt(0)!;
+        const hebrew = (c >= 0x0590 && c <= 0x05ff) || (c >= 0xfb1d && c <= 0xfb4f);
+        const allowed = hebrew || c < 0x80 || '–—„“”…·×÷°«»§¶†‡• '.includes(ch);
+        if (!allowed) offenders.push(`${entry.key} → U+${c.toString(16).toUpperCase()} ${ch}`);
+      }
+    }
+    assert.deepEqual(offenders, []);
+    // the two wording regressions Gitar caught stay fixed
+    const disclaimer = REPORT_STRINGS_5.find(entry => entry.key === 'r.uniform-simulator-disclaimer')!;
+    assert.ok(disclaimer.he.includes('מונפק על ידי הרשות'));
+    const help = REPORT_STRINGS_5.find(entry => entry.key === 'r.uniform-no-documents-help')!;
+    assert.ok(help.he.includes('שנבחרה'));
   });
 });
