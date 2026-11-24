@@ -27,14 +27,17 @@ async function plaidPost<T = CommandBody>(path: string, body: Record<string, unk
  * first-hour guide browser test on CI).
  */
 export default function PlaidConnectButton(props: { onSuccessSync?: () => void; bankId?: string; label?: string }) {
-  const [started, setStarted] = useState(false);
   const workspaceId = useAuthStore(s => s.currentWorkspaceId);
   const uid = useAuthStore(s => s.user?.uid);
-  const closed = useCallback(() => setStarted(false), []);
+  // A press belongs to the person and books it was made in: switching workspace (or user) mid-connect
+  // shows the button again in the new books instead of opening Plaid Link there by itself.
+  const scope = JSON.stringify([uid, workspaceId, props.bankId]);
+  const [startedFor, setStartedFor] = useState<string | null>(null);
+  const closed = useCallback(() => setStartedFor(null), []);
   const label = props.label || (props.bankId ? 'Reconnect bank' : 'Connect Bank');
-  if (!started || !workspaceId || !uid) return <ConnectButton label={label} onClick={() => setStarted(true)} busy={!workspaceId || !uid} />;
+  if (startedFor !== scope || !workspaceId || !uid) return <ConnectButton label={label} onClick={() => setStartedFor(scope)} busy={!workspaceId || !uid} />;
   // A Link handler belongs to the identity and workspace for which its token was requested.
-  return <PlaidLauncher key={JSON.stringify([uid, workspaceId, props.bankId])} {...props} workspaceId={workspaceId} uid={uid} label={label} onClosed={closed} />;
+  return <PlaidLauncher key={scope} {...props} workspaceId={workspaceId} uid={uid} label={label} onClosed={closed} />;
 }
 
 function ConnectButton({ label, onClick, busy = false }: { label: string; onClick: () => void; busy?: boolean }) {

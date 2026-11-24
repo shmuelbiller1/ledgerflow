@@ -37,7 +37,7 @@ test('an unmounted reconnect never requests a link token after delayed authentic
   } finally { auth.currentUser = previousUser; }
 });
 
-test('changing workspace aborts an in-flight link request and requests only the new scope', async () => {
+test('changing workspace aborts an in-flight link request and waits for a new press in the new books', async () => {
   setComponentWorkspace();
   const calls: { body: Record<string, unknown>; signal: AbortSignal }[] = [];
   globalThis.fetch = async (_input, init) => {
@@ -52,6 +52,11 @@ test('changing workspace aborts an in-flight link request and requests only the 
   assert.equal(calls.length, 1);
   await act(async () => { useAuthStore.setState({ currentWorkspaceId: 'next-workspace' }); });
   assert.equal(calls[0].signal.aborted, true);
+  // the press was made in the old books: nothing starts in the new ones until the person presses again
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(calls.length, 1, 'no link token is requested for books nobody pressed the button in');
+  fireEvent.click(screen.getByRole('button', { name: 'Reconnect bank' }));
+  await act(async () => { await Promise.resolve(); });
   assert.deepEqual(calls[1].body, { workspaceId: 'next-workspace', bankId: 'existing-bank' });
   view.unmount();
   assert.equal(calls[1].signal.aborted, true);
