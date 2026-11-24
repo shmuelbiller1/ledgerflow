@@ -132,7 +132,11 @@ export async function startAssistantFixture(t: AfterHost, options: FixtureOption
 
   t.after(async () => {
     await live.pool.query('delete from sandbox.sandboxes where workspace_id = $1', [workspaceId]);
-    for (const table of CLEAN_TABLES) await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+    // by id, so it lands whichever way the workspace_id generated column came out (Gitar finding, PR #1035)
+    await live.pool.query('delete from public."workspaces" where id = $1', [workspaceId]);
+    for (const table of CLEAN_TABLES) {
+      await live.pool.query(`delete from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId]);
+    }
     await live.doc(`workspaces/${workspaceId}`).delete();
   });
 
@@ -156,6 +160,7 @@ export async function startAssistantFixture(t: AfterHost, options: FixtureOption
   });
 
   const app = express();
+  app.disable('x-powered-by');
   app.use(express.json());
   // The person's sign-in, as the real apiAuthenticate would set it (a test-only header).
   app.use('/api/v1/workspaces/:workspaceId/sandboxes', (req, _res, next) => {
@@ -206,10 +211,10 @@ export async function startAssistantFixture(t: AfterHost, options: FixtureOption
   const liveTurn = (question: string, uid = owner) =>
     call('POST', `/api/v1/workspaces/${workspaceId}/sandboxes/assistant/turn`, { question }, { 'x-test-uid': uid, ...JSON_HEADERS });
   const count = async (table: string) =>
-    (await live.pool.query(`select count(*)::int as n from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId])).rows[0].n as number;
+    (await live.pool.query(`select count(*)::int as n from public.${quoteIdent(table)} where ${table === 'workspaces' ? 'id' : 'workspace_id'} = $1`, [workspaceId])).rows[0].n as number;
   const fingerprint = async (tables: readonly string[] = BOOK_TABLES) => Promise.all(tables.map(async table =>
     (await live.pool.query(`select count(*)::int as n, sandbox.content_version(jsonb_agg(data order by id)) as version
-      from public.${quoteIdent(table)} where workspace_id = $1`, [workspaceId])).rows[0]));
+      from public.${quoteIdent(table)} where ${table === 'workspaces' ? 'id' : 'workspace_id'} = $1`, [workspaceId])).rows[0]));
 
   return {
     live, server, base, tag, workspaceId, owner, teammate, bankId, arId, salesId, customerId, invoiceId,

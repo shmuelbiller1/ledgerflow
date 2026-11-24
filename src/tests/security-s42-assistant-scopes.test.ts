@@ -118,7 +118,10 @@ describe('S-42: assistant scopes are enforced on every door', { skip: !hasDb && 
   after(async () => {
     await closeServer(server);
     await db.pool.query(`delete from sandbox.sandboxes where workspace_id in ($1, $2)`, [wsA, wsB]);
-    for (const table of ['workspaces', 'chartAccounts', 'customers', 'apiKeys']) {
+    // workspaces.workspace_id is generated from data->>'workspaceId' and is NULL for workspace rows:
+    // delete those two by id (Gitar finding), the child rows by their workspace id
+    await db.pool.query(`delete from public."workspaces" where id in ($1, $2)`, [wsA, wsB]);
+    for (const table of ['chartAccounts', 'customers', 'apiKeys']) {
       await db.pool.query(`delete from public."${table}" where workspace_id in ($1, $2)`, [wsA, wsB]);
     }
     for (const uid of uids) await db.pool.query('delete from auth.users where id = $1::uuid', [uid]);
