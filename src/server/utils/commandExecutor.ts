@@ -692,7 +692,11 @@ export async function executeCommand<T>(
 
   const dependencies = typeof operationTypeOrDependencies === 'object' ? operationTypeOrDependencies : undefined;
   const outcome = await runRegisteredCommand(req, invocationOrWorkspaceId, dependencies);
-  const response = invocationOrWorkspaceId.formatResponse?.(outcome) || defaultResponse(outcome);
+  // AUP-25: a closed period is 409 PERIOD_LOCKED for the command API; a legacy address keeps the answer it has
+  // always given, so its formatter still sees the status it saw before (each maps that one in its own way)
+  const formatted = invocationOrWorkspaceId.legacyRoute && !outcome.ok && outcome.code === 'PERIOD_LOCKED'
+    && !(outcome.error as { status?: unknown } | undefined)?.status ? { ...outcome, status: 500 } : outcome;
+  const response = invocationOrWorkspaceId.formatResponse?.(formatted) || defaultResponse(outcome);
   res.status(response.status).json(response.body);
   return outcome;
 }
