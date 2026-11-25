@@ -5,7 +5,12 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-22.
+Last updated: 2026-11-25.
+
+## AUP-02 (API/UI parity audit, #1038): a "Take the stock closing" button?
+
+The Stock closing panel only reads a closing. Taking one is possible only through the API Platform command. Should the panel get an owner-only "Take the stock closing" button? It would ask for confirmation, refuse locked periods, and be safe to press twice.
+*Default I'll use:* no button for now. It changes the books, so it waits for your yes. All the other audit findings are fixed in PRs #1039, #1040 and #1041.
 
 ## Two decisions needed before work can start (#893 and #887). Defaults are noted; nothing is built yet.
 
