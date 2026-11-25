@@ -92,3 +92,39 @@ test('a refusal saying the invoice is void forgets it: the next press makes a fr
   assert.equal(creates, 2);
   assert.equal(linkedTo[2], createdIds[1]);
 });
+
+test('a refusal after which the time changed forgets the stale note and warns about the draft', async t => {
+  const workspace = setComponentWorkspace('owner');
+  useLedgerStore.setState({ customers: [makeCustomer({ id: 'c1', name: 'Acme' })], projects: [], invoices: [] });
+  const entry = { id: 'time-1', kind: 'timeEntry', workspaceId: workspace.id, person: 'test-user', date: '2026-10-05', minutes: 60, description: 'Design', billable: true, customerId: 'c1', createdAt: '2026-10-05T10:00:00Z' };
+  let links = 0, refused = false;
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/time/invoiced')) {
+      links++;
+      if (links === 1) return Response.json({ status: 'error', message: 'link unavailable' }, { status: 503 });
+      refused = true; // someone else invoiced the entry meanwhile
+      return Response.json({ status: 'error', message: 'The 2026-10-05 entry is not approved billable time waiting for an invoice', code: 'CONFLICT' }, { status: 409 });
+    }
+    if (url.endsWith('/time')) return Response.json({ status: 'success', entries: [{ ...entry, status: refused ? 'invoiced' : 'approved', ...(refused ? { invoiceId: 'other' } : {}) }], rates: { customers: { c1: 10000 } }, canApprove: true });
+    if (url.endsWith('/next-number')) return Response.json({ number: 'INV-1' });
+    if (url.endsWith('/commands/invoice.create')) return Response.json({ status: 'success', data: {} });
+    if (init?.method === 'POST') return Response.json({ status: 'success' });
+    return Response.json([]);
+  });
+  const bill = async () => {
+    const region = await screen.findByRole('region', { name: 'Bill approved time' });
+    fireEvent.change(within(region).getByLabelText('Customer'), { target: { value: 'c1' } });
+    fireEvent.click(within(region).getByRole('button', { name: 'Make a draft invoice' }));
+  };
+  const first = render(<TimeView />);
+  await bill();
+  await waitFor(() => assert.equal(links, 1));
+  assert.ok(Object.keys(JSON.parse(localStorage.getItem('lf.time.pendingInvoice') || '{}')).length === 1, 'the made draft is noted');
+  first.unmount();
+  render(<TimeView />);
+  await bill();
+  await waitFor(() => assert.equal(links, 2));
+  // the reload shows the entry invoiced elsewhere: the hours changed, so the stale note is gone
+  await waitFor(() => assert.deepEqual(JSON.parse(localStorage.getItem('lf.time.pendingInvoice') || '{}'), {}));
+});

@@ -74,7 +74,29 @@ describe('AUP-28/29: developer metrics', { skip: !enabled && 'requires LF_TEST_D
       const m = ((await read(`/api/v1/metrics?workspaceId=${ws}`)).json as { shiftingMetrics: { metrics: Record<string, number | null> } }).shiftingMetrics.metrics;
       if (businessType === 'saas') { assert.equal(m.churnPercentage, null); assert.equal(m.ltvCents, null); }
       if (businessType === 'realestate') { assert.equal(m.impliedCapitalInvestedCents, 30000, 'the recorded assets, not a $1,000,000 baseline'); }
-      if (businessType === 'retail') { assert.equal(m.cogsCents, 0, 'no assumed 40% of expenses'); assert.equal(m.inventoryTurnoverRatio, null); assert.equal(m.inventoryAccountBalanceCents, 0); }
+      if (businessType === 'retail') {
+        assert.equal(m.cogsCents, 0, 'no assumed 40% of expenses'); assert.equal(m.inventoryTurnoverRatio, null); assert.equal(m.inventoryAccountBalanceCents, 0);
+        assert.equal(m.grossProfitCents, null, 'no COGS account: gross profit is unknown, not all revenue');
+        assert.equal(m.grossMarginPercentage, null, 'no COGS account: no margin, not 100%');
+      }
+    }
+  });
+
+  it('AUP-29: with a cost-of-goods account, gross profit and margin come from it', async () => {
+    await db.collection('workspaces').doc(ws).update({ businessType: 'retail' });
+    await db.collection('chartAccounts').doc(`${ws}_cogs`).set({ workspaceId: ws, name: 'Cost of goods sold', type: 'expense', code: 'cogs' });
+    await db.collection('transactions').doc(`${ws}_cogs1`).set({
+      workspaceId: ws, date: '2026-04-02', status: 'completed', type: 'actual', currency: 'USD', exchangeRate: 1, totalAmountCents: 12000,
+      lines: [{ accountId: `${ws}_cogs`, amountCents: 12000 }, { accountId: `${ws}_cash`, amountCents: -12000 }],
+    });
+    try {
+      const m = ((await read(`/api/v1/metrics?workspaceId=${ws}`)).json as { shiftingMetrics: { metrics: Record<string, number | null> } }).shiftingMetrics.metrics;
+      assert.equal(m.cogsCents, 12000);
+      assert.equal(m.grossProfitCents, 18000, '30,000 revenue - 12,000 cost of goods');
+      assert.equal(m.grossMarginPercentage, 60);
+    } finally {
+      await db.collection('transactions').doc(`${ws}_cogs1`).delete();
+      await db.collection('chartAccounts').doc(`${ws}_cogs`).delete();
     }
   });
 });
