@@ -200,6 +200,7 @@ export const COMMAND_INPUT_SCHEMA_NAMES = {
   "workspace.apicreate": "CommandInput_workspace_apicreate",
   "workspace.applytemplate": "CommandInput_workspace_applytemplate",
   "workspace.branding": "CommandInput_workspace_branding",
+  "workspace.brandingprofiles": "CommandInput_workspace_brandingprofiles",
   "workspace.budgetcontrol": "CommandInput_workspace_budgetcontrol",
   "workspace.canceldeletion": "CommandInput_workspace_canceldeletion",
   "workspace.create": "CommandInput_workspace_create",

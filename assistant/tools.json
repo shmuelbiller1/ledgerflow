@@ -10303,6 +10303,25 @@
       }
     },
     {
+      "name": "propose_workspace_brandingprofiles",
+      "description": "Propose workspace.brandingprofiles for review; never apply it to the live books. Save the branding a label (for example one property or one shop) prints on its documents instead of the books' branding; it changes what documents look like, never what they say.\nExample input: {\"profiles\":{\"labels\":{\"property:A\":{\"color\":\"#0E7C66\",\"footer\":\"Building A\"}}}}\nINVALID_INPUT: A label key is not \"dimension:node\", or a label's branding fails the branding rules. Fix the label or field the answer names.\nFORBIDDEN: The caller is a bookkeeper or a viewer. Ask an owner or an accountant.",
+      "parametersJsonSchema": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "profiles": {}
+        },
+        "required": [
+          "profiles"
+        ],
+        "additionalProperties": {}
+      }
+    },
+    {
       "name": "propose_workspace_budgetcontrol",
       "description": "Propose workspace.budgetcontrol for review; never apply it to the live books. Set whether over-budget posting is ignored, warned or blocked; do not use it to change a budget amount.\nExample input: {\"budgetControl\":\"block\"}\nINVALID_INPUT: The mode is not off, warn or block. Choose one of the three modes.\nROLE_REQUIRED: The caller is not the workspace owner. Ask the owner to change this setting.",
       "parametersJsonSchema": {

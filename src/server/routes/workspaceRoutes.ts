@@ -45,7 +45,7 @@ import {
 } from '../commands/workspaceAdmin';
 import { emailRouter } from './emailRoutes';
 import { taxRouter } from './taxRoutes';
-import { brandingRouter } from './brandingRoutes';
+import { brandingProfilesRouter, brandingRouter } from './brandingRoutes';
 import { contactMergeRouter } from './contactMergeRoutes';
 import { numberingRouter } from './numberingRoutes';
 import { NUMBERED_TYPES } from '../services/numberingService';
@@ -153,6 +153,7 @@ workspaceRouter.use('/:workspaceId/return-authorizations', requireWorkspaceRole(
 workspaceRouter.use('/:workspaceId/emails', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper', 'viewer']), emailRouter);
 // Tax returns: members see them; filing checks owner/accountant in taxReturnService.ts
 workspaceRouter.use('/:workspaceId/tax-returns', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper', 'viewer']), taxRouter);
+workspaceRouter.use('/:workspaceId/branding-profiles', requireWorkspaceRole(['owner', 'accountant']), brandingProfilesRouter);
 workspaceRouter.use('/:workspaceId/branding', requireWorkspaceRole(['owner', 'accountant']), brandingRouter);
 // Spread an invoice's income over months (K-16); before the bad-debt mount, whose role check covers every /invoices path
 workspaceRouter.use('/:workspaceId/invoices', requireWorkspaceRole(['owner', 'accountant', 'bookkeeper']), revenueSpreadRouter);

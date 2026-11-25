@@ -520,11 +520,65 @@ export const reportScheduleSendCommand: CommandDefinition<typeof reportScheduleS
   },
 };
 
+export const brandingProfilesSaveInput = identity.extend({
+  /** { labels: { "dimension:node": branding } }; each label's branding is checked by the branding schema */
+  profiles: z.unknown(),
+}).loose();
+
+/**
+ * AUP-01: per-label branding (workspace.brandingProfiles). Each label key is "dimension:node" and its value is a
+ * branding override checked by the same schema as the books' branding; PDFs for documents on that label (or a
+ * label under it) use it, and the books' branding fills in what it leaves blank. workspace.branding is untouched.
+ */
+export const brandingProfilesSaveCommand: CommandDefinition<typeof brandingProfilesSaveInput, { profiles: unknown }> = {
+  name: 'workspace.brandingprofiles',
+  input: brandingProfilesSaveInput,
+  roles: ['owner', 'accountant'],
+  async handler(ctx, _tx, input) {
+    const { BrandingSchema } = await import('../../lib/branding');
+    const { compactBranding } = await import('../services/brandingService');
+    const { brandingProfilesProblem } = await import('../../lib/entityBranding');
+    const raw = (input.profiles && typeof input.profiles === 'object' ? input.profiles : {}) as { labels?: Record<string, unknown> };
+    const problem = brandingProfilesProblem(raw as never);
+    if (problem) throw Object.assign(new Error(problem), { status: 400, code: 'INVALID_INPUT' });
+    const labels: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(raw.labels || {}).slice(0, 500)) {
+      const parsed = BrandingSchema.safeParse(value);
+      if (!parsed.success) throw Object.assign(new Error(`${key}: ${parsed.error.issues[0]?.message || 'check the branding fields'}`), { status: 400, code: 'INVALID_INPUT' });
+      const compact = compactBranding(parsed.data);
+      if (Object.keys(compact).length) labels[key] = compact;
+    }
+    const profiles = Object.keys(labels).length ? { labels } : {};
+    await ctx.db.collection('workspaces').doc(ctx.workspaceId).update({ brandingProfiles: profiles, updatedAt: new Date().toISOString() });
+    await writeServerAuditLog({
+      workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email || '',
+      action: 'BRANDING_PROFILES_UPDATED', entityType: 'workspace', entityId: ctx.workspaceId,
+      details: { description: 'Branding per label changed', labels: Object.keys(labels) },
+    }, { db: ctx.db });
+    return { profiles };
+  },
+  async preview(_ctx, input) {
+    const labels = Object.keys(((input.profiles || {}) as { labels?: object }).labels || {});
+    return { title: 'Save the branding per label', lines: [labels.length ? `Labels with their own branding: ${labels.join(', ')}` : 'No label overrides: every document uses the books\' branding'] };
+  },
+  audit() { return null; },
+  inverse() { return null; },
+  risk: 'normal',
+  describe: {
+    sentence: 'Save the branding a label (for example one property or one shop) prints on its documents instead of the books\' branding; it changes what documents look like, never what they say.',
+    example: { profiles: { labels: { 'property:A': { color: '#0E7C66', footer: 'Building A' } } } },
+    refusals: [
+      { code: 'INVALID_INPUT', when: 'A label key is not "dimension:node", or a label\'s branding fails the branding rules.', next: 'Fix the label or field the answer names.' },
+      { code: 'FORBIDDEN', when: 'The caller is a bookkeeper or a viewer.', next: 'Ask an owner or an accountant.' },
+    ],
+  },
+};
+
 export const WORKSPACE_HOUSEKEEPING_COMMANDS: AnyCommandDefinition[] = [
   accountMergeCommand, accountMergePreviewCommand,
   contactMergeCommand, contactDeleteCommand,
   journalTemplateSaveCommand, journalTemplateRemoveCommand,
-  twoStepCommand, twoPersonCommand, brandingSaveCommand,
+  twoStepCommand, twoPersonCommand, brandingSaveCommand, brandingProfilesSaveCommand,
   reportSchedulePreviewCommand, reportScheduleSendCommand,
   portalLinkCreateCommand, portalLinkRevokeCommand, signLinkCreateCommand,
 ];
