@@ -16,7 +16,7 @@ import { getSupabase } from '../lib/db/client';
 afterEach(async () => { cleanup(); localStorage.clear(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
 /** Bills the approved hour once (the link fails), remounts with `between` applied, and bills again. */
-async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: string) => void) {
+async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: string) => void, retryAnswer?: () => Response) {
   const workspace = setComponentWorkspace('owner');
   useLedgerStore.setState({ customers: [makeCustomer({ id: 'c1', name: 'Acme' })], projects: [], invoices: [] });
   let creates = 0;
@@ -26,6 +26,7 @@ async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: str
     const url = String(input);
     if (url.endsWith('/time/invoiced')) {
       linkedTo.push(JSON.parse(String(init?.body)).invoiceId);
+      if (linkedTo.length === 2 && retryAnswer) return retryAnswer();
       return linkedTo.length === 1 ? Response.json({ status: 'error', message: 'link unavailable' }, { status: 503 }) : Response.json({ status: 'success' });
     }
     if (url.endsWith('/time')) return Response.json({ status: 'success', entries: [{ id: 'time-1', kind: 'timeEntry', workspaceId: workspace.id, person: 'test-user', date: '2026-10-05', minutes: 60, description: 'Design', billable: true, customerId: 'c1', status: 'approved', createdAt: '2026-10-05T10:00:00Z' }], rates: { customers: { c1: 10000 } }, canApprove: true });
@@ -47,6 +48,11 @@ async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: str
   render(<TimeView />);
   await bill();
   await waitFor(() => assert.equal(linkedTo.length, 2));
+  if (retryAnswer) {
+    await waitFor(() => assert.equal(screen.getByRole('button', { name: 'Make a draft invoice' }).hasAttribute('disabled'), false));
+    await bill();
+    await waitFor(() => assert.equal(linkedTo.length, 3));
+  }
   return { creates, linkedTo, createdIds };
 }
 
@@ -71,4 +77,18 @@ test('a noted invoice that was voided since is not used: a fresh one is made and
   });
   assert.equal(creates, 2, 'the voided draft is replaced');
   assert.equal(linkedTo[1], createdIds[1], 'the time is linked to the new invoice, never the void one');
+});
+
+test('a refusal about the time itself keeps the invoice: the next press links it again, no second invoice', async t => {
+  const { creates, linkedTo } = await failLinkThenRemount(t, () => {},
+    () => Response.json({ status: 'error', message: 'The 2026-10-05 entry is not approved billable time waiting for an invoice', code: 'CONFLICT' }, { status: 409 }));
+  assert.equal(creates, 1, 'no orphan invoice is made');
+  assert.equal(linkedTo[2], linkedTo[0]);
+});
+
+test('a refusal saying the invoice is void forgets it: the next press makes a fresh one', async t => {
+  const { creates, linkedTo, createdIds } = await failLinkThenRemount(t, () => {},
+    () => Response.json({ status: 'error', message: 'That invoice is void; make a new one for this time', code: 'INVOICE_VOID' }, { status: 409 }));
+  assert.equal(creates, 2);
+  assert.equal(linkedTo[2], createdIds[1]);
 });

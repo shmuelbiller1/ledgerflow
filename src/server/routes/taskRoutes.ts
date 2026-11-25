@@ -47,7 +47,7 @@ async function runLegacyCommand<Schema extends import('zod').ZodType, Result, Pr
     formatResponse(outcome: CommandExecutionOutcome) {
       if (outcome.ok) return { status: outcome.status, body: success(outcome.data) };
       const serviceMessage = knownError(outcome.error);
-      if (serviceMessage) return { status: outcome.status, body: { status: 'error', message: serviceMessage } };
+      if (serviceMessage) return { status: outcome.status, body: { status: 'error', message: serviceMessage, ...(outcome.code ? { code: outcome.code } : {}) } };
       if (outcome.code === 'ROLE_REQUIRED' && roleFailure) {
         return { status: outcome.status, body: { status: 'error', message: roleFailure } };
       }

@@ -89,6 +89,7 @@ export default function TimeView() {
   const workspaceId = workspace?.id || '';
   const currency = workspace?.currency || 'USD';
   const canBill = ['owner', 'accountant', 'bookkeeper'].includes(role);
+  const [loadCount, setLoadCount] = useState(0);
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -97,7 +98,7 @@ export default function TimeView() {
       .then(data => { if (live) { setEntries(data.entries || []); setRates(data.rates); setCanApprove(Boolean(data.canApprove)); setFailed(''); } })
       .catch(err => { if (live) setFailed(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
-  }, [workspaceId]);
+  }, [workspaceId, loadCount]);
 
   if (!workspace) return <div className="p-6 md:p-8"><h1 className="text-2xl font-bold text-[var(--text)]">Time</h1><p className="text-sm text-[var(--muted)]">Open a workspace to log time: what you worked on, for which customer or project, approved and billed from here.</p></div>;
   const minutes = parseDuration(draft.duration);
@@ -161,10 +162,16 @@ export default function TimeView() {
         try {
           await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: pending.id });
         } catch (err) {
-          // deleted (404) or voided (409) since: forget it, so the next press makes a fresh invoice
-          if (err instanceof ServerCommandError && (err.status === 404 || err.status === 409)) {
+          // the invoice itself was deleted or voided since: forget it, so the next press makes a fresh invoice
+          const code = err instanceof ServerCommandError ? (err.body as { code?: unknown } | undefined)?.code : undefined;
+          if (code === 'INVOICE_MISSING' || code === 'INVOICE_VOID') {
             forgetPendingTimeInvoice(workspaceId, hours);
             throw new Error(`Draft invoice ${pending.number} is no longer usable (${commandErrorMessage(err, uiLanguageNow())}). Press "Make a draft invoice" again to make a new one.`, { cause: err });
+          }
+          // some of the time changed (removed, sent back, linked elsewhere): keep the invoice and reload the time
+          if (err instanceof ServerCommandError && (err.status === 404 || err.status === 409)) {
+            setLoadCount(n => n + 1);
+            throw new Error(`Some of this time changed since the list was loaded (${commandErrorMessage(err, uiLanguageNow())}). The time list was reloaded; draft invoice ${pending.number} is kept.`, { cause: err });
           }
           throw err;
         }
