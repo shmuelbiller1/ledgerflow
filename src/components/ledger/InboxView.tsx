@@ -18,7 +18,7 @@ import { useHandOvers } from '../collaboration/useHandOvers';
 import { inBackground } from '../../lib/inBackground';
 import { resolveAccountRole } from '../../lib/accountUtils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
-import { commandErrorMessage, runCommand as sendCommand, writeWasAccepted } from '../../lib/runCommand';
+import { commandErrorMessage, runCommand as sendCommand, ServerCommandError, writeWasAccepted } from '../../lib/runCommand';
 import {
   buildConnectedAlgorithmSignals,
   evaluateCalibratedAutoPost,
@@ -136,13 +136,17 @@ export default function InboxView() {
   /** EU-C1: file each entry to its own suggested account (a rule's, history's or the guess on the line). */
   const fileEach = async (items: Array<{ id: string; accountId?: string }>, what: string): Promise<boolean> => {
     if (!currentWorkspaceId) return false;
-    const updates: Array<{ id: string; data: { lines: Transaction['lines']; status: 'completed'; isReviewed: boolean } }> = [];
+    const workspaceAtSend = currentWorkspaceId;
+    // AUP-21: each update names the version it was made from, so the server refuses (409) instead of
+    // overwriting an entry somebody changed since this list was loaded
+    const updates: Array<{ id: string; expectedUpdatedAt?: unknown; data: { lines: Transaction['lines']; status: 'completed'; isReviewed: boolean } }> = [];
     for (const item of items) {
       const tx = transactions.find(t => t.id === item.id);
       const account = accounts.find(a => a.id === item.accountId && !a.isArchived);
       if (!tx || !account) continue;
       const lines = filedLines(tx, account, accounts);
-      if (lines) updates.push({ id: tx.id, data: { lines, status: 'completed', isReviewed: true } });
+      const version = (tx as Transaction & { updatedAt?: unknown }).updatedAt;
+      if (lines) updates.push({ id: tx.id, ...(version ? { expectedUpdatedAt: version } : {}), data: { lines, status: 'completed', isReviewed: true } });
     }
     if (!updates.length) { toast.error('Nothing to accept: the suggested accounts are missing or archived.'); return false; }
     try {
@@ -155,10 +159,15 @@ export default function InboxView() {
       // A cut-off answer means the batch was applied; only a refusal leaves the entries unaccepted. Carrying
       // on below with the patch we sent is the honest reading of a 2xx whose body was cut in half.
       if (!writeWasAccepted(error)) {
-        toast.error(commandErrorMessage(error, uiLanguageNow()));
+        const changedMeanwhile = error instanceof ServerCommandError && error.status === 409;
+        toast.error(changedMeanwhile
+          ? 'Somebody changed one of these entries since the list was loaded, so nothing was filed. Reload the inbox and check it again.'
+          : commandErrorMessage(error, uiLanguageNow()));
         return false;
       }
     }
+    // the answer belongs to the books it was sent for: after a workspace switch it patches nothing here
+    if (useAuthStore.getState().currentWorkspaceId !== workspaceAtSend) return true;
     const patchMap = new Map(updates.map(u => [u.id, u.data]));
     useLedgerStore.getState().setTransactions(
       useLedgerStore.getState().transactions.map(t => (patchMap.has(t.id) ? { ...t, ...patchMap.get(t.id)! } : t)),

@@ -58,7 +58,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
           t.lines?.forEach((l) => {
              const accObj = accounts.find(a => a.id === l.accountId);
              if (accObj?.type === 'revenue') {
-               sumRev -= l.amountCents;
+               sumRev -= lineAmount(l, t);
              }
           });
           return acc + sumRev;
@@ -66,17 +66,16 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
         const calculatedMRR = Math.round(recent3MonthsRevenues / 3);
         const arr = calculatedMRR * 12;
-        const churnRateProxy = 0.05; // 5% base churn rate proxy
-        const ltv = churnRateProxy > 0 ? Math.round(calculatedMRR / churnRateProxy) : 0;
+        // AUP-29: churn is not measured from the books, so neither it nor a lifetime value built on it is given
 
         shiftingMetrics = {
           industryType: "SaaS & Subscription",
           metrics: {
             arrCents: arr,
             mrrCents: calculatedMRR,
-            ltvCents: ltv,
-            churnPercentage: churnRateProxy * 100,
-            grossMarginPercentage: totalRevenueCents > 0 ? Number.parseFloat(((totalRevenueCents - totalExpenseCents) / totalRevenueCents * 100).toFixed(2)) : 100
+            ltvCents: null,
+            churnPercentage: null,
+            grossMarginPercentage: totalRevenueCents > 0 ? Number.parseFloat(((totalRevenueCents - totalExpenseCents) / totalRevenueCents * 100).toFixed(2)) : null
           }
         };
       } else if (businessType === 'realestate' || businessType === 'real_estate') {
@@ -94,8 +93,9 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
         const rentalRevenue = rentalRevenueCents || totalRevenueCents;
         const noiCents = rentalRevenue - totalExpenseCents;
-        const baseCapitalInvested = totalAssetsCents || 100000000; // $1,000,000 baseline
-        const capRate = Number.parseFloat(((noiCents / baseCapitalInvested) * 100).toFixed(2));
+        // AUP-29: capital invested is the recorded assets; with none recorded there is no cap rate (no invented baseline)
+        const baseCapitalInvested = totalAssetsCents > 0 ? totalAssetsCents : null;
+        const capRate = baseCapitalInvested ? Number.parseFloat(((noiCents / baseCapitalInvested) * 100).toFixed(2)) : null;
 
         shiftingMetrics = {
           industryType: "Real Estate Property Management",
@@ -118,14 +118,15 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
              }
           });
           return acc + sumCogs;
-        }, 0) || Math.round(totalExpenseCents * 0.40);
+        }, 0);
 
         const grossProfitCents = totalRevenueCents - cogsCents;
         const grossMargin = totalRevenueCents > 0 ? Number.parseFloat((grossProfitCents / totalRevenueCents * 100).toFixed(2)) : 0;
         
+        // AUP-29: no assumed 40% COGS or invented inventory balance; a ratio without its inputs is not given
         const inventoryAccountVal = accounts.filter(a => a.name.toLowerCase().includes('inventory'))
-          .reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0) || 5000000;
-        const inventoryTurnover = Number.parseFloat((cogsCents / inventoryAccountVal).toFixed(2));
+          .reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
+        const inventoryTurnover = inventoryAccountVal > 0 ? Number.parseFloat((cogsCents / inventoryAccountVal).toFixed(2)) : null;
 
         shiftingMetrics = {
           industryType: "Retail Commerce & Goods Optimization",
@@ -138,7 +139,8 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
           }
         };
       } else {
-        const monthlyBurnRate = Math.round(totalExpenseCents / 12) || 400000;
+        // AUP-29: the recorded expenses spread over a year; no invented 4,000 burn when there are none
+        const monthlyBurnRate = Math.round(totalExpenseCents / 12);
         const fireNestEggCents = monthlyBurnRate * 12 * 25;
         const netCashCents = totalRevenueCents - totalExpenseCents;
         const savingsRate = totalRevenueCents > 0 ? Number.parseFloat((netCashCents / totalRevenueCents * 100).toFixed(2)) : 0;
@@ -149,7 +151,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
             monthlyBurnCents: monthlyBurnRate,
             fireTargetNestEggCents: fireNestEggCents,
             savingsRatePercentage: savingsRate,
-            runwayMonthsRemaining: monthlyBurnRate > 0 ? Number.parseFloat((totalAssetsCents / monthlyBurnRate).toFixed(1)) : 99
+            runwayMonthsRemaining: monthlyBurnRate > 0 ? Number.parseFloat((totalAssetsCents / monthlyBurnRate).toFixed(1)) : null
           }
         };
       }
@@ -161,6 +163,9 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
         coreMetrics: {
           grossRevenueCents: totalRevenueCents,
           operatingExpenseCents: totalExpenseCents,
+          // AUP-29: revenue minus expenses is net income, not a cash-flow figure; the old name is kept for
+          // existing integrations and says the same number
+          netIncomeCents: totalRevenueCents - totalExpenseCents,
           netOperatingCashFlowCents: totalRevenueCents - totalExpenseCents,
           totalLiquidAssetsCents: totalAssetsCents,
           totalLiabilitiesCents: totalLiabilitiesCents,
@@ -200,10 +205,12 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
 
       const accountBalances: Record<string, number> = {};
 
+      // AUP-28: the same figures as /api/v1/metrics — posted entries only (no drafts, forecasts or voids),
+      // each line in the book currency (lineAmount converts a foreign line at its own rate)
       transactions.forEach(tx => {
-         if (tx.status === 'void') return;
+         if (!isPostable(tx)) return;
          tx.lines?.forEach((line) => {
-             accountBalances[line.accountId] = (accountBalances[line.accountId] || 0) + line.amountCents;
+             accountBalances[line.accountId] = (accountBalances[line.accountId] || 0) + lineAmount(line, tx);
          });
       });
 
@@ -226,7 +233,7 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
            totalLiabilitiesCents: totalLiabilities,
            equityCents: totalAssets - totalLiabilities
         },
-        transactionVolume: transactions.length,
+        transactionVolume: transactions.filter(isPostable).length,
         timestamp: new Date().toISOString()
       });
 

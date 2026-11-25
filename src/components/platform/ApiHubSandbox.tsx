@@ -92,7 +92,7 @@ export function ApiHubSandbox({ model }: { model: ReturnType<typeof useApiHubMod
                 </div>
 
                 {sandboxEndpoint === 'POST_ledger_match' && <p className="text-xs text-[var(--muted)]">Ledger matching requires a signed-in session; developer API keys are not supported on this route.</p>}
-                {sandboxEndpoint === 'GET_v1_metrics' && <p role="note" className="text-xs text-amber-700">Shifting metrics can include assumptions and fallback values. The field named net operating cash flow is revenue minus expense, not a cash-flow statement. Use reports for financial decisions.</p>}
+                {sandboxEndpoint === 'GET_v1_metrics' && <p role="note" className="text-xs text-amber-700">Figures come from posted entries in your book currency; one the books cannot support is null, not estimated. netOperatingCashFlowCents is net income (revenue minus expenses), not a cash-flow statement.</p>}
                 {sandboxCredType === 'key' && (
                   <div className="space-y-2 pt-2">
                     <label htmlFor={`${formId}-sandbox-key`} className="text-xs font-semibold">Full API key (ID and secret)</label>

@@ -1,5 +1,4 @@
-/** Local, disposable DB observations of developer read endpoints. The metrics assertions describe
- * current behavior, including known inaccurate figures, not desirable financial regressions. */
+/** Local, disposable DB checks of developer read endpoints. AUP-28 is fixed: the summary now matches /metrics. */
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
@@ -72,13 +71,13 @@ describe('developer read endpoints in a local app', { skip: !enabled && 'require
     assert.equal((result.json as { summary: { globalTrialImbalanceCents: number } }).summary.globalTrialImbalanceCents, 0);
     assert.equal((await read(`/api/v1/ledger/diagnostics?workspaceId=${ws}`, 'outsider')).status, 403);
   });
-  it('OBSERVATION: summary includes draft and forecast and fails to convert currency, unlike metrics', async () => {
+  it('AUP-28 (fixed): summary and metrics agree on posted, converted figures', async () => {
     const metrics = await read(`/api/v1/metrics?workspaceId=${ws}`, 'key');
     const summary = await read(`/api/v1/metrics/summary?workspaceId=${ws}`, 'key');
     assert.equal(metrics.status, 200); assert.equal(summary.status, 200);
     // Posted: 100 USD + 100 EUR at 2 USD/EUR = 300 USD. Summary uses 100 + 200 draft + 300 forecast + 100 EUR = 700.
     assert.equal((metrics.json as { coreMetrics: { grossRevenueCents: number } }).coreMetrics.grossRevenueCents, 30000);
-    assert.equal((summary.json as { metrics: { grossRevenueCents: number } }).metrics.grossRevenueCents, 70000);
+    assert.equal((summary.json as { metrics: { grossRevenueCents: number } }).metrics.grossRevenueCents, 30000);
     assert.equal((await read(`/api/v1/metrics/summary?workspaceId=${ws}`, 'outsider')).status, 403);
   });
   it('command metadata is available to a signed-in person, with unknown names refused', async () => {
@@ -271,11 +270,11 @@ describe('developer read endpoints in a local app', { skip: !enabled && 'require
     assert.equal((await callApi(base, 'POST', '/api/v1/transactions/reset', { token: ownerToken, body: { workspaceId: ws, confirmReset: true } })).status, 409);
     assert.equal((await db.collection('transactions').where('workspaceId', '==', ws).get()).size, before, 'a real workspace must not be emptied');
   });
-  it('OBSERVATION: shifting metrics report a fabricated monthly burn for zero expenses', async () => {
+  it('AUP-29 (fixed): zero expenses give a zero monthly burn, not an invented one', async () => {
     const result = await read(`/api/v1/metrics?workspaceId=${ws}`);
     assert.equal(result.status, 200);
     const body = result.json as { coreMetrics: { operatingExpenseCents: number }; shiftingMetrics: { metrics: { monthlyBurnCents: number } } };
     assert.equal(body.coreMetrics.operatingExpenseCents, 0);
-    assert.equal(body.shiftingMetrics.metrics.monthlyBurnCents, 400000);
+    assert.equal(body.shiftingMetrics.metrics.monthlyBurnCents, 0);
   });
 });
