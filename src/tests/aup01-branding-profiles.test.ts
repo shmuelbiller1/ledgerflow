@@ -7,7 +7,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import { callApi, closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
-import { layoutDocumentPdf } from '../server/services/pdfService';
+import { labelBranding, layoutDocumentPdf } from '../server/services/pdfService';
+import { documentLanguage } from '../lib/documentLanguage';
 
 test('a document on a label prints that label\'s branding over the books\' (and a child label inherits it)', () => {
   const workspace = {
@@ -24,6 +25,13 @@ test('a document on a label prints that label\'s branding over the books\' (and 
   assert.match(onA, /Building A footer/);
   assert.doesNotMatch(onA, /Books footer/);
   assert.match(onChild, /Building A footer/, 'a label under A inherits A');
+});
+
+test('a label\'s own language picks the printed words, as the download and email callers work it out', () => {
+  const workspace = { branding: { language: 'en' }, brandingProfiles: { labels: { 'property:A': { language: 'he' } } }, dimensions: [{ id: 'property' }] };
+  const doc = { dimensions: { property: 'A' } };
+  assert.equal(documentLanguage(labelBranding(doc, workspace as never), null), 'he');
+  assert.equal(documentLanguage(labelBranding({}, workspace as never), null), 'en');
 });
 
 const enabled = Boolean(process.env.LF_TEST_DATABASE_URL);
@@ -68,5 +76,19 @@ describe('AUP-01: saving branding per label', { skip: !enabled && 'requires LF_T
     const badColour = await callApi(base, 'PUT', path, { token: ownerToken, body: { profiles: { labels: { 'property:A': { color: 'green' } } } } });
     assert.equal(badColour.status, 400, JSON.stringify(badColour.json));
     assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.brandingProfiles, profiles, 'a refused save changes nothing');
+  });
+
+  test('two people saving different labels keep both, and a save over a newer version is refused', async () => {
+    const path = `/api/v1/workspaces/${ws}/branding-profiles`;
+    await callApi(base, 'PUT', path, { token: ownerToken, body: { profiles: {} } });
+    const one = callApi(base, 'PUT', path, { token: ownerToken, body: { label: 'property:A', branding: { footer: 'A' }, expected: null } });
+    const two = callApi(base, 'PUT', path, { token: ownerToken, body: { label: 'property:B', branding: { footer: 'B' }, expected: null } });
+    for (const answer of await Promise.all([one, two])) assert.equal(answer.status, 200, JSON.stringify(answer.json));
+    assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.brandingProfiles, { labels: { 'property:A': { footer: 'A' }, 'property:B': { footer: 'B' } } });
+    const stale = await callApi(base, 'PUT', path, { token: ownerToken, body: { label: 'property:A', branding: { footer: 'A2' }, expected: null } });
+    assert.equal(stale.status, 409, JSON.stringify(stale.json));
+    const removed = await callApi(base, 'PUT', path, { token: ownerToken, body: { label: 'property:A', branding: null, expected: { footer: 'A' } } });
+    assert.equal(removed.status, 200, JSON.stringify(removed.json));
+    assert.deepEqual((await db.collection('workspaces').doc(ws).get()).data()?.brandingProfiles, { labels: { 'property:B': { footer: 'B' } } });
   });
 });

@@ -153,6 +153,14 @@ export function contactAddress(contact: unknown): { recipientAddress?: string } 
   return typeof address === 'string' && address.trim() ? { recipientAddress: address } : {};
 }
 
+/** AUP-01: the branding a document prints with: its label's profile, the books' branding filling the blanks.
+ * Callers pick the document language from this too, so a label's own language reaches the PDF. */
+export function labelBranding(doc: PdfDocument | null | undefined, workspace: PdfWorkspace | null | undefined) {
+  return brandingForLabels(workspace?.branding || {}, workspace?.brandingProfiles,
+    documentEntityLabels(doc || {}),
+    (workspace?.dimensions || []).map(d => String(d?.id || '')).filter(Boolean));
+}
+
 export function layoutDocumentPdf(
   type: PdfDocumentType,
   docData: PdfDocument | null | undefined,
@@ -162,9 +170,7 @@ export function layoutDocumentPdf(
   const doc = docData || {};
   // AUP-01: the document's label (first line's, else the document's own) picks its branding profile; the
   // books' branding fills in whatever the label leaves blank
-  const branding = brandingForLabels(workspace?.branding || {}, workspace?.brandingProfiles,
-    documentEntityLabels(doc),
-    (workspace?.dimensions || []).map(d => String(d?.id || '')).filter(Boolean));
+  const branding = labelBranding(doc, workspace);
   const words = DOCUMENT_WORDS[options.language || (branding.language === 'he' ? 'he' : 'en')];
   // amounts in the document's own currency, as a code (unambiguous on paper)
   const currency = String(doc.currency || workspace?.currency || 'USD').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'USD';

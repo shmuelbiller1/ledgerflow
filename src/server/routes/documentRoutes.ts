@@ -6,7 +6,7 @@ import express from 'express';
 import { assertWorkspaceAccess, getDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 import { LEDGER_WRITER_ROLES, roleInWorkspace } from '../middleware/requireLedgerWriter';
-import { contactAddress, generateDocumentPdf } from '../services/pdfService';
+import { contactAddress, generateDocumentPdf, labelBranding } from '../services/pdfService';
 import type { PdfDocument, PdfDocumentType, PdfWorkspace } from '../services/pdfService';
 import { loadStatement, statementDate, StatementScopeError } from '../services/statementService';
 import { contactTerms, documentLanguage, type DocumentLanguage } from '../../lib/documentLanguage';
@@ -64,7 +64,7 @@ async function contactStyle(db: Firestore, workspace: PdfWorkspace, docData: Pdf
   const contact = collection ? (await db.collection(collection).doc(id).get()).data() : undefined;
   const own = contact && contact.workspaceId === workspaceId ? contact : null;
   // #890 (J-6): the contact's saved address goes under their name (a document's own saved address wins)
-  return { language: documentLanguage(workspace.branding, own), terms: contactTerms(own), ...contactAddress(own) };
+  return { language: documentLanguage(labelBranding(docData, workspace), own), terms: contactTerms(own), ...contactAddress(own) };
 }
 
 /** A document of this workspace ready for the PDF (null when missing or another workspace's). */

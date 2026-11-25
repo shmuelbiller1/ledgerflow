@@ -151,7 +151,8 @@ function Scoped() {
         result = await runCommand<Record<string, unknown>>({
           path: `/api/v1/workspaces/${encodeURIComponent(workspace.id)}/branding-profiles`,
           method: 'PUT',
-          body: { profiles: next },
+          // one label, checked against what the editor saw, so another person's label saved meanwhile is kept
+          body: { label: submitted.target, branding: next.labels?.[submitted.target] ?? null, expected: latest.labels?.[submitted.target] ?? null },
         }) ?? {};
       } catch (error) {
         if (!current()) return;

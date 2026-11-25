@@ -5,10 +5,10 @@ export const COMMAND_INPUT_SCHEMA = {
   "type": "object",
   "properties": {
     "workspaceId": COMMAND_SCHEMA_PARTS.part104,
-    "profiles": COMMAND_SCHEMA_PARTS.part1
+    "profiles": COMMAND_SCHEMA_PARTS.part1,
+    "label": COMMAND_SCHEMA_PARTS.part60,
+    "branding": COMMAND_SCHEMA_PARTS.part1,
+    "expected": COMMAND_SCHEMA_PARTS.part1
   },
-  "required": [
-    "profiles"
-  ],
   "additionalProperties": COMMAND_SCHEMA_PARTS.part1
 } as const;

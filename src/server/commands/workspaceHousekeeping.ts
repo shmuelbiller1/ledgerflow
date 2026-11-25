@@ -522,7 +522,11 @@ export const reportScheduleSendCommand: CommandDefinition<typeof reportScheduleS
 
 export const brandingProfilesSaveInput = identity.extend({
   /** { labels: { "dimension:node": branding } }; each label's branding is checked by the branding schema */
-  profiles: z.unknown(),
+  profiles: z.unknown().optional(),
+  /** or one label: its key, its new branding (empty or null removes it), and what the editor saw (stale check) */
+  label: z.string().max(200).optional(),
+  branding: z.unknown().optional(),
+  expected: z.unknown().optional(),
 }).loose();
 
 /**
@@ -538,23 +542,44 @@ export const brandingProfilesSaveCommand: CommandDefinition<typeof brandingProfi
     const { BrandingSchema } = await import('../../lib/branding');
     const { compactBranding } = await import('../services/brandingService');
     const { brandingProfilesProblem } = await import('../../lib/entityBranding');
-    const raw = (input.profiles && typeof input.profiles === 'object' ? input.profiles : {}) as { labels?: Record<string, unknown> };
-    const problem = brandingProfilesProblem(raw as never);
-    if (problem) throw Object.assign(new Error(problem), { status: 400, code: 'INVALID_INPUT' });
-    const labels: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw.labels || {}).slice(0, 500)) {
+    const checked = (key: string, value: unknown) => {
       const parsed = BrandingSchema.safeParse(value);
       if (!parsed.success) throw Object.assign(new Error(`${key}: ${parsed.error.issues[0]?.message || 'check the branding fields'}`), { status: 400, code: 'INVALID_INPUT' });
-      const compact = compactBranding(parsed.data);
-      if (Object.keys(compact).length) labels[key] = compact;
-    }
-    const profiles = Object.keys(labels).length ? { labels } : {};
-    await ctx.db.collection('workspaces').doc(ctx.workspaceId).update({ brandingProfiles: profiles, updatedAt: new Date().toISOString() });
-    await writeServerAuditLog({
-      workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email || '',
-      action: 'BRANDING_PROFILES_UPDATED', entityType: 'workspace', entityId: ctx.workspaceId,
-      details: { description: 'Branding per label changed', labels: Object.keys(labels) },
-    }, { db: ctx.db });
+      return compactBranding(parsed.data) as Record<string, unknown>;
+    };
+    const invalid = (problem: string | null) => { if (problem) throw Object.assign(new Error(problem), { status: 400, code: 'INVALID_INPUT' }); };
+    const ref = ctx.db.collection('workspaces').doc(ctx.workspaceId);
+    // one label at a time ({ label, branding, expected }) is read and changed inside one transaction, so two people
+    // saving different labels keep both; the whole-map form ({ profiles }) still replaces everything
+    const profiles = await ctx.db.runTransaction(async t => {
+      let labels: Record<string, unknown> = {};
+      if (typeof input.label === 'string') {
+        const key = input.label;
+        invalid(brandingProfilesProblem({ labels: { [key]: {} } } as never));
+        const stored = ((await t.get(ref)).data()?.brandingProfiles || {}) as { labels?: Record<string, unknown> };
+        labels = { ...(stored.labels || {}) };
+        if (input.expected !== undefined && JSON.stringify(labels[key] ?? null) !== JSON.stringify(input.expected ?? null)) {
+          throw Object.assign(new Error('This label\'s branding changed while you were editing. Reload to see the newer version.'), { status: 409, code: 'CONFLICT' });
+        }
+        const compact = input.branding && typeof input.branding === 'object' ? checked(key, input.branding) : {};
+        if (Object.keys(compact).length) labels[key] = compact; else delete labels[key];
+      } else {
+        const raw = (input.profiles && typeof input.profiles === 'object' ? input.profiles : {}) as { labels?: Record<string, unknown> };
+        invalid(brandingProfilesProblem(raw as never));
+        for (const [key, value] of Object.entries(raw.labels || {}).slice(0, 500)) {
+          const compact = checked(key, value);
+          if (Object.keys(compact).length) labels[key] = compact;
+        }
+      }
+      const next = Object.keys(labels).length ? { labels } : {};
+      t.update(ref, { brandingProfiles: next, updatedAt: new Date().toISOString() });
+      await writeServerAuditLog({
+        workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email || '',
+        action: 'BRANDING_PROFILES_UPDATED', entityType: 'workspace', entityId: ctx.workspaceId,
+        details: { description: 'Branding per label changed', labels: Object.keys(labels) },
+      }, { db: ctx.db, tx: t });
+      return next;
+    });
     return { profiles };
   },
   async preview(_ctx, input) {

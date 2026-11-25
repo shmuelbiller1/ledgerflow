@@ -66,12 +66,14 @@ brandingRouter.post('/preview', async (req, res) => {
 export const brandingProfilesRouter = express.Router({ mergeParams: true });
 
 brandingProfilesRouter.put('/', async (req, res) => {
-  const body = (req.body || {}) as { profiles?: unknown };
+  const body = (req.body || {}) as { profiles?: unknown; label?: unknown; branding?: unknown; expected?: unknown };
+  const one = typeof body.label === 'string' ? { label: body.label, branding: body.branding ?? null, ...('expected' in body ? { expected: body.expected ?? null } : {}) } : { profiles: body.profiles };
   await executeCommand(req, res, {
-    ...workspaceInvocation(req, brandingProfilesSaveCommand, { profiles: body.profiles }),
+    ...workspaceInvocation(req, brandingProfilesSaveCommand, one),
     formatResponse: (outcome) => {
       if (outcome.ok) return { status: 200, body: { status: 'success', ...(outcome.data as object) } };
       if (outcome.code === 'INVALID_INPUT') return { status: 400, body: { status: 'error', message: outcome.message } };
+      if (outcome.status === 409) return { status: 409, body: { status: 'error', message: outcome.message } };
       return legacyAnswer({ badBody: 'Check the branding fields', failed: 'The branding profiles could not be saved' })(outcome);
     },
   });
