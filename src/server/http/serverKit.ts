@@ -192,6 +192,9 @@ export function handleApiError(res: express.Response, err: unknown) {
   if (message.includes("ALREADY_EXISTS") || code === 6) {
     return sendError(res, "Conflict: " + message, 409);
   }
+  // AUP-27: a spending or credit limit is the caller's to fix (429 / 402, as the named commands answer), not a 500
+  if (code === 'QUOTA_EXCEEDED' || message.startsWith('QUOTA_EXCEEDED')) return sendError(res, message, 429);
+  if (code === 'PAYMENT_REQUIRED' || message.startsWith('PAYMENT_REQUIRED')) return sendError(res, message, 402);
 
   sendError(res, message || "Internal Server Error", 500);
 }

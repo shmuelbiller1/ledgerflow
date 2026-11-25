@@ -210,6 +210,10 @@ billingRouter.get("/status", async (req: express.Request, res: express.Response)
       computeCreditBalance: Math.max(0, shardedCredit), // 100k compute units default
       apiQuotaTotalCentsUsed: Number(wsData.apiQuotaTotalCentsUsed || 0),
       apiQuotaMonthlyLimitCents: Number(wsData.apiQuotaMonthlyLimitCents || 0), // Sandbox has no real dollar limits, just credit limits
+      // AUP-14: what the billing screen needs for "Manage subscription" and the past-due notice, without
+      // handing every member the Stripe subscription id itself
+      hasSubscription: Boolean(wsData.stripeSubscriptionId),
+      paymentStatus: typeof wsData.paymentStatus === 'string' ? wsData.paymentStatus : null,
     };
 
     res.json(statusData);

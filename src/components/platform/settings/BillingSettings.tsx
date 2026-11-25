@@ -14,7 +14,7 @@ export default function BillingSettings() {
   const currentWorkspaceId = useAuthStore(state => state.currentWorkspaceId);
   const workspaces = useAuthStore(state => state.workspaces);
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId);
-  const [billingStatus, setBillingStatus] = useState<{ plan?: string; paymentStatus?: string; stripeSubscriptionId?: string } | null>(null);
+  const [billingStatus, setBillingStatus] = useState<{ plan?: string; paymentStatus?: string | null; hasSubscription?: boolean } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function BillingSettings() {
             <span className="px-3 py-1 bg-[var(--brass-soft)] border border-[var(--brass-line)] text-[var(--text)] text-xs font-bold rounded-full uppercase tracking-wider">
               {planFor(activePlan).name}
             </span>
-            {billingStatus?.stripeSubscriptionId && (
+            {billingStatus?.hasSubscription && (
               <RequireRole requiredRole="owner" disableOnly tooltip="Only the workspace owner can manage billing">
                 <button
                   onClick={handleOpenPortal}

@@ -28,6 +28,8 @@ function journalEditError(outcome: Exclude<CommandExecutionOutcome, { ok: true }
   const error = outcome.error as { currentTransaction?: unknown; missingLabels?: unknown } | undefined;
   const message = error ? errorMessage(error) : outcome.message;
   if (message === 'version_conflict') return { status: outcome.status, body: { error: message, message: 'This transaction was modified by another user.', currentTransaction: error?.currentTransaction } };
+  // this legacy route has always answered a closed period with 400; the named commands now say 409 (AUP-25)
+  if (outcome.code === 'PERIOD_LOCKED') return { status: 400, body: { error: message } };
   const status = outcome.status === 500 ? (message.includes('Forbidden') || message === 'Not a member' || message === 'Workspace mismatch' ? 403 : 400) : outcome.status;
   return { status, body: { error: message, ...(error?.missingLabels ? { missingLabels: error.missingLabels } : {}) } };
 }

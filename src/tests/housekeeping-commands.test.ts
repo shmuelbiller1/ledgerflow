@@ -87,8 +87,8 @@ async function createHarness() {
   };
 }
 
-test('the fourteen commands publish a schema, roles, a parseable example and refusals', () => {
-  assert.equal(COMMANDS.length, 14);
+test('the fifteen commands publish a schema, roles, a parseable example and refusals', () => {
+  assert.equal(COMMANDS.length, 15);
   for (const command of COMMANDS) {
     assert.equal(command.scope ?? 'workspace', 'workspace', `${command.name} works on a workspace`);
     assert.ok(command.roles.length > 0 && command.roles.every(role => COMMAND_ROLES.includes(role)), `${command.name} names real roles`);
@@ -116,7 +116,7 @@ test('the fourteen commands publish a schema, roles, a parseable example and ref
     'account.merge', 'account.mergepreview', 'contact.delete', 'contact.merge',
     'journaltemplate.remove', 'journaltemplate.save',
     'reportschedule.preview', 'reportschedule.send',
-    'security.twoperson', 'security.twostep', 'workspace.branding',
+    'security.twoperson', 'security.twostep', 'workspace.branding', 'workspace.brandingprofiles',
     'portal.linkcreate', 'portal.linkrevoke', 'estimate.signlink',
   ].sort());
 });

@@ -109,7 +109,7 @@ describe('Developer API compatibility (database)', { skip: !url && 'LF_TEST_DATA
     await wsRef.update({ bypassBilling: false, apiQuotaMonthlyLimitCents: 50, apiQuotaTotalCentsUsed: 50 });
     try {
       const refused = await post('/api/v1/projects', { name: 'Must not be saved' });
-      assert.equal(refused.status, 500); // original developer API quota status
+      assert.equal(refused.status, 429, 'AUP-27: the same status the named command answers, not a 500');
       assert.match(String(refused.body.message), /^QUOTA_EXCEEDED:/);
       const foreign = await post('/api/v1/projects', { name: 'Foreign', workspaceId: `${ws}_foreign` });
       // #914: a key used on another workspace is refused (403), not a server fault, and the guard wording stays in the log

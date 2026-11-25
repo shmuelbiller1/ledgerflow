@@ -6,6 +6,8 @@ import { getDateInTimezoneISO } from '../../lib/calendarDate';
 import { depositAppliedCents } from '../../lib/documentMath';
 import { brandColor, LOGO_DATA_URL, MAX_LOGO_BYTES } from '../../lib/branding';
 import type { BrandedDocument, WorkspaceBranding } from '../../lib/branding';
+import { brandingForLabels, type BrandingProfiles } from '../../lib/entityBranding';
+import { documentEntityLabels } from '../../lib/tax/ilVatReturn';
 import { drawLine, wrapText } from './pdfText';
 import { DOCUMENT_WORDS, type DocumentLanguage, type DocumentWords } from '../../lib/documentLanguage';
 import { splitTrimmedLines } from '../../lib/textShape';
@@ -30,6 +32,8 @@ export interface PdfLine { description?: string; name?: string; quantity?: numbe
 /** What a document PDF prints. Any saved invoice, estimate, credit note, payment or statement fits. */
 export interface PdfDocument {
   id?: string;
+  /** the document's labels (`{ property: 'A' }`); a line's own labels win (documentEntityLabels), for AUP-01 branding */
+  dimensions?: Record<string, string>;
   number?: string;
   date?: string;
   /** draft / void / paid … decides the watermark (Y-16) */
@@ -62,7 +66,9 @@ export interface PdfDocument {
   signature?: { name?: string; signedAt?: string };
 }
 
-export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; timezone?: string; branding?: WorkspaceBranding; /** #890: the books' VAT registration is printed */ taxProfiles?: { books?: TaxProfile } }
+export interface PdfWorkspace { name?: string; companyName?: string; currency?: string; timezone?: string; branding?: WorkspaceBranding;
+  /** AUP-01: per-label overrides (workspace.brandingProfiles) and the label order they are looked up in */
+  brandingProfiles?: BrandingProfiles; dimensions?: Array<{ id?: string }>; /** #890: the books' VAT registration is printed */ taxProfiles?: { books?: TaxProfile } }
 
 export interface PdfOptions {
   /** The invoice's public payment page; printed as a QR code on invoices. */
@@ -147,6 +153,14 @@ export function contactAddress(contact: unknown): { recipientAddress?: string } 
   return typeof address === 'string' && address.trim() ? { recipientAddress: address } : {};
 }
 
+/** AUP-01: the branding a document prints with: its label's profile, the books' branding filling the blanks.
+ * Callers pick the document language from this too, so a label's own language reaches the PDF. */
+export function labelBranding(doc: PdfDocument | null | undefined, workspace: PdfWorkspace | null | undefined) {
+  return brandingForLabels(workspace?.branding || {}, workspace?.brandingProfiles,
+    documentEntityLabels(doc || {}),
+    (workspace?.dimensions || []).map(d => String(d?.id || '')).filter(Boolean));
+}
+
 export function layoutDocumentPdf(
   type: PdfDocumentType,
   docData: PdfDocument | null | undefined,
@@ -154,7 +168,9 @@ export function layoutDocumentPdf(
   options: PdfOptions = {}
 ): PdfLayout {
   const doc = docData || {};
-  const branding = workspace?.branding || {};
+  // AUP-01: the document's label (first line's, else the document's own) picks its branding profile; the
+  // books' branding fills in whatever the label leaves blank
+  const branding = labelBranding(doc, workspace);
   const words = DOCUMENT_WORDS[options.language || (branding.language === 'he' ? 'he' : 'en')];
   // amounts in the document's own currency, as a code (unambiguous on paper)
   const currency = String(doc.currency || workspace?.currency || 'USD').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'USD';

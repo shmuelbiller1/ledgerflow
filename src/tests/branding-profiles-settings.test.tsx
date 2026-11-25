@@ -1,5 +1,5 @@
 import './helpers/dom';
-import test, { afterEach, beforeEach, mock } from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { useLedgerStore } from '../stores/useLedgerStore';
 import { setComponentWorkspace } from './helpers/componentFixtures';
 
-// A-77 screen: branding per label value, inherited from the books (the server save is AI #1's wiring).
+// A-77 screen: branding per label value, inherited from the books; saved through PUT /branding-profiles (AUP-01).
 beforeEach(() => {
   const workspace = setComponentWorkspace();
   useAuthStore.getState().setWorkspaces([{ ...workspace, branding: { footer: 'ספרים Books footer' }, brandingProfiles: { labels: { 'world:entity': { footer: 'Entity footer' } } } } as never]);
@@ -31,21 +31,15 @@ test('a guest sees the branding but cannot change it', () => {
 });
 
 
-test('owners can inspect profiles but cannot submit an unsavable draft', async () => {
+test('owners can edit a label\'s branding and save it (AUP-01)', async () => {
   const { fireEvent } = await import('@testing-library/react');
   render(<BrandingProfilesSettings />);
-  assert.ok(screen.getByText(/Label branding cannot be saved or applied to PDFs yet/));
-  assert.ok(screen.getByText(/Label-specific branding is not yet applied to PDFs/));
+  assert.equal(screen.queryByText(/cannot be saved or applied to PDFs yet/), null, 'the old "not available" notice is gone');
+  assert.ok(screen.getByText(/A document on that label \(or a label under it\) uses them/));
   fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'world:entity' } });
   assert.ok(screen.getByText('Entity footer'));
   fireEvent.click(screen.getByRole('button', { name: /Edit this label/ }));
   assert.ok(screen.getByRole('form', { name: 'Edit branding profile' }));
-  assert.equal((screen.getByRole('button', { name: 'Save branding' }) as HTMLButtonElement).disabled, true);
-  const fetchMock = mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network request'); });
-  try {
-    fireEvent.change(screen.getByLabelText('Footer on every page'), { target: { value: 'Draft footer' } });
-    fireEvent.submit(screen.getByRole('form', { name: 'Edit branding profile' }));
-    assert.equal(fetchMock.mock.callCount(), 0);
-    assert.equal((screen.getByLabelText('Footer on every page') as HTMLTextAreaElement).value, 'Draft footer');
-  } finally { fetchMock.mock.restore(); }
+  fireEvent.change(screen.getByLabelText('Footer on every page'), { target: { value: 'Draft footer' } });
+  assert.equal((screen.getByRole('button', { name: 'Save branding' }) as HTMLButtonElement).disabled, false);
 });
