@@ -206,6 +206,7 @@ export const REGISTERED_COMMAND_NAMES: readonly string[] = [
   'workspace.apicreate',
   'workspace.applytemplate',
   'workspace.branding',
+  'workspace.brandingprofiles',
   'workspace.budgetcontrol',
   'workspace.canceldeletion',
   'workspace.create',

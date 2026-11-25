@@ -558,10 +558,12 @@ export const brandingProfilesSaveCommand: CommandDefinition<typeof brandingProfi
         invalid(brandingProfilesProblem({ labels: { [key]: {} } } as never));
         const stored = ((await t.get(ref)).data()?.brandingProfiles || {}) as { labels?: Record<string, unknown> };
         labels = { ...(stored.labels || {}) };
+        if (!(key in labels) && Object.keys(labels).length >= 500) invalid('At most 500 labels can have their own branding');
         if (input.expected !== undefined && JSON.stringify(labels[key] ?? null) !== JSON.stringify(input.expected ?? null)) {
           throw Object.assign(new Error('This label\'s branding changed while you were editing. Reload to see the newer version.'), { status: 409, code: 'CONFLICT' });
         }
-        const compact = input.branding && typeof input.branding === 'object' ? checked(key, input.branding) : {};
+        // only null (or nothing) removes the label; anything else must pass the branding rules
+        const compact = input.branding === null || input.branding === undefined ? {} : checked(key, input.branding);
         if (Object.keys(compact).length) labels[key] = compact; else delete labels[key];
       } else {
         const raw = (input.profiles && typeof input.profiles === 'object' ? input.profiles : {}) as { labels?: Record<string, unknown> };
