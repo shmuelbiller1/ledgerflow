@@ -353,6 +353,8 @@ export async function markInvoicedInTransaction(
   const invoiceId = input.invoiceId;
   const invoice = (await tx.get(db.collection('invoices').doc(invoiceId))).data();
   if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace');
+  // time linked to a void invoice would never be billed
+  if (invoice.status === 'void') throw new TimeError(409, 'That invoice is void; make a new one for this time');
   const ids = [...new Set(input.entryIds.map(String))];
   const found: Array<{ ref: import('../db/firestore').DocumentReference; entry: Omit<TimeEntry, 'id'> }> = [];
   for (const entryId of ids) {

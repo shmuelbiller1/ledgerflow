@@ -5,31 +5,16 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Server } from 'node:http';
-import { closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
+import { startOwnerApp } from './helpers/liveApiServer';
 
 const enabled = Boolean(process.env.LF_TEST_DATABASE_URL);
 describe('AUP-30: bank CSV upload fails closed', { skip: !enabled && 'requires LF_TEST_DATABASE_URL' }, () => {
-  const owner = randomUUID(), ws = `ws_aup30_${randomUUID()}`;
-  let db: Awaited<ReturnType<(typeof import('../server/db/firestore'))['getDb']>>;
-  let server: Server | undefined, base = '', token = '', env: Record<string, string | undefined> = {};
-  before(async () => {
-    env = useLiveApiEnv('aup30-bank-csv');
-    const [{ getDb }, { createApp }] = await Promise.all([import('../server/db/firestore'), import('../../server')]); db = getDb();
-    await db.pool.query("insert into auth.users (id,email,email_confirmed_at,raw_app_meta_data) values ($1::uuid,$2,now(),'{}'::jsonb)", [owner, `${owner}@example.test`]);
-    await db.collection('workspaces').doc(ws).set({ uid: owner, name: 'AUP-30', currency: 'USD', members: [owner], roles: { [owner]: 'owner' } });
-    token = await signTestJwt({ uid: owner, email: `${owner}@example.test`, aal: 'aal2', userMetadata: { email_verified: true } });
-    ({ server, base } = await listenOnRandomPort(await createApp()));
-  });
-  after(async () => {
-    await closeServer(server);
-    if (db) {
-      await db.pool.query('delete from public.workspaces where id = $1', [ws]);
-      await db.pool.query('delete from public.users where id = $1', [owner]);
-      await db.pool.query('delete from auth.users where id = $1::uuid', [owner]);
-    }
-    restoreEnv(env);
-  });
+  const ws = `ws_aup30_${randomUUID()}`;
+  let app!: Awaited<ReturnType<typeof startOwnerApp>>;
+  let base = '', token = '';
+  // a workspace west of UTC: dates must keep the day written in the file
+  before(async () => { app = await startOwnerApp('aup30-bank-csv', ws, { timezone: 'America/New_York' }); ({ base, token } = app); });
+  after(async () => { await app?.stop(); });
   async function upload(csv: string) {
     const form = new FormData();
     form.append('workspaceId', ws);
@@ -42,6 +27,12 @@ describe('AUP-30: bank CSV upload fails closed', { skip: !enabled && 'requires L
     const result = await upload('Date,Description,Amount\n2026-03-01,Valid,10.00\n03/02/2026,US date,-2.50\n');
     assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.deepEqual((result.body as Array<{ date: string; amountCents: number }>).map(r => [r.date, r.amountCents]), [['2026-03-01', 1000], ['2026-03-02', -250]]);
+  });
+
+  it('keeps the day written in the file, even for a workspace west of UTC', async () => {
+    const result = await upload('Date,Description,Amount\n2026/03/01,Slash date,1.00\nMar 1 2026,Written month,1.00\n2026-03-01T00:00:00Z,Timestamp,1.00\n');
+    assert.equal(result.status, 200, JSON.stringify(result.body));
+    assert.deepEqual((result.body as Array<{ date: string }>).map(r => r.date), ['2026-03-01', '2026-03-01', '2026-03-01']);
   });
 
   it('refuses a file with an unreadable amount or date and names every row', async () => {

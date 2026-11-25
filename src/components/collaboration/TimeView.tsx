@@ -1,7 +1,7 @@
 import { useListText } from '../../lib/i18n/useListText';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
-import { runCommand, commandErrorMessage } from '../../lib/runCommand';
+import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
 import React, { useEffect, useState } from 'react';
 import { Clock } from 'lucide-react';
@@ -69,7 +69,7 @@ function forgetPendingTimeInvoice(workspaceId: string, hours: string): void {
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
   const listText = useListText();
-  const { loading } = useLedgerCollections('customers', 'projects');
+  const { loading } = useLedgerCollections('customers', 'projects', 'invoices');
   const dataHealth = useScreenDataHealth(['customers', 'projects']);
   const workspace = useAuthStore(s => s.getCurrentWorkspace());
   const uid = useAuthStore(s => s.user?.uid) || '';
@@ -149,11 +149,25 @@ export default function TimeView() {
     const hours = billable.map(e => e.id).sort().join(',');
     // AUP-08: the invoice made for these hours is found again after a remount or reload, both from this
     // browser's note and from the invoice itself (it names the time it was made from), so no second one is made
-    const pending = readPendingTimeInvoice(workspaceId, hours)
+    // a noted invoice the loaded list shows as voided since is dropped, so a fresh one is made for these hours;
+    // one not in the list (just made, or not loaded) is trusted, and a deleted one is dropped when linking says so
+    const voided = (id: string) => (invoices || []).some(inv => inv.id === id && inv.status === 'void');
+    const noted = readPendingTimeInvoice(workspaceId, hours);
+    if (noted && voided(noted.id)) forgetPendingTimeInvoice(workspaceId, hours);
+    const pending = (noted && !voided(noted.id) ? noted : undefined)
       ?? (invoices || []).filter(inv => inv.metadata?.timeEntryKey === hours && inv.status !== 'void').map(inv => ({ id: inv.id, number: String(inv.number || '') }))[0];
     try {
       if (pending) {
-        await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: pending.id });
+        try {
+          await call(workspaceId, '/invoiced', 'POST', { entryIds: billable.map(e => e.id), invoiceId: pending.id });
+        } catch (err) {
+          // deleted (404) or voided (409) since: forget it, so the next press makes a fresh invoice
+          if (err instanceof ServerCommandError && (err.status === 404 || err.status === 409)) {
+            forgetPendingTimeInvoice(workspaceId, hours);
+            throw new Error(`Draft invoice ${pending.number} is no longer usable (${commandErrorMessage(err, uiLanguageNow())}). Press "Make a draft invoice" again to make a new one.`, { cause: err });
+          }
+          throw err;
+        }
         forgetPendingTimeInvoice(workspaceId, hours);
         setEntries(list => (list || []).map(e => (billable.some(b => b.id === e.id) ? { ...e, status: 'invoiced', invoiceId: pending.id } : e)));
         toast.success(`Time linked to draft invoice ${pending.number}.`);

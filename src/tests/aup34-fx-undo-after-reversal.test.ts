@@ -6,35 +6,24 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import type { Server } from 'node:http';
-import { callApi, closeServer, listenOnRandomPort, restoreEnv, signTestJwt, useLiveApiEnv } from './helpers/liveApiServer';
+import { callApi, startOwnerApp } from './helpers/liveApiServer';
 
 const enabled = Boolean(process.env.LF_TEST_DATABASE_URL);
 describe('AUP-34: undoing a revaluation after its reversal took effect', { skip: !enabled && 'requires LF_TEST_DATABASE_URL' }, () => {
-  const owner = randomUUID(), ws = `ws_aup34_${randomUUID()}`;
-  let db: Awaited<ReturnType<(typeof import('../server/db/firestore'))['getDb']>>;
-  let server: Server | undefined, base = '', token = '', env: Record<string, string | undefined> = {};
+  const ws = `ws_aup34_${randomUUID()}`;
+  let app!: Awaited<ReturnType<typeof startOwnerApp>>;
+  let db: typeof app.db, base = '', token = '';
   before(async () => {
-    env = useLiveApiEnv('aup34-fx-undo');
-    const [{ getDb }, { createApp }] = await Promise.all([import('../server/db/firestore'), import('../../server')]); db = getDb();
-    await db.pool.query("insert into auth.users (id,email,email_confirmed_at,raw_app_meta_data) values ($1::uuid,$2,now(),'{}'::jsonb)", [owner, `${owner}@example.test`]);
-    await db.collection('workspaces').doc(ws).set({ uid: owner, name: 'AUP-34', currency: 'USD', members: [owner], roles: { [owner]: 'owner' } });
+    app = await startOwnerApp('aup34-fx-undo', ws);
+    ({ db, base, token } = app);
     for (const [key, name, type, category] of [['ar', 'Accounts Receivable', 'asset', 'Receivables'], ['ap', 'Accounts Payable', 'liability', 'Payables'], ['fx', 'Unrealized FX Gain/Loss', 'income', 'Revenue']]) {
       await db.collection('chartAccounts').doc(`${ws}_${key}`).set({ workspaceId: ws, name, type, category });
     }
     await db.collection('invoices').doc(`${ws}_inv`).set({ workspaceId: ws, customerName: 'Acme', number: 'inv', status: 'sent', currency: 'EUR', exchangeRate: 1.08, amountCents: 100000, amountPaidCents: 0, date: '2026-01-01', dueDate: '2026-12-01' });
-    token = await signTestJwt({ uid: owner, email: `${owner}@example.test`, aal: 'aal2', userMetadata: { email_verified: true } });
-    ({ server, base } = await listenOnRandomPort(await createApp()));
   });
   after(async () => {
-    await closeServer(server);
-    if (db) {
-      for (const table of ['transactions', 'invoices', 'chartAccounts', 'auditLogs', 'idempotencyKeys']) await db.pool.query(`delete from public."${table}" where workspace_id = $1`, [ws]);
-      await db.pool.query('delete from public.workspaces where id = $1', [ws]);
-      await db.pool.query('delete from public.users where id = $1', [owner]);
-      await db.pool.query('delete from auth.users where id = $1::uuid', [owner]);
-    }
-    restoreEnv(env);
+    if (db) for (const table of ['transactions', 'invoices', 'chartAccounts', 'auditLogs', 'idempotencyKeys']) await db.pool.query(`delete from public."${table}" where workspace_id = $1`, [ws]);
+    await app?.stop();
   });
 
   it('refuses the undo, keeps the reversal, and leaves the earlier as-of balance alone', async () => {

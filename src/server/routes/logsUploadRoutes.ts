@@ -1,7 +1,7 @@
 import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { apiLogsForWorkspace } from "../http/apiRequestLog";
-import { formatTzDate, sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
+import { sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
@@ -95,7 +95,8 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       const categoryKey = findBestCol([/^category$/i, /^account[_\s]?category$/i, /^class$/i, /^label$/i, /category/i]);
 
       const uploadWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : '';
-      const wsData = uploadWorkspaceId ? (await assertWorkspaceAccess(getDb(), uploadWorkspaceId, authReq.user)).data : undefined;
+      // the caller must belong to the workspace named; dates are read as written, so its time zone is not needed
+      if (uploadWorkspaceId) await assertWorkspaceAccess(getDb(), uploadWorkspaceId, authReq.user);
       // AUP-30: a date that cannot be read is an error for that row, never today's date
       const normalizeDate = (rawDate: string): string => {
         const s = (rawDate || '').trim();
@@ -108,10 +109,14 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
           const y = yRaw.length === 2 ? (Number.parseInt(yRaw, 10) > 50 ? '19' : '20') + yRaw : yRaw;
           ymd = `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
+        // a timestamp keeps the day written in it; YYYY/MM/DD is read as written
+        const isoPrefix = !ymd ? /^(\d{4})-(\d{2})-(\d{2})[T ]/.exec(s) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(s) : null;
+        if (isoPrefix) ymd = `${isoPrefix[1]}-${isoPrefix[2].padStart(2, '0')}-${isoPrefix[3].padStart(2, '0')}`;
         if (!ymd) {
           const parsed = new Date(s);
           if (Number.isNaN(parsed.getTime())) throw new Error(`The date "${s.slice(0, 40)}" could not be read`);
-          ymd = formatTzDate(parsed, wsData?.settings?.timezone || wsData?.timezone);
+          // text such as "Mar 1, 2026" is read as server-local midnight: keep that civil day, never re-zone it
+          ymd = `${String(parsed.getFullYear()).padStart(4, '0')}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
         }
         if (!civilDateParts(ymd)) throw new Error(`The date "${s.slice(0, 40)}" is not a real calendar date`);
         return ymd;
