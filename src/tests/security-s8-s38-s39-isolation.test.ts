@@ -535,13 +535,17 @@ describe('S-8 / S-38 / S-39: tenant BOLA, role escalation, and PostgreSQL RLS is
       workspaceId: wsA,
       input: { id: `bl_a_locked_${tag}`, bankAccountId: `${wsA}_cash`, allocations: [{ documentId: invBId, amountCents: 10000 }] },
     });
-    assert.ok(closedBankPay.status >= 400, `Closed-month bankline pay must be refused, got ${closedBankPay.status}`);
+    // AUP-25: an actionable refusal, not a generic 500
+    assert.equal(closedBankPay.status, 409, `Closed-month bankline pay must be refused as closed, got ${closedBankPay.status} ${closedBankPay.text}`);
+    assert.match(closedBankPay.text, /PERIOD_LOCKED/);
 
     const closedBankSplit = await s39Api('POST', '/api/v1/commands/reconciliations.banklinesplit', tokenOwnerA, {
       workspaceId: wsA,
       input: { id: `bl_a_locked_${tag}`, bankAccountId: `${wsA}_cash`, splits: [{ accountId: `${wsA}_wages`, amountCents: 50000, description: 'Closed split' }] },
     });
-    assert.ok(closedBankSplit.status >= 400, `Closed-month bankline split must be refused, got ${closedBankSplit.status}`);
+    // AUP-25: an actionable refusal, not a generic 500
+    assert.equal(closedBankSplit.status, 409, `Closed-month bankline split must be refused as closed, got ${closedBankSplit.status} ${closedBankSplit.text}`);
+    assert.match(closedBankSplit.text, /PERIOD_LOCKED/);
 
     const closedOpeningImport = await s39Api('POST', '/api/v1/commands/workspace.importrecords', tokenOwnerA, {
       workspaceId: wsA,

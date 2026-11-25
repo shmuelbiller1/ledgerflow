@@ -35,11 +35,9 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
     try {
       const uid = (req as AuthenticatedRequest).user.uid;
       const db = getDb();
-      let ownedWorkspaces: Array<Record<string, unknown>> = [];
-      
-      try {
-        const ownedWSQuery = await db.collection("workspaces").where("uid", "==", uid).get();
-        ownedWorkspaces = ownedWSQuery.docs.map(doc => ({
+      // AUP-10: a failed lookup is an error (the outer catch answers 500), never an empty success
+      const ownedWSQuery = await db.collection("workspaces").where("uid", "==", uid).get();
+      const ownedWorkspaces: Array<Record<string, unknown>> = ownedWSQuery.docs.map(doc => ({
           id: doc.id,
           name: doc.data().name || "Unnamed Workspace",
           currency: doc.data().currency || "USD",
@@ -48,10 +46,6 @@ export function registerWorkspaceApiRoutes(app: express.Express, _ctx: ServerCon
           createdAt: doc.data().createdAt || null,
           role: "owner"
         }));
-      } catch (dbErr) {
-        console.warn("[Firebase Admin] /api/v1/workspaces database check failed:", errorMessage(dbErr));
-        ownedWorkspaces = [];
-      }
 
       res.status(200).json({
         status: "success",

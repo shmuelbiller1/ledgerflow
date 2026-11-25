@@ -240,11 +240,14 @@ export function errorOutcome(error: unknown, command: string): CommandExecutionO
   if (error instanceof ZodError) {
     return { ok: false, status: 400, command, message: 'Invalid command input', code: 'INVALID_INPUT', details: error.issues, error };
   }
-  const status = Number((error as { status?: unknown } | null)?.status) || 500;
+  // AUP-25: a closed period reaches the runner as a plain "Period Locked" error (assertPostingOpen, the
+  // transaction validator) from many services; it is a refusal the person can act on, never a 500
+  const periodLocked = (error as { reason?: unknown } | null)?.reason === 'PERIOD_LOCKED' || /^Period Locked\b/i.test(errorMessage(error));
+  const status = Number((error as { status?: unknown } | null)?.status) || (periodLocked ? 409 : 500);
   const body = (error as { body?: unknown } | null)?.body;
   const code = typeof (error as { code?: unknown } | null)?.code === 'string'
     ? String((error as { code: string }).code)
-    : status === 409 ? 'CONFLICT' : status === 403 ? 'FORBIDDEN' : undefined;
+    : periodLocked ? 'PERIOD_LOCKED' : status === 409 ? 'CONFLICT' : status === 403 ? 'FORBIDDEN' : undefined;
   const message = status >= 500 ? 'An internal server error occurred.' : errorMessage(error);
   return {
     ok: false,
