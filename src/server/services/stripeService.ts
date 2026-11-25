@@ -37,3 +37,12 @@ export const isIdempotencyInFlight = (err: unknown) => {
 
 /** A Stripe reference as its id (webhook objects carry ids; expanded ones carry objects). */
 export const stripeId = (ref: string | { id: string } | null | undefined): string | null => (typeof ref === 'string' ? ref : ref?.id ?? null);
+
+/**
+ * AUP-15: the one record that a checkout session's plan credits were granted. The verify-session route and the
+ * checkout webhook both take it, inside the transaction that grants, so the credits are granted once whichever
+ * arrives first. The `session_` prefix is the one verify-session already wrote, so earlier claims still count.
+ */
+export function checkoutSessionClaimId(sessionId: string): string {
+  return `session_${sessionId}`;
+}

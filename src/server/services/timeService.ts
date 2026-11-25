@@ -146,7 +146,7 @@ export async function markInvoiced(db: Firestore, input: Actor & { entryIds: unk
   if (!BILLERS.includes(role)) throw new TimeError(403, 'Only owners, accountants and bookkeepers invoice time');
   if (!Array.isArray(input.entryIds) || input.entryIds.length === 0 || input.entryIds.length > 500 || typeof input.invoiceId !== 'string') throw new TimeError(400, 'Choose the time and the invoice');
   const invoice = (await db.collection('invoices').doc(input.invoiceId).get()).data();
-  if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace');
+  if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace', 'INVOICE_MISSING');
   // #97/#98: all checked first, all saved together; entries already on this same invoice are a
   // safe retry, not an error
   const ids = [...new Set((input.entryIds as unknown[]).map(String))];
@@ -352,7 +352,9 @@ export async function markInvoicedInTransaction(
   }
   const invoiceId = input.invoiceId;
   const invoice = (await tx.get(db.collection('invoices').doc(invoiceId))).data();
-  if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace');
+  if (!invoice || invoice.workspaceId !== input.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace', 'INVOICE_MISSING');
+  // time linked to a void invoice would never be billed
+  if (invoice.status === 'void') throw new TimeError(409, 'That invoice is void; make a new one for this time', 'INVOICE_VOID');
   const ids = [...new Set(input.entryIds.map(String))];
   const found: Array<{ ref: import('../db/firestore').DocumentReference; entry: Omit<TimeEntry, 'id'> }> = [];
   for (const entryId of ids) {

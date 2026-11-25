@@ -1,7 +1,7 @@
 import { isForbidden } from '../http/serverKit';
 import { errorMessage, requestUser } from "../auth/requestUser";
 import { apiLogsForWorkspace } from "../http/apiRequestLog";
-import { formatTzDate, sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
+import { sendError, authorizeWorkspace, authenticate, upload, uploadedFilePath } from "../http/serverKit";
 import type { AuthenticatedRequest, ServerContext } from "../http/serverKit";
 import { apiAuthenticate } from "../auth/apiAuthenticate";
 import express from "express";
@@ -10,6 +10,7 @@ import fs from "fs";
 import { parse as parseCsv } from 'csv-parse/sync';
 import crypto from "crypto";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
+import { civilDateParts } from '../../lib/calendarDate';
 import { validateUploadedFile } from "../utils/fileValidation";
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
@@ -93,28 +94,35 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       const amountKey = findBestCol([/^amount$/i, /^total$/i, /^net$/i, /^sum$/i, /amount/i], [/balance/i, /account[_\s]?num/i, /debit/i, /credit/i]);
       const categoryKey = findBestCol([/^category$/i, /^account[_\s]?category$/i, /^class$/i, /^label$/i, /category/i]);
 
-      // dates without a year/format fall back to today in the workspace's time zone
       const uploadWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : '';
-      const wsData = uploadWorkspaceId ? (await assertWorkspaceAccess(getDb(), uploadWorkspaceId, authReq.user)).data : undefined;
+      // the caller must belong to the workspace named; dates are read as written, so its time zone is not needed
+      if (uploadWorkspaceId) await assertWorkspaceAccess(getDb(), uploadWorkspaceId, authReq.user);
+      // AUP-30: a date that cannot be read is an error for that row, never today's date
       const normalizeDate = (rawDate: string): string => {
-        if (!rawDate) return formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone);
-        const s = rawDate.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const s = (rawDate || '').trim();
+        if (!s) throw new Error('The date is empty');
+        let ymd: string | null = null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) ymd = s;
         const usMatch = s.match(/^(\d{1,2})[/|-](\d{1,2})[/|-](\d{2,4})$/);
-        if (usMatch) {
+        if (!ymd && usMatch) {
           const [, m, d, yRaw] = usMatch;
-          let y = yRaw;
-          if (y.length === 2) {
-            y = Number.parseInt(y, 10) > 50 ? '19' + y : '20' + y;
-          }
-          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+          const y = yRaw.length === 2 ? (Number.parseInt(yRaw, 10) > 50 ? '19' : '20') + yRaw : yRaw;
+          ymd = `${y.padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
-        const parsed = new Date(s);
-        if (!Number.isNaN(parsed.getTime())) {
-          return formatTzDate(parsed, wsData?.settings?.timezone || wsData?.timezone);
+        // a timestamp keeps the day written in it; YYYY/MM/DD is read as written
+        const isoPrefix = !ymd ? /^(\d{4})-(\d{2})-(\d{2})[T ]/.exec(s) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(s) : null;
+        if (isoPrefix) ymd = `${isoPrefix[1]}-${isoPrefix[2].padStart(2, '0')}-${isoPrefix[3].padStart(2, '0')}`;
+        if (!ymd) {
+          const parsed = new Date(s);
+          if (Number.isNaN(parsed.getTime())) throw new Error(`The date "${s.slice(0, 40)}" could not be read`);
+          // text such as "Mar 1, 2026" is read as server-local midnight: keep that civil day, never re-zone it
+          ymd = `${String(parsed.getFullYear()).padStart(4, '0')}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
         }
-        return formatTzDate(new Date(), wsData?.settings?.timezone || wsData?.timezone);
+        if (!civilDateParts(ymd)) throw new Error(`The date "${s.slice(0, 40)}" is not a real calendar date`);
+        return ymd;
       };
+      // a filled-in debit or credit cell that is not a number is an error, not zero
+      const cellCents = (value: string | undefined): number => (value === undefined || value.trim() === '' ? 0 : TruthEngine.parseAmountToCents(value));
 
       const batchId = crypto.randomUUID().split('-')[0];
       const transactions: Array<{ id: string; date: string; description: string; amountCents: number; category?: string }> = [];
@@ -124,8 +132,8 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
         try {
           let amountCents = 0;
           if (debitKey && creditKey && (r[debitKey] !== undefined || r[creditKey] !== undefined)) {
-            const deb = TruthEngine.parseAmountToCentsOrZero(r[debitKey]);
-            const cred = TruthEngine.parseAmountToCentsOrZero(r[creditKey]);
+            const deb = cellCents(r[debitKey]);
+            const cred = cellCents(r[creditKey]);
             amountCents = cred - deb;
           } else if (amountKey && r[amountKey] !== undefined) {
             amountCents = TruthEngine.parseAmountToCents(r[amountKey]);
@@ -155,6 +163,12 @@ export function registerLogsUploadRoutes(app: express.Express, ctx: ServerContex
       });
 
       fs.unlinkSync(filePath);
+      // AUP-30: nothing is imported from a file with rows that could not be read; the answer names each one
+      if (rejected.length > 0) {
+        const listed = rejected.slice(0, 20).map(r => `row ${r.row}: ${r.reason}`).join('; ');
+        const message = `${rejected.length} ${rejected.length === 1 ? 'row' : 'rows'} could not be read, so nothing was imported. Fix ${rejected.length === 1 ? 'it' : 'them'} in the file and upload it again (${listed}${rejected.length > 20 ? '; …' : ''}).`;
+        return res.status(422).json({ status: 'error', message, rejected: rejected.map(({ row, reason }) => ({ row, reason })) });
+      }
       res.json(transactions);
     } catch (error) {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);

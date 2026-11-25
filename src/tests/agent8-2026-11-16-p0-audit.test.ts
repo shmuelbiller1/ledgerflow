@@ -42,6 +42,7 @@ import { createDeposit, DepositError } from '../server/services/depositService';
 import { exportWorkspaceBackup, RestoreError, restoreWorkspaceBackup } from '../server/services/workspaceRestoreService';
 import { BadDebtError, reverseWriteOff, writeOffInvoice } from '../server/services/badDebtService';
 import { revaluateForeignBalances, undoRevaluation } from '../server/services/fxRevaluationService';
+import { formatTzDate } from '../lib/calendarDate';
 import { PayRunError, postPayRun, undoPayRun } from '../server/services/payRunService';
 import { writeStockClosing } from '../server/services/stockClosingService';
 import { computeWorkspaceTaxReturn } from '../server/services/taxReturnService';
@@ -582,7 +583,9 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
     );
   });
 
-  test('A8-001 / A7N-05: FX revaluation uses bill apAccountId and can be re-run cleanly after undo', async () => {
+  test('A8-001 / A7N-05: FX revaluation uses bill apAccountId and can be re-run cleanly after an early undo', async () => {
+    // undo is only possible before the next-day reversal takes effect (AUP-34), so this runs on today's date
+    const today = formatTzDate(new Date(), 'UTC');
     const billId = id('bill_fx_custom');
     await db.collection('bills').doc(billId).set({
       workspaceId: ws, number: 'BILL-FX-1', vendorId: 'v1', vendorName: 'Euro Vendor',
@@ -591,16 +594,20 @@ describe('Agent #8 (2026-11-16) — Live PostgreSQL P0/P1 Security & Accounting 
     });
 
     const first = await revaluateForeignBalances(db, {
-      workspaceId: ws, user: { uid: owner }, date: '2026-06-30', rates: { EUR: 1.2 },
+      workspaceId: ws, user: { uid: owner }, date: today, rates: { EUR: 1.2 },
     });
     assert.equal(first.posted, true);
     assert.ok(first.lines.some(l => l.accountId === id('ap_custom')), 'A7N-05: Bill revaluation MUST post to bill custom apAccountId, not default AP');
 
-    await undoRevaluation(db, { workspaceId: ws, user: { uid: owner }, date: '2026-06-30' });
+    await undoRevaluation(db, { workspaceId: ws, user: { uid: owner }, date: today });
+    // the reversal of a past month end has already happened: that one cannot be undone (AUP-34)
+    const past = await revaluateForeignBalances(db, { workspaceId: ws, user: { uid: owner }, date: '2026-06-30', rates: { EUR: 1.2 } });
+    assert.equal(past.posted, true);
+    await assert.rejects(undoRevaluation(db, { workspaceId: ws, user: { uid: owner }, date: '2026-06-30' }), /already reversed itself on 2026-07-01/);
 
     // A8-001: Re-running revaluation on the SAME date after undo MUST succeed (no 409 deadlock)
     const second = await revaluateForeignBalances(db, {
-      workspaceId: ws, user: { uid: owner }, date: '2026-06-30', rates: { EUR: 1.25 },
+      workspaceId: ws, user: { uid: owner }, date: today, rates: { EUR: 1.25 },
     });
     assert.equal(second.posted, true, 'Re-running FX revaluation after undo must succeed');
     assert.notEqual(second.transactionId, first.transactionId);

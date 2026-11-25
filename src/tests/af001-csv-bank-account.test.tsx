@@ -33,7 +33,7 @@ async function stageCsv() {
   await screen.findByRole('button', { name: 'Import selected rows' });
   // the row is staged, so a disabled import can only come from the bank account
   await screen.findByText('Coffee');
-  assert.match(screen.getByRole('note').textContent || '', /omit invalid rows or replace unrecognized dates/i);
+  assert.match(screen.getByRole('note').textContent || '', /refused as a whole, and the message names each row/i);
   assert.equal((screen.getByRole('button', { name: 'Import selected rows' }) as HTMLButtonElement).disabled, true);
   fireEvent.click(screen.getByRole('checkbox', { name: /I compared the preview/i }));
 }

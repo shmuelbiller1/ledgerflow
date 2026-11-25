@@ -92,8 +92,9 @@ export function registerDeveloperApiRoutes(app: express.Express, _ctx: ServerCon
         definition: projectCreateCommand,
         workspaceId,
         input: { name, code: code || undefined, description: description || undefined, budgetLimitCents: Number(budgetLimitCents) || 0, managerEmail: managerEmail || undefined },
+        // AUP-26: an Idempotency-Key the caller sends is honoured, so a retry after a lost answer replays the
+        // first project instead of making a second; a caller that sends none behaves as before
         legacyRoute: true,
-        legacyOperationId: 'ignore',
         formatResponse(outcome) {
           if (!outcome.ok) return { status: outcome.status, body: { status: 'error', message: outcome.message } };
           return { status: 201, body: { status: 'success', message: 'Project resource created successfully.', ...(outcome.data as object) } };

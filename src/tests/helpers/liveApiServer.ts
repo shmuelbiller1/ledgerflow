@@ -6,7 +6,7 @@ import { SignJWT } from 'jose';
 const SERVER_ENV = ['DATABASE_URL', 'SUPABASE_JWT_SECRET', 'SUPABASE_URL', 'SESSION_SECRET', 'SYSTEM_SALT', 'INVITE_SECRET'] as const;
 
 /** Points the app at the test database and fills any missing secret with a per-suite value; returns what to restore. */
-export function useLiveApiEnv(label: string, extra: Record<string, string> = {}): Record<string, string | undefined> {
+export function liveApiEnv(label: string, extra: Record<string, string> = {}): Record<string, string | undefined> {
   const prev: Record<string, string | undefined> = {};
   for (const key of [...SERVER_ENV, ...Object.keys(extra)]) prev[key] = process.env[key];
   process.env.DATABASE_URL = process.env.LF_TEST_DATABASE_URL;
@@ -18,6 +18,9 @@ export function useLiveApiEnv(label: string, extra: Record<string, string> = {})
   Object.assign(process.env, extra);
   return prev;
 }
+
+/** The same, under the name existing suites call (it is not a React hook). */
+export const useLiveApiEnv = liveApiEnv;
 
 export function restoreEnv(prev: Record<string, string | undefined>): void {
   for (const [key, value] of Object.entries(prev)) {
@@ -85,4 +88,29 @@ export async function callApi(base: string, method: string, routePath: string, c
   let json: unknown = text;
   try { json = JSON.parse(text); } catch { /* not JSON: keep the text */ }
   return { status: res.status, json };
+}
+
+/**
+ * The common start of a live-app suite: one owner (auth user plus signed token), one workspace they own, and the
+ * real app on a random port. `stop()` closes the server, removes the person and workspace, and restores the env;
+ * a suite deletes its own other rows first.
+ */
+export async function startOwnerApp(label: string, workspaceId: string, workspace: Record<string, unknown> = {}) {
+  const { randomUUID } = await import('node:crypto');
+  const owner = randomUUID();
+  const env = liveApiEnv(label);
+  const [{ getDb }, { createApp }] = await Promise.all([import('../../server/db/firestore'), import('../../../server')]);
+  const db = getDb();
+  await db.pool.query("insert into auth.users (id,email,email_confirmed_at,raw_app_meta_data) values ($1::uuid,$2,now(),'{}'::jsonb)", [owner, `${owner}@example.test`]);
+  await db.collection('workspaces').doc(workspaceId).set({ uid: owner, name: label, currency: 'USD', members: [owner], roles: { [owner]: 'owner' }, ...workspace });
+  const token = await signTestJwt({ uid: owner, email: `${owner}@example.test`, aal: 'aal2', userMetadata: { email_verified: true } });
+  const { server, base } = await listenOnRandomPort(await createApp());
+  const stop = async () => {
+    await closeServer(server);
+    await db.pool.query('delete from public.workspaces where id = $1', [workspaceId]);
+    await db.pool.query('delete from public.users where id = $1', [owner]);
+    await db.pool.query('delete from auth.users where id = $1::uuid', [owner]);
+    restoreEnv(env);
+  };
+  return { db, owner, token, base, stop };
 }

@@ -278,7 +278,7 @@ export const timeInvoiceCommand: CommandDefinition<typeof timeInvoiceInput, Time
       throw new TimeError(400, 'Choose the time and the invoice');
     }
     const invoice = (await ctx.db.collection('invoices').doc(input.invoiceId).get()).data();
-    if (!invoice || invoice.workspaceId !== ctx.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace');
+    if (!invoice || invoice.workspaceId !== ctx.workspaceId) throw new TimeError(404, 'That invoice is not in this workspace', 'INVOICE_MISSING');
     const ids = [...new Set(input.entryIds.map(String))];
     const entries: Array<Omit<TimeEntry, 'id'>> = [];
     for (const id of ids) {
@@ -309,7 +309,9 @@ export const timeInvoiceCommand: CommandDefinition<typeof timeInvoiceInput, Time
     example: { entryIds: ['time_123'], invoiceId: 'invoice_123' },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The invoice id or time-entry list is missing or malformed.', next: 'Choose a draft invoice and between 1 and 500 time-entry ids.' },
-      { code: 'NOT_FOUND', when: 'The invoice or a time entry is not in the selected workspace.', next: 'Reload the invoice and time list and select records from this workspace.' },
+      { code: 'INVOICE_MISSING', when: 'The invoice is not in the selected workspace (deleted since).', next: 'Make a new draft invoice for this time.' },
+      { code: 'INVOICE_VOID', when: 'The invoice was voided.', next: 'Make a new draft invoice for this time.' },
+      { code: 'NOT_FOUND', when: 'A time entry is not in the selected workspace.', next: 'Reload the time list and select entries from this workspace.' },
       { code: 'ROLE_REQUIRED', when: 'The caller is not an owner, accountant, or bookkeeper.', next: 'Ask a workspace bookkeeper or above to invoice time.' },
       { code: 'CONFLICT', when: 'An entry is not approved billable time waiting for this invoice.', next: 'Approve the time first or remove its existing invoice assignment.' },
     ],

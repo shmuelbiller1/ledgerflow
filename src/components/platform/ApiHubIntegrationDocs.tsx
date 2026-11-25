@@ -103,7 +103,7 @@ export function ApiHubDocPostProject({ model }: { model: ReturnType<typeof useAp
                     <p className="text-[var(--muted)]">
                        Registers a new corporate project resource inside your workspace ledger to enable targeted activity tracking.
                     </p>
-                    <p role="note" className="mt-2 text-sm text-amber-700">This legacy endpoint creates a new project on repeated requests, including retries after a lost response. Check the project list before retrying; an idempotency header does not make this endpoint safe to retry.</p>
+                    <p role="note" className="mt-2 text-sm text-amber-700">Send an Idempotency-Key header with each create: a retry with the same key (for example after a lost response) returns the first project instead of making another. Without the header every request creates a project.</p>
                  </div>
 
                  <div className="bg-[#1A1B26] text-[#A9B1D6] rounded-xl p-5 overflow-x-auto border border-[#292E42]">

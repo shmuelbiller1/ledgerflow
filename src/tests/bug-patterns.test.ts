@@ -86,7 +86,7 @@ test('financial scanner reads the real server and migration tree (not just scree
 // coverage. Track each of the 13 financial/data-safety issue mechanisms independently,
 // including the two repaired call sites; these probes are recall checks, NOT functional proof.
 const ISSUE_MECHANISMS: Array<{ issue: number; file: string; markers: string[] }> = [
-  { issue: 97, file: 'src/components/collaboration/TimeView.tsx', markers: ['const makeInvoice', 'unlinked.current.get(hours)'] }, // repaired: retry links the saved invoice
+  { issue: 97, file: 'src/components/collaboration/TimeView.tsx', markers: ['const makeInvoice', 'readPendingTimeInvoice(workspaceId, hours)'] }, // repaired: retry links the saved invoice, also after a remount (AUP-08)
   { issue: 98, file: 'src/server/services/timeService.ts', markers: ['export async function moveTime', 'await db.runTransaction(async tx'] }, // repaired: all-or-nothing
   { issue: 99, file: 'src/components/collaboration/TimeTimer.tsx', markers: ['read(workspaceId)', 'setRunning'] },
   { issue: 100, file: 'src/hooks/useLedgerData.ts', markers: ['const loadReferenceData', 'setAnalyticalPatternCache'] },

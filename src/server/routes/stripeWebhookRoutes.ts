@@ -2,7 +2,7 @@ import express from "express";
 import type { ServerContext } from "../http/serverKit";
 import { errorMessage } from "../auth/requestUser";
 import { getDb, FieldValue } from "../db/firestore";
-import { getStripe, stripeId, type Stripe } from "../services/stripeService";
+import { checkoutSessionClaimId, getStripe, stripeId, type Stripe } from "../services/stripeService";
 import { recordStripeInvoicePayment } from "../services/onlinePaymentService";
 import { recordInvoicePaymentFailed, recordSubscriptionPaymentFailed } from "../services/paymentFailureService";
 import { logger } from "../utils/logger";
@@ -62,6 +62,9 @@ export function registerStripeWebhookRoutes(app: express.Express, _ctx: ServerCo
                 return { alreadyProcessed: true };
               }
 
+              // AUP-15: the same per-session claim the verify-session route takes; only the first grants
+              const claimRef = db.collection('stripeProcessedEvents').doc(checkoutSessionClaimId(session.id));
+              const sessionClaimed = (await t.get(claimRef)).exists;
               const wsSnap = await t.get(wsRef);
               const wsData = wsSnap.data() || {};
               const currentSubId = wsData.stripeSubscriptionId;
@@ -78,9 +81,10 @@ export function registerStripeWebhookRoutes(app: express.Express, _ctx: ServerCo
                 lastUpgradedAt: new Date().toISOString()
               };
 
-              if (isNewSubscription || wsData.computeCreditBalance === undefined) {
+              if (!sessionClaimed && (isNewSubscription || wsData.computeCreditBalance === undefined)) {
                 updatePayload.computeCreditBalance = FieldValue.increment(creditsToGrant);
               }
+              if (!sessionClaimed) t.set(claimRef, { sessionId: session.id, workspaceId, source: 'webhook', eventId, claimedAt: FieldValue.serverTimestamp() });
 
               t.set(wsRef, updatePayload, { merge: true });
 

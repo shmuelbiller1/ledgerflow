@@ -6,7 +6,7 @@ This is a scoped audit, **not a release approval or complete end-to-end verifica
 
 The static scanner identifies 386 route registrations; each matrix row links to at least one narrowly described scenario. This is not proof that every endpoint succeeds or is reachable from the UI: 12 registrations have only a local-app refusal, three only forged-admin refusals, and other evidence uses mocks, synthetic identities or narrow examples. Live authentication, third-party providers, production and complete browser workflows have not been verified.
 
-**Critical blocker AUP-34:** Undoing an older FX revaluation changed a past as-of balance in a local app/database reproduction. The UI disables undo, but direct HTTP and named-command paths remain callable and unsafe. This requires an accounting/server fix and temporal, locked-period and retry tests. The audit test records the defect, not the intended result.
+**AUP-34 (fixed, 24 Nov):** undoing an FX revaluation whose next-day reversal has already taken effect is now refused by the server for every caller (HTTP, named command, UI), so earlier as-of balances can no longer change. Undo stays available, and the panel offers it again, while the reversal is still ahead. Regression: `src/tests/aup34-fx-undo-after-reversal.test.ts`; the audit probe now asserts the fixed behaviour.
 
 Other unresolved issues include billing webhook order-dependent duplicate credits (AUP-15), unsafe legacy CSV row/date handling (AUP-30), financial telemetry semantics (AUP-28/29), and uncertain/partial writes and stale balance risks. See the review and `docs/COORDINATION.md` for the complete AUP-01–35 findings and ownership. UI mitigations do not make direct server callers safe.
 

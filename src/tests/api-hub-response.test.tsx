@@ -199,15 +199,15 @@ test('a key provision response that arrives after changing workspaces does not r
   assert.equal(result.current.apiKey, '');
 });
 
-test('project create playground and documentation warn about uncertain retries', () => {
+test('project create playground and documentation say how to retry safely with an Idempotency-Key (AUP-26)', () => {
   function Sandbox() { return <ApiHubSandbox model={useApiHubModel()} />; }
   const sandbox = render(<Sandbox />);
   fireEvent.change(screen.getByLabelText('Select API Route'), { target: { value: 'POST_v1_projects' } });
-  assert.ok(screen.getByText(/Repeating the request can create another project/));
+  assert.ok(screen.getByText(/a retry with the same key returns the first project/));
   sandbox.unmount();
   function Docs() { return <ApiHubDocPostProject model={useApiHubModel()} />; }
   render(<Docs />);
-  assert.ok(screen.getByText(/an idempotency header does not make this endpoint safe to retry/));
+  assert.ok(screen.getByText(/returns the first project instead of making another\. Without the header/));
 });
 
 test('API Hub says the metrics are posted, book-currency figures and unsupported ones are null (AUP-28/29)', () => {

@@ -217,7 +217,9 @@ describe('Month-end currency revaluation', { skip: !url && 'LF_TEST_DATABASE_URL
 
   test('a past date counts only what existed then, and refuses when a payment came after it (#806)', async () => {
     const date = previousMonthEnd;
-    await undo(db, { workspaceId: ws, user: owner, date }); // the test above posted this date
+    // the test above posted this date; its next-day reversal has already happened, so it cannot be undone
+    // (AUP-34): clear both entries directly to start this test from clean books
+    await db.pool.query(`delete from public.transactions where workspace_id = $1 and data->'metadata'->>'revaluationDate' = $2`, [ws, date]);
     // issued after the month-end: not part of that day's books
     await db.collection('invoices').doc(id('later')).set({ workspaceId: ws, customerId: id('c1'), customerName: 'Acme', number: 'LATER', status: 'sent',
       currency: 'EUR', exchangeRate: 1, amountCents: 999900, date: addDaysYMD(date, 1), dueDate: tomorrow });

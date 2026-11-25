@@ -328,7 +328,7 @@ const BankFeedImport: React.FC<BankFeedImportProps> = ({
 
         <div className="flex-1 overflow-auto p-4 md:p-8 bg-[var(--ink)]">
           <p role="note" className="mb-4 text-sm text-[var(--text)]">
-            CSV parsing can omit invalid rows or replace unrecognized dates without warning. Compare every row, amount, and date with the original statement before importing; do not rely on the preview as a complete copy.
+            A file with any row whose date or amount cannot be read is refused as a whole, and the message names each row, so nothing is skipped or re-dated. Still check the preview against your statement before importing.
           </p>
           {rawTransactions.length > 0 && (
             <label className="mb-4 flex items-start gap-2 text-sm text-[var(--text)]">
