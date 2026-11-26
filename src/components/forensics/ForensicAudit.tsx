@@ -15,12 +15,26 @@ import { cn } from '../../lib/utils';
 import { isPostable, lineAmount } from '../../lib/txFilters';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { LoadedEntriesOnlyNote } from '../common/LoadedEntriesOnlyNote';
+import { formatCurrency } from '../../lib/moneyFormat';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { runCommand } from '../../lib/runCommand';
 
 
 type Anomaly = { id: string; description: string; amountCents: number; reason: string };
-type Scan = { scope: string; state: 'loading' | 'ready' | 'error'; anomalies: Anomaly[] };
+/** What the server says about the scan itself (AUP-31); all optional, so an older server still renders. */
+type ScanInfo = { currency?: string; skipped?: 'too_few_entries' | 'no_variation' | null; scanned?: number; sampleLimit?: number; sampleCapped?: boolean };
+type Scan = { scope: string; state: 'loading' | 'ready' | 'error'; anomalies: Anomaly[]; info?: ScanInfo };
+/** Only the fields we can rely on: wrong-typed extras are dropped rather than shown. */
+function scanInfo(data: Record<string, unknown> | undefined): ScanInfo {
+  const d = data || {};
+  return {
+    ...(typeof d.currency === 'string' && /^[A-Za-z]{3}$/.test(d.currency) ? { currency: d.currency.toUpperCase() } : {}),
+    ...(d.skipped === 'too_few_entries' || d.skipped === 'no_variation' ? { skipped: d.skipped } : {}),
+    ...(Number.isSafeInteger(d.scanned) ? { scanned: d.scanned as number } : {}),
+    ...(Number.isSafeInteger(d.sampleLimit) ? { sampleLimit: d.sampleLimit as number } : {}),
+    ...(typeof d.sampleCapped === 'boolean' ? { sampleCapped: d.sampleCapped } : {}),
+  };
+}
 function validAnomalies(value: unknown): value is Anomaly[] {
   return Array.isArray(value) && value.every(row => row && typeof row.id === 'string' &&
     typeof row.description === 'string' && Number.isSafeInteger(row.amountCents) && typeof row.reason === 'string');
@@ -77,11 +91,11 @@ const ForensicAudit = React.memo(() => {
     async function runScan(scope: string) {
       setScanResult({ scope, state: 'loading', anomalies: [] });
       try {
-        const data = await runCommand<{ anomalies?: unknown }>({
+        const data = await runCommand<Record<string, unknown> & { anomalies?: unknown }>({
           path: '/api/v1/forensics/anomaly-scan', method: 'POST', body: { workspaceId: scope },
         });
         if (!validAnomalies(data?.anomalies)) throw new Error('Invalid anomaly response');
-        if (active) setScanResult({ scope, state: 'ready', anomalies: data.anomalies });
+        if (active) setScanResult({ scope, state: 'ready', anomalies: data.anomalies, info: scanInfo(data) });
       } catch {
         if (active) setScanResult({ scope, state: 'error', anomalies: [] });
       }
@@ -199,26 +213,35 @@ const ForensicAudit = React.memo(() => {
                     <Brain className="text-indigo-600" size={24} />
                     Statistical Outliers
                  </h2>
-                 <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">Server sample: at most 200 entries; not a complete audit. The scan may include drafts and mixed currencies.</p>
+                 <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">{scan?.state === 'ready' && scan.info?.currency
+                   // not capped: every posted entry with an amount was scanned, so say that, not "the newest 200"
+                   ? scan.info.sampleCapped === false && scan.info.scanned !== undefined
+                     ? `Server scan: all ${scan.info.scanned} posted entries with an amount, in ${scan.info.currency}.`
+                     : `Server sample: the newest ${scan.info.sampleLimit ?? 200} posted entries, in ${scan.info.currency}; not a complete audit.`
+                   : 'Server sample: at most 200 entries; not a complete audit.'}</p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-[9px] font-medium uppercase tracking-wider border border-amber-500/20">
-                 Limited sample
-              </div>
+              {(scan?.state !== 'ready' || scan.info?.sampleCapped !== false) && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-500 rounded-lg text-[9px] font-medium uppercase tracking-wider border border-amber-500/20">
+                   Limited sample
+                </div>
+              )}
            </div>
 
            <div className="space-y-4">
               {!canScan ? <p role="status">The server scan needs a signed-in workspace and at least five loaded entries.</p>
                 : !scan || scan.state === 'loading' ? <p role="status">Scanning…</p>
                 : scan.state === 'error' ? <p role="alert">The anomaly scan is unavailable. No result is shown.</p>
+                : scan.info?.skipped === 'too_few_entries' ? <p role="status">Not enough posted entries to judge (at least five are needed). This is not a clean result.</p>
+                : scan.info?.skipped === 'no_variation' ? <p role="status">Every scanned amount is the same, so there is nothing to compare. This is not a clean result.</p>
                 : scan.anomalies.length > 0 ? scan.anomalies.map(t => (
                  <div key={t.id} className="p-6 bg-[var(--ink)] rounded-[32px] border border-[var(--line)] flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-black text-[var(--text)] tracking-tight">{t.description}</p>
                       <p className="text-xs text-[var(--muted)]">{t.reason}</p>
                     </div>
-                    <p className="text-sm text-[var(--text)]">{t.amountCents.toLocaleString()} minor units (currency not supplied)</p>
+                    <p className="text-sm text-[var(--text)]">{scan.info?.currency ? formatCurrency(t.amountCents, scan.info.currency) : `${t.amountCents.toLocaleString()} minor units (currency not supplied)`}</p>
                  </div>
-              )) : <p role="status">No outliers were returned for this limited sample.</p>}
+              )) : <p role="status">{scan.info?.scanned !== undefined ? `No outliers among the ${scan.info.scanned} entries scanned.` : 'No outliers were returned for this limited sample.'}</p>}
            </div>
         </div>
 

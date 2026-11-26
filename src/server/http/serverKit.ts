@@ -19,27 +19,8 @@ import { verifyIdToken } from "../auth/supabaseAuth";
 import type { DecodedIdToken } from "../auth/supabaseAuth";
 import { logSafe, logSafeDetail } from '../utils/logSafe';
 
-export function formatTzDate(d: Date = new Date(), timezone = 'UTC'): string {
-  try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone || 'UTC',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const parts = formatter.formatToParts(d);
-    const y = parts.find(p => p.type === 'year')?.value;
-    const m = parts.find(p => p.type === 'month')?.value;
-    const day = parts.find(p => p.type === 'day')?.value;
-    if (y && m && day) return `${y}-${m}-${day}`;
-  } catch {
-    // fallback
-  }
-  const year = d.getUTCFullYear();
-  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+// one copy of the workspace-time-zone date lives in utils/formatTzDate.ts; re-exported for the route files
+export { formatTzDate } from '../utils/formatTzDate';
 
 // --- Types ---
 export interface AuthUser extends DecodedIdToken {
@@ -72,6 +53,7 @@ export const globalAdminConfig = {
 };
 
 export async function syncGlobalAdminConfig() {
+  globalConfigLoadedAt = Date.now();
   try {
     const db = getDb();
     const doc = await db.collection("admins").doc("globalConfig").get();
@@ -93,6 +75,24 @@ export async function syncGlobalAdminConfig() {
   }
 }
 
+/**
+ * AUP-05: the config above is read from memory by billing and registration checks, and was loaded once when the
+ * app was built. An instance that stays warm (Vercel keeps functions for a long time, and several run at once)
+ * kept charging the old multipliers or the old bypass flag after an admin changed them. So an instance re-reads
+ * it from the database when its copy is older than this, at most one read per instance per window. A failed
+ * read keeps the last good values (syncGlobalAdminConfig does not reset them) and waits a window to try again.
+ */
+export const GLOBAL_CONFIG_TTL_MS = 30_000;
+let globalConfigLoadedAt = 0;
+let globalConfigLoading: Promise<void> | null = null;
+export function refreshGlobalAdminConfigIfStale(now: number = Date.now()): Promise<void> {
+  if (now - globalConfigLoadedAt < GLOBAL_CONFIG_TTL_MS) return Promise.resolve();
+  // concurrent requests share one read
+  globalConfigLoading ??= syncGlobalAdminConfig().finally(() => { globalConfigLoading = null; });
+  return globalConfigLoading;
+}
+/** Forget how old this instance's copy is, so the next API request re-reads it (tests; a deploy hook could use it too). */
+export function invalidateGlobalAdminConfig(): void { globalConfigLoadedAt = 0; }
 /** Workspace overrides of the admin billing settings (all optional). */
 export interface WorkspaceBillingOverrides {
   creditCostMultiplier?: number | string;
@@ -284,6 +284,8 @@ export const authenticate = async (req: express.Request, res: express.Response, 
   }
 
   const idToken = authHeader.split("Bearer ")[1];
+
+  await refreshGlobalAdminConfigIfStale(); // AUP-05: billing reads this instance's copy of the admin config
 
   try {
     const decodedToken = await verifyIdToken(idToken) as AuthUser;

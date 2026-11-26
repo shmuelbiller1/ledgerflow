@@ -55,7 +55,9 @@ describe('forensic scan component to local API and DB', { skip: !enabled && 'req
   it('renders a real returned outlier without crashing or inventing a currency', async () => {
     render(<ForensicAudit />);
     assert.ok(await screen.findByText('Actual database outlier'));
-    assert.ok(screen.getByText('12,345 minor units (currency not supplied)'));
+    // AUP-31: the server names the book currency, so the amount is shown as money, not raw minor units
+    assert.ok(screen.getByText('$123.45'));
+    assert.equal(screen.queryByText(/currency not supplied/), null);
     assert.equal(screen.queryByText(/No outliers were returned/), null);
   });
 });

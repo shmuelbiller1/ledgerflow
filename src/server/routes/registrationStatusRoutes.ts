@@ -1,5 +1,5 @@
 import express from "express";
-import { globalAdminConfig } from "../http/serverKit";
+import { globalAdminConfig, refreshGlobalAdminConfigIfStale } from "../http/serverKit";
 import type { ServerContext } from "../http/serverKit";
 import { getDb } from "../db/firestore";
 import { verifyIdToken } from "../auth/supabaseAuth";
@@ -21,6 +21,7 @@ export function registerRegistrationStatusRoutes(app: express.Express, _ctx: Ser
         }
       }
 
+      await refreshGlobalAdminConfigIfStale(); // AUP-05: the limit an admin set, not the one this instance booted with
       let totalUsers: number | undefined = undefined;
       const limit = globalAdminConfig.maxRegistrationLimit !== undefined ? globalAdminConfig.maxRegistrationLimit : 100;
       let registrationAllowed = true;

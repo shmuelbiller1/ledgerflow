@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { getDb, FieldValue } from "../db/firestore";
 import { getShardedCounterValue } from "../services/shardedCounterService";
 import { verifyIdToken } from "./supabaseAuth";
-import { globalAdminConfig } from "../http/serverKit";
+import { globalAdminConfig, refreshGlobalAdminConfigIfStale } from "../http/serverKit";
 import { apiKeyLimit, apiKeyRateLimiter } from "../middleware/rateLimiters";
 import type { AuthenticatedRequest, AuthUser } from "../http/serverKit";
 
@@ -101,6 +101,8 @@ export const apiAuthenticate = async (req: express.Request, res: express.Respons
   }
 
   const token = authHeader.startsWith("Bearer ") ? authHeader.split("Bearer ")[1] : authHeader;
+
+  await refreshGlobalAdminConfigIfStale(); // AUP-05: the bypass flag and multipliers below come from this instance's copy
 
   if (token.startsWith("lf_")) {
     try {

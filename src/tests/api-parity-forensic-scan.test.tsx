@@ -50,3 +50,49 @@ test('an old workspace response cannot appear after switching scope', async () =
   await act(async () => resolveFirst(new Response(JSON.stringify({ anomalies: [{ id: 'a', description: 'Old private result', amountCents: 1, reason: 'outlier' }] }), { status: 200 })));
   assert.equal(screen.queryByText('Old private result'), null);
 });
+
+const answer = (body: Record<string, unknown>) => (async () => new Response(JSON.stringify({ status: 'success', ...body }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+
+test('AUP-31: a scan that could not judge says so, and is not shown as clean', async () => {
+  globalThis.fetch = answer({ anomalies: [], currency: 'USD', skipped: 'too_few_entries', scanned: 3, sampleLimit: 200, sampleCapped: false });
+  render(<ForensicAudit />);
+  assert.match((await screen.findByText(/Not enough posted entries to judge/)).textContent || '', /not a clean result/);
+  assert.equal(screen.queryByText(/No outliers/), null);
+});
+
+test('AUP-31: no variation is also not a clean result', async () => {
+  globalThis.fetch = answer({ anomalies: [], currency: 'USD', skipped: 'no_variation', scanned: 6, sampleLimit: 200, sampleCapped: false });
+  render(<ForensicAudit />);
+  await screen.findByText(/nothing to compare/);
+  assert.equal(screen.queryByText(/No outliers/), null);
+});
+
+test('AUP-31: with the book currency the amount is money, the sample is described, and the count is shown', async () => {
+  globalThis.fetch = answer({ anomalies: [{ id: 'o', description: 'Large charge', amountCents: 12345, reason: 'Statistically anomalous amount (Z-Score > 2.5)' }], currency: 'EUR', skipped: null, scanned: 40, sampleLimit: 200, sampleCapped: true });
+  render(<ForensicAudit />);
+  await screen.findByText('Large charge');
+  assert.equal(screen.queryByText(/currency not supplied/), null);
+  assert.ok(screen.getByText(/€123\.45|EUR\s?123\.45/), 'formatted in the book currency');
+  assert.ok(screen.getByText(/newest 200 posted entries, in EUR/));
+  assert.ok(screen.getByText('Limited sample'), 'capped: still says it is a slice');
+});
+
+test('AUP-31: an uncapped clean scan reports how many entries it covered and drops the "limited" badge', async () => {
+  globalThis.fetch = answer({ anomalies: [], currency: 'USD', skipped: null, scanned: 40, sampleLimit: 200, sampleCapped: false });
+  render(<ForensicAudit />);
+  await screen.findByText('No outliers among the 40 entries scanned.');
+  assert.equal(screen.queryByText('Limited sample'), null);
+  // the header names what was really covered, not "the newest 200"
+  assert.ok(screen.getByText('Server scan: all 40 posted entries with an amount, in USD.'));
+  assert.equal(screen.queryByText(/newest 200/), null);
+});
+
+test('AUP-31: malformed extra fields are ignored, not shown', async () => {
+  globalThis.fetch = answer({ anomalies: [], currency: 'not a currency', skipped: 'bogus', scanned: 'many', sampleCapped: 'yes' });
+  render(<ForensicAudit />);
+  await screen.findByText(/No outliers were returned for this limited sample/);
+  // ignored extras: the generic header (no invented currency or count) and the "limited" badge stay
+  assert.ok(screen.getByText('Server sample: at most 200 entries; not a complete audit.'));
+  assert.ok(screen.getByText('Limited sample'));
+  assert.equal(screen.queryByText(/not a currency|NOT A CURRENCY/i), null);
+});

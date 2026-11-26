@@ -89,7 +89,7 @@
       ],
       "impact": "Previously workspace edits and bulk sync could overwrite unrelated billing fields using browser-derived defaults, and bulk sync never inspected HTTP responses. The server telemetry caps the list at 100, queries shards and transactions only for the first 30, and estimates log attribution; derived balances cannot safely be written back as base balances.",
       "mitigation": "Reads now use authenticated admin telemetry/users endpoints with explicit failures; workspace edit and bulk sync controls and handlers are disabled. The UI identifies the limits and suppresses unreliable credit and transaction totals. This intentionally suspends functionality; it is not a completed bulk-sync fix.",
-      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. Telemetry failure currently prevents access to other Admin Panel tabs."
+      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. (A telemetry failure no longer blocks the Users, Lexicon and Audit Trail tabs: only the Workspaces tab shows the refusal.)"
     },
     {
       "id": "AUP-05",
@@ -103,7 +103,7 @@
       ],
       "impact": "PUT returns data, not globalAdminConfig. The previous UI replaced state with undefined after success; default values could be submitted after a failed GET. Server responses can contain metadata that a strict update schema rejects.",
       "fix": "Require a valid loaded configuration before saving; consume data from the PUT response, retain only schema fields, and report success. Mocked test verifies two sequential saves and no metadata in either payload.",
-      "remaining_work": "Backend and deployed behavior are not live tested; server config is process-local and its synchronization guarantees need separate investigation."
+      "remaining_work": "Fixed: the admin config was loaded once per instance, so a warm instance kept the old pricing multipliers, bypass flag and registration limit after an admin changed them. Each instance now re-reads it from the database when its copy is over 30 seconds old (at the auth gates and the public registration-status route); src/tests/aup05-global-config-refresh.test.ts. Not live tested on the deployed environment."
     },
     {
       "id": "AUP-06",
@@ -318,7 +318,7 @@
       ],
       "impact": "HTTP refusals and network errors previously fell through to an empty or stale list; overlapping requests could show results for an earlier filter, and the record detail hardcoded PRODUCTION regardless of environment.",
       "mitigation": "Surface read failures and malformed records, order requests, clear on user change, label the result as limited, and remove the unsupported environment claim.",
-      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. Route returns doc.data() without explicitly attaching doc.id; older rows lacking an id are rejected rather than silently displayed, and need a server-owner contract decision."
+      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. The route now attaches the document id to every row (an id stored in the row still wins), so older rows without one are displayed (src/tests/aup19-audit-log-ids.test.ts)."
     },
     {
       "id": "AUP-20",
@@ -493,7 +493,7 @@
     {
       "id": "AUP-31",
       "severity": "high",
-      "classification": "isolated_database_contract_and_component_reproduced",
+      "classification": "fixed_server_and_ui",
       "title": "Forensic screen expects fields absent from anomaly-scan responses",
       "evidence": [
         "audit/forensic-route.test.ts",
@@ -503,8 +503,8 @@
         "audit/forensic-full-loop.test.tsx"
       ],
       "impact": "Local actual route returns a four-field outlier, whereas the prior screen treated it as a full transaction and invoked zScore.toFixed, causing a rendering error when a result was present; empty, skipped and failed scans could misleadingly appear clean. The server scans up to 200 unordered records and compares raw amounts without excluding drafts or converting currencies. Production impact is unmeasured.",
-      "mitigation": "The component renders only actual response fields and raw minor units without inventing a currency or score; it distinguishes unrun, loading, error, malformed and empty scans, suppresses old workspace responses, and warns of sample and currency limits. Focused mocked UI tests and local DB route contract test pass. A DOM component-to-local-app/DB integration test now renders a real returned outlier with a synthetic JWT.",
-      "remaining_work": "AI #1: define meaningful, deterministic sample, posted-state and mixed-currency semantics, actionable route results, and add server/UI/browser regression coverage."
+      "mitigation": "Fixed on the server and screen. The scan reads a deterministic sample (the newest 200 posted entries, ties by id), leaves out drafts, voids and forecasts, converts each amount at its own rate to the book currency, and returns the currency, how many entries were scanned, whether the sample was capped, and a `skipped` reason (too_few_entries / no_variation) so a scan that could not judge is never shown as clean. The screen formats outliers in the book currency, states the sample, and renders the skipped states. Tests: src/tests/aup31-forensic-scan.test.ts (isolated database), src/tests/api-parity-forensic-scan.test.tsx; audit probes updated.",
+      "remaining_work": "Live-deployed and browser verification only; the anomaly rule itself (Z-score > 2.5 over the sample) is unchanged."
     },
     {
       "id": "AUP-32",
