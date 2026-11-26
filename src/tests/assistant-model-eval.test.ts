@@ -347,5 +347,6 @@ test('grader: correct clarifications in other wording pass (25 Nov Luna run), wr
     assert.equal(c.check(o('Please provide the payment date so I can record this against the cash/bank account.')).pass, false, `${c.id}: asks only the date`);
     assert.equal(c.check(o('Please provide:\n- The payment date\n- The bank reference number\n')).pass, false, `${c.id}: a bank reference is not an account`);
     assert.equal(c.check(o('Which did you receive the payment in:\nCash (acc_cash)\nBank (acc_bank)?')).pass, true, `${c.id}: choices on their own lines`);
+    assert.equal(c.check(o('Which of your accounts received the payment?')).pass, true, `${c.id}: plural accounts`);
   }
 });

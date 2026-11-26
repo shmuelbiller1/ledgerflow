@@ -40,7 +40,7 @@ const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => cen
  * than one large pattern, so no input can make it slow.
  */
 export function asksWhichAccount(question: string, allowWhether: boolean): boolean {
-  const accountWord = /\b(cash|bank|account|deposit)\b/i;
+  const accountWord = /\b(cash|bank|accounts?|deposit)/i;
   // "which … account" may run over line breaks ("Which did you receive it in:\nCash\nBank?"), so up to the "?"
   for (const part of question.toLowerCase().split('?')) {
     const head = (allowWhether ? /\b(which|what|whether)\b/ : /\b(which|what)\b/).exec(part);
