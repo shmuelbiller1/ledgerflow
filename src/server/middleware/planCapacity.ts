@@ -378,12 +378,15 @@ export async function reserveAssistantModelTurn(db: Firestore, workspaceId: stri
       return { refusal };
     }
     const id = `trace-${randomUUID()}`;
+    // hold at most what is left, so turns asked together can never hold more than the balance between them
+    const c = usage?.credits;
+    const hold = c && !c.unlimited ? Math.min(RESERVED_TURN_CREDITS, Math.max(0, c.included + c.granted - c.used)) : RESERVED_TURN_CREDITS;
     const row = {
       id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
       // counts as one model turn until the turn's own metric replaces it
       assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
       // credits held until settlement, so a turn asked at the same moment sees them as spent
-      aiCredits: RESERVED_TURN_CREDITS,
+      aiCredits: hold,
     };
     await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
     await client.query('commit');

@@ -84,6 +84,21 @@ describe('AI credits against the database', { skip: !dbUrl && 'LF_TEST_DATABASE_
       const during = await assistantUsage(db, workspaceId);
       assert.ok(Math.abs(during!.credits!.used - (120 + 60 + RESERVED_TURN_CREDITS)) < 1e-6, `held ${during!.credits!.used}`);
       await recordAssistantTurn(db, workspaceId, 'u1', metric(false, 7) as never, (held as { id: string }).id, 0.2);
+      // 20 credits left: two turns asked together hold 15 then 5, never more than the balance; a third is refused
+      const near = await assistantUsage(db, workspaceId);
+      const leftNow = near!.credits!.included - near!.credits!.used;
+      // a settled turn that uses all but 20 credits
+      await db.collection('billingLedgerTraces').doc(`spend-${workspaceId}`).set({ id: `spend-${workspaceId}`, workspaceId, algorithmName: 'ASSISTANT_TURN',
+        timestamp: new Date().toISOString(), assistantTurn: metric(true, 0), aiCredits: leftNow - 20 });
+      const wsNear = (await db.collection('workspaces').doc(workspaceId).get()).data()!;
+      const [a, b] = await Promise.all([reserveAssistantModelTurn(db, workspaceId, 'u1', wsNear), reserveAssistantModelTurn(db, workspaceId, 'u1', wsNear)]);
+      assert.ok('id' in a && 'id' in b);
+      const both = await assistantUsage(db, workspaceId);
+      assert.ok(both!.credits!.included + both!.credits!.granted - both!.credits!.used > -1e-6, 'holds never exceed the balance');
+      const third = await reserveAssistantModelTurn(db, workspaceId, 'u1', wsNear);
+      assert.ok('refusal' in third, 'nothing left to hold: refused');
+      for (const r of [a, b]) await recordAssistantTurn(db, workspaceId, 'u1', metric(false, 0) as never, (r as { id: string }).id, 0.2);
+      await db.collection('billingLedgerTraces').doc(`spend-${workspaceId}`).delete();
       const before = await assistantUsage(db, workspaceId);
       assert.ok(Math.abs(before!.credits!.used - (120 + 60)) < 1e-6, `used ${before!.credits!.used}`);
       await db.collection('workspaces').doc(workspaceId).update({ aiCreditMarkup: 1 });
