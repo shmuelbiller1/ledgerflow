@@ -58,14 +58,15 @@ export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth:
   const granted = Number.isFinite(grantedRaw) && grantedRaw > 0 && ws.aiCreditsGrantedMonth === grantMonth ? grantedRaw : 0;
   const markup = markupFor(ws);
   const used = creditsForCostCents(costCentsThisMonth, markup) + (Number.isFinite(settledCredits) && settledCredits > 0 ? settledCredits : 0);
-  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const [y, m] = grantMonth.split('-').map(Number);
+  const resetsOn = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
   return {
     included,
     granted,
     used,
     left: Math.max(0, Math.floor(included + granted - used)),
     markup,
-    resetsOn: next.toISOString().slice(0, 10),
+    resetsOn,
     unlimited: ws.aiUnlimited === true || ws.bypassBilling === true,
   };
 }
