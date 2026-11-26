@@ -51,3 +51,34 @@ describe('AI credits', () => {
       assert.ok(PROTECTED_WORKSPACE_FIELDS.has(f), f);
   });
 });
+
+const dbUrl = process.env.LF_TEST_DATABASE_URL;
+describe('AI credits against the database', { skip: !dbUrl && 'LF_TEST_DATABASE_URL not set' }, () => {
+  test('failed turns are free, and a markup change never reprices settled turns', async () => {
+    const { Firestore } = await import('../server/db/firestore');
+    const { assistantUsage } = await import('../server/middleware/planCapacity');
+    const { recordAssistantTurn } = await import('../server/services/assistantTurn');
+    const db = new Firestore({ connectionString: dbUrl, max: 2 });
+    const workspaceId = `ws-credits-${Date.now()}`;
+    try {
+      await db.collection('workspaces').doc(workspaceId).set({ id: workspaceId, plan: 'free' });
+      const metric = (ok: boolean, costCents: number) => ({ path: 'model', modelCalls: 1, inputTokens: 10, outputTokens: 10, costCents, ok, answerMs: 1, totalMs: 1 });
+      await recordAssistantTurn(db, workspaceId, 'u1', metric(true, 10) as never, undefined, 0.2);
+      await recordAssistantTurn(db, workspaceId, 'u1', metric(false, 50) as never, undefined, 0.2);
+      // an older row from before credits: priced at today's markup, unless it failed
+      await db.collection('billingLedgerTraces').doc(`legacy-${workspaceId}`).set({ id: `legacy-${workspaceId}`, workspaceId, algorithmName: 'ASSISTANT_TURN',
+        timestamp: new Date().toISOString(), assistantTurn: metric(true, 5) });
+      await db.collection('billingLedgerTraces').doc(`legacy-fail-${workspaceId}`).set({ id: `legacy-fail-${workspaceId}`, workspaceId, algorithmName: 'ASSISTANT_TURN',
+        timestamp: new Date().toISOString(), assistantTurn: metric(false, 99) });
+      const before = await assistantUsage(db, workspaceId);
+      assert.ok(Math.abs(before!.credits!.used - (120 + 60)) < 1e-6, `used ${before!.credits!.used}`);
+      await db.collection('workspaces').doc(workspaceId).update({ aiCreditMarkup: 1 });
+      const after = await assistantUsage(db, workspaceId);
+      assert.ok(Math.abs(after!.credits!.used - (120 + 100)) < 1e-6, 'the settled turn keeps its 120 credits; only the older row follows the new markup');
+    } finally {
+      await db.pool.query(`delete from ${db.tableSource('billingLedgerTraces')} where workspace_id = $1`, [workspaceId]).catch(() => undefined);
+      await db.collection('workspaces').doc(workspaceId).delete().catch(() => undefined);
+      await db.pool.end();
+    }
+  });
+});

@@ -16,6 +16,7 @@ import type { Content, FunctionCall, FunctionDeclaration } from '@google/genai';
 import type { Firestore } from '../db/firestore';
 import { tracedClient, type AiCallTrace } from './aiGateway';
 import type { ToolCache } from './assistantReadCache';
+import { creditsForCostCents } from '../../lib/aiCredits';
 
 export type AnswerPath = 'code' | 'memory' | 'cache' | 'model';
 
@@ -71,12 +72,15 @@ export function turnMetric(input: {
 }
 
 /** Stores one turn's metric with the other AI traces. Only the metric: no question or answer text. */
-export async function recordAssistantTurn(db: Firestore, workspaceId: string, uid: string, metric: AssistantTurnMetric, reservationId?: string): Promise<void> {
+export async function recordAssistantTurn(db: Firestore, workspaceId: string, uid: string, metric: AssistantTurnMetric, reservationId?: string, creditMarkup?: number): Promise<void> {
   try {
     // a reserved model turn (planCapacity.reserveAssistantModelTurn) is replaced by its real metric
     const id = reservationId ?? `trace-${crypto.randomUUID()}`;
     await db.collection('billingLedgerTraces').doc(id).set({
       id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', assistantTurn: metric,
+      // AI credits are fixed when the turn is settled: a later markup change never reprices it, and a
+      // failed turn is never charged (docs/design/AI-CREDITS.md)
+      ...(creditMarkup !== undefined ? { aiCredits: metric.ok ? creditsForCostCents(metric.costCents ?? 0, creditMarkup) : 0 } : {}),
       calls: [], executionTimeMs: metric.totalMs, degraded: !metric.ok, timestamp: new Date().toISOString(),
     });
   } catch (err) {

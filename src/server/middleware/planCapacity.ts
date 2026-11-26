@@ -210,13 +210,18 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
   const workspace = ws ?? (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!workspace) return null;
   const month = now.toISOString().slice(0, 7);
-  const { rows } = await runner.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number }>(
+  const { rows } = await runner.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number; credits: string; legacy_cents: string }>(
     `select count(*)::int as turns,
             count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0)::int as model_turns,
             coalesce(sum((data->'assistantTurn'->>'inputTokens')::bigint), 0)::text as input,
             coalesce(sum((data->'assistantTurn'->>'outputTokens')::bigint), 0)::text as output,
             coalesce(sum((data->'assistantTurn'->>'costCents')::numeric), 0)::text as cents,
-            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced
+            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced,
+            -- AI credits: what each successful turn was charged when settled; older rows (before credits)
+            -- are priced at today's markup. A failed turn is never charged.
+            coalesce(sum((data->>'aiCredits')::numeric) filter (where data ? 'aiCredits'), 0)::text as credits,
+            coalesce(sum((data->'assistantTurn'->>'costCents')::numeric) filter (where not data ? 'aiCredits'
+              and coalesce((data->'assistantTurn'->>'ok')::boolean, true)), 0)::text as legacy_cents
        from ${db.tableSource('billingLedgerTraces')}
       where workspace_id = $1 and data->>'algorithmName' = 'ASSISTANT_TURN' and left(data->>'timestamp', 7) = $2`,
     [workspaceId, month]);
@@ -235,7 +240,7 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
       modelTurns: Number(workspace.maxAssistantModelTurns || 0) || limits.assistantModelTurnsPerMonth,
       costCents: Number(workspace.maxAssistantCents || 0) || limits.assistantCentsPerMonth,
     },
-    credits: aiCreditBalance(workspace, Number(row?.cents ?? 0), now),
+    credits: aiCreditBalance(workspace, Number(row?.legacy_cents ?? 0), now, Number(row?.credits ?? 0)),
   };
 }
 

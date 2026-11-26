@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generated';
 import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
+import { markupFor } from '../../lib/aiCredits';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands, findAssistantCommands } from './assistantCatalog';
 import { findCommandInput, geminiReadTools } from './assistantToolDefinitions';
@@ -218,7 +219,7 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
     if (metric.path === 'model' && !client) {
       return res.status(503).json({ status: 'error', code: 'ASSISTANT_MODEL_UNAVAILABLE', message: 'The assistant model is not configured. Questions the books answer directly still work.' });
     }
-    await recordAssistantTurn(live, workspaceId, user.uid, metric, (reservation as { id: string } | null)?.id);
+    await recordAssistantTurn(live, workspaceId, user.uid, metric, (reservation as { id: string } | null)?.id, markupFor(workspace));
     const after = usage && {
       ...usage,
       turns: usage.turns + 1,

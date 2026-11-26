@@ -44,8 +44,11 @@ export interface AiCreditBalance {
   unlimited: boolean;
 }
 
-/** The workspace's balance from its plan, its admin overrides and this month's real cost. */
-export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth: number, now = new Date()): AiCreditBalance {
+/**
+ * The workspace's balance from its plan, its admin overrides and this month's use: `settledCredits` were
+ * fixed when each call was charged; `costCentsThisMonth` is uncharged cost (older rows), priced at the current markup.
+ */
+export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth: number, now = new Date(), settledCredits = 0): AiCreditBalance {
   const planKey = String(ws.aiCreditsPlanOverride || ws.plan || 'free').toLowerCase();
   const included = PLAN_AI_CREDITS[planKey] ?? PLAN_AI_CREDITS.free;
   // A grant counts in the month it was given for (`aiCreditsGrantedMonth`, YYYY-MM) only, so one grant
@@ -54,7 +57,7 @@ export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth:
   const grantMonth = now.toISOString().slice(0, 7);
   const granted = Number.isFinite(grantedRaw) && grantedRaw > 0 && ws.aiCreditsGrantedMonth === grantMonth ? grantedRaw : 0;
   const markup = markupFor(ws);
-  const used = creditsForCostCents(costCentsThisMonth, markup);
+  const used = creditsForCostCents(costCentsThisMonth, markup) + (Number.isFinite(settledCredits) && settledCredits > 0 ? settledCredits : 0);
   const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
   return {
     included,
