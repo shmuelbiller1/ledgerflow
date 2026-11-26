@@ -321,7 +321,8 @@ test('the routed CLI writes tier, reason, billed cost and tier shares', async ()
     assert.ok(saved.turns.some(t => t.tier === 'simple'));
     assert.ok(saved.turns.some(t => t.tier === 'strong'));
     assert.ok(saved.turns.every(t => t.reason && t.billedCents === 0.1 && t.metric.modelCalls === 1));
-    assert.match(stdout, /2\.10¢/);
+    // 0.1¢ billed per question
+    assert.match(stdout, new RegExp(`${(CASES.length * 0.1).toFixed(2).replace('.', '\\.')}¢`));
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
