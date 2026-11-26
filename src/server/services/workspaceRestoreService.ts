@@ -139,6 +139,7 @@ export const PROTECTED_WORKSPACE_FIELDS = new Set([
   'stripeCustomerId', 'stripeSubscriptionId', 'bypassBilling', 'status', 'lockedUntilDate',
   'billingLedgerChain', 'allowedWorldPaths', 'analyticalTopology', 'computeHardnessScore', 'roles',
   'admins', 'members', 'adminCount', 'deletedAt', 'scheduledPurgeAt', 'retention', 'setupCompletedAt', 'openingBalanceDate', 'totalQueriesThisMonth',
+  'aiUnlimited', 'aiCreditsGranted', 'aiCreditsGrantedMonth', 'aiCreditsPlanOverride', 'aiCreditMarkup', 'maxAssistantCents', 'maxAssistantModelTurns',
 ]);
 
 const VALID_ID = /^[^\s/]{1,127}$/;

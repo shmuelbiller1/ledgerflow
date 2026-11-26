@@ -24,7 +24,9 @@ describe('AI credits', () => {
     const free = aiCreditBalance({ plan: 'free' }, 10, now);
     assert.deepEqual({ included: free.included, used: free.used, left: free.left, resetsOn: free.resetsOn }, { included: 250, used: 120, left: 130, resetsOn: '2026-12-01' });
     assert.equal(aiCreditBalance({ plan: 'free', aiCreditsPlanOverride: 'pro' }, 0, now).included, PLAN_AI_CREDITS.pro);
-    assert.equal(aiCreditBalance({ plan: 'growth', aiCreditsGranted: 1000 }, 0, now).left, 6000);
+    assert.equal(aiCreditBalance({ plan: 'growth', aiCreditsGranted: 1000, aiCreditsGrantedMonth: '2026-11' }, 0, now).left, 6000);
+    assert.equal(aiCreditBalance({ plan: 'growth', aiCreditsGranted: 1000, aiCreditsGrantedMonth: '2026-10' }, 0, now).left, 5000, 'a grant is not spent again next month');
+    assert.equal(aiCreditBalance({ plan: 'growth', aiCreditsGranted: 1000 }, 0, now).granted, 0, 'a grant without its month never counts');
     assert.equal(aiCreditBalance({ plan: 'free' }, 1e6, now).left, 0, 'never negative');
     assert.equal(aiCreditBalance({ plan: 'unknown' }, 0, now).included, 250);
     assert.equal(aiCreditBalance({ aiUnlimited: true }, 0, now).unlimited, true);
@@ -39,5 +41,13 @@ describe('AI credits', () => {
     assert.equal(out?.code, 'ASSISTANT_LIMIT_REACHED');
     assert.match(out!.message, /AI credits/);
     assert.equal(assistantLimitRefusal({ ...base, credits: aiCreditBalance({ plan: 'free', aiUnlimited: true }, 21, now) }), null);
+    const pastCostCap = { ...base, modelTurns: 10, costCents: 2000, limits: { modelTurns: 50, costCents: 25 } };
+    assert.equal(assistantLimitRefusal({ ...pastCostCap, credits: aiCreditBalance({ plan: 'free', aiCreditsPlanOverride: 'pro' }, 2000, now) }), null,
+      'credits, not the old cost cap, decide: "treat as Pro" really permits more');
+  });
+  test('admin AI overrides cannot come back in a workspace backup', async () => {
+    const { PROTECTED_WORKSPACE_FIELDS } = await import('../server/services/workspaceRestoreService');
+    for (const f of ['aiUnlimited', 'aiCreditsGranted', 'aiCreditsGrantedMonth', 'aiCreditsPlanOverride', 'aiCreditMarkup', 'maxAssistantCents', 'maxAssistantModelTurns'])
+      assert.ok(PROTECTED_WORKSPACE_FIELDS.has(f), f);
   });
 });

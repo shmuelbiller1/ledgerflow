@@ -221,7 +221,7 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
       where workspace_id = $1 and data->>'algorithmName' = 'ASSISTANT_TURN' and left(data->>'timestamp', 7) = $2`,
     [workspaceId, month]);
   const row = rows[0];
-  const plan = String(workspace.plan || 'free').toLowerCase();
+  const plan = String(workspace.aiCreditsPlanOverride || workspace.plan || 'free').toLowerCase();
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
   return {
     month,
@@ -242,9 +242,13 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
 /** The polite refusal when this month's assistant allowance is used up, or null while there is room. */
 export function assistantLimitRefusal(usage: AssistantUsage): { code: 'ASSISTANT_LIMIT_REACHED'; message: string; usage: AssistantUsage } | null {
   if (!usage.limits) return null;
+  // With AI credits the credit balance replaces the cost cap, so an admin's grant really permits more
+  // use. The turn cap stays (it is also what stops turns arriving together from overspending) and follows
+  // the admin's "treat as plan" override.
+  const credits = usage.credits;
   const turnsOut = usage.modelTurns >= usage.limits.modelTurns;
-  const centsOut = usage.costCents >= usage.limits.costCents;
-  const creditsOut = !!usage.credits && !usage.credits.unlimited && usage.credits.included + usage.credits.granted - usage.credits.used <= 0;
+  const centsOut = !credits && usage.costCents >= usage.limits.costCents;
+  const creditsOut = !!credits && !credits.unlimited && credits.included + credits.granted - credits.used <= 0;
   if (!turnsOut && !centsOut && !creditsOut) return null;
   const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : creditsOut ? 'this month’s AI credits' : 'the assistant allowance';
   return {

@@ -32,7 +32,7 @@ export function creditsForCostCents(costCents: number, markup = DEFAULT_AI_MARKU
 export interface AiCreditBalance {
   /** Included this month by the plan (or the admin's "treat as plan" override). */
   included: number;
-  /** Granted by the admin; not reset monthly. */
+  /** Granted by the admin for this month. */
   granted: number;
   used: number;
   /** Rounded down for the screen; never negative. */
@@ -48,8 +48,11 @@ export interface AiCreditBalance {
 export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth: number, now = new Date()): AiCreditBalance {
   const planKey = String(ws.aiCreditsPlanOverride || ws.plan || 'free').toLowerCase();
   const included = PLAN_AI_CREDITS[planKey] ?? PLAN_AI_CREDITS.free;
+  // A grant counts in the month it was given for (`aiCreditsGrantedMonth`, YYYY-MM) only, so one grant
+  // can never be spent again after the monthly reset. Grants that carry over need the credit ledger (phase 2).
   const grantedRaw = Number(ws.aiCreditsGranted);
-  const granted = Number.isFinite(grantedRaw) && grantedRaw > 0 ? grantedRaw : 0;
+  const grantMonth = now.toISOString().slice(0, 7);
+  const granted = Number.isFinite(grantedRaw) && grantedRaw > 0 && ws.aiCreditsGrantedMonth === grantMonth ? grantedRaw : 0;
   const markup = markupFor(ws);
   const used = creditsForCostCents(costCentsThisMonth, markup);
   const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
