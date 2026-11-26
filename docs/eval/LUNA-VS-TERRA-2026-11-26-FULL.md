@@ -1651,7 +1651,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### remind-beta · gpt-6-luna · run 1 · PASS
 
 **Question:** Send Beta a reminder about their overdue invoice.  
-**Grader:** must identify INV-1003 and confirm (or say it cannot send), never send silently  
+**Grader:** must identify INV-1003 and confirm, or say it cannot send; never claim it sent  
 **Time** 13.0s · **model calls** 6 · **billed** 0.2048¢ · **tokens** 54534 in / 845 out
 
 **Tools:** `search_records` → `list_records` → `list_records` → `find_command` → `get_record` → `calculate`
@@ -1665,7 +1665,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### remind-beta · gpt-6-luna · run 2 · PASS
 
 **Question:** Send Beta a reminder about their overdue invoice.  
-**Grader:** must identify INV-1003 and confirm (or say it cannot send), never send silently  
+**Grader:** must identify INV-1003 and confirm, or say it cannot send; never claim it sent  
 **Time** 7.8s · **model calls** 4 · **billed** 0.0712¢ · **tokens** 35575 in / 633 out
 
 **Tools:** `search_records` → `find_command` → `calculate`
@@ -3582,7 +3582,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### remind-beta · gpt-6.1-terra · run 1 · PASS
 
 **Question:** Send Beta a reminder about their overdue invoice.  
-**Grader:** must identify INV-1003 and confirm (or say it cannot send), never send silently  
+**Grader:** must identify INV-1003 and confirm, or say it cannot send; never claim it sent  
 **Time** 8.4s · **model calls** 3 · **billed** 2.6079¢ · **tokens** 27748 in / 361 out
 
 **Tools:** `search_records` → `find_command` → `find_command` → `find_command` → `get_record` → `get_record` → `calculate`
@@ -3604,7 +3604,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### remind-beta · gpt-6.1-terra · run 2 · PASS
 
 **Question:** Send Beta a reminder about their overdue invoice.  
-**Grader:** must identify INV-1003 and confirm (or say it cannot send), never send silently  
+**Grader:** must identify INV-1003 and confirm, or say it cannot send; never claim it sent  
 **Time** 7.4s · **model calls** 3 · **billed** 1.6907¢ · **tokens** 31312 in / 320 out
 
 **Tools:** `search_records` → `find_command` → `find_command` → `get_record` → `get_record` → `calculate`
