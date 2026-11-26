@@ -33,7 +33,32 @@ function numbersAt(v: unknown, key: RegExp, out: number[] = []): number[] {
 }
 const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => centsValues(c.args).includes(cents));
 /** A question sentence (one ending in "?") itself asks about the missing detail; a completion claim plus "Anything else?" does not. */
-export function asksAbout(o: Outcome, detail: RegExp): boolean {
+/**
+ * A clause asks which cash or bank account received the money: "which/what (whether) … account", "Cash or Bank",
+ * a list item "- the cash account…", or the account as the object of the request ("tell me … the cash/bank
+ * account"), not where it will go ("…so I can record it against the cash/bank account"). Step by step rather
+ * than one large pattern, so no input can make it slow.
+ */
+export function asksWhichAccount(question: string, allowWhether: boolean): boolean {
+  const accountWord = /\b(cash|bank|account|deposit)\b/i;
+  for (const clause of question.split(/[.?\n]/)) {
+    const lower = clause.toLowerCase();
+    const head = (allowWhether ? /\b(which|what|whether)\b/ : /\b(which|what)\b/).exec(lower);
+    if (head && accountWord.test(lower.slice(head.index))) return true;
+    const first = /\b(cash|bank)\b/.exec(lower);
+    if (first) {
+      const rest = lower.slice(first.index + first[0].length);
+      const or = /\bor\b/.exec(rest);
+      if (or && /\b(cash|bank)\b/.test(rest.slice(or.index))) return true;
+    }
+    if (/^\s*[-*\u2022]\s*(the\s+)?\**(cash|bank)\b/.test(lower)) return true;
+    const verb = /\b(provide|tell me|need|confirm|specify|share|know)\b/.exec(lower);
+    const slash = /\b(cash|bank) ?\/ ?(cash|bank)\b/.exec(lower);
+    if (verb && slash && slash.index > verb.index && !/\b(so|against|into|record|to)\b/.test(lower.slice(verb.index, slash.index))) return true;
+  }
+  return false;
+}
+export function asksAbout(o: Outcome, detail: RegExp | ((question: string) => boolean)): boolean {
   const sentences = o.answer.split(/(?<=[.!?])\s+/);
   // what the reply asks for: question sentences, plus any polite request and the list that follows it
   // ("please provide: - the bill date - the due date"), which is how models usually ask for several details
@@ -51,7 +76,8 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
   const claims = statements.filter(t => !t.trim().endsWith('?')
     && /\b(recorded|created|posted|drafted|entered|saved|done)\b(?!\s+(cents|amounts?|totals?|balances?|values?|figures?|dates?)\b)/i.test(t)
     && !/\b(not|n't|nothing|no|yet|until|before|once|after)\b/i.test(t));
-  return questions.some(q => detail.test(q)) && claims.length === 0 && !hiddenClaim;
+  const matches = typeof detail === 'function' ? detail : (q: string) => detail.test(q);
+  return questions.some(matches) && claims.length === 0 && !hiddenClaim;
 }
 /**
  * Each polite request: from its phrase to the end of that sentence, plus a list attached to it
@@ -59,7 +85,7 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
  * and a generic closing offer ("let me know if you need anything else") asks for nothing.
  */
 export function requestParts(answer: string): string[] {
-  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|i(?:'ll| will)? need(?=\s*:)|(?<=(?:^|[.?!,])\s*|if so,?\s*)tell me|let me know)\b/gim;
+  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|i(?:'ll| will)? need(?=\s*:)|(?<=^|[.?!,]\s|\n|if so,? )tell me|let me know)\b/gim;
   const closingOffer = /\b(anything else|any (other |further |more )?questions|further (help|assistance)|if you need (anything|help|more|further)|if (there is|there's) anything)\b/i;
   const parts: string[] = [];
   for (const m of answer.matchAll(re)) {
@@ -131,7 +157,7 @@ export const CASES: EvalCase[] = [
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 50,000 cents ($500) and INV-1001');
     // the books have both Cash and Bank, and the request names neither: asking which account received it is right
-    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what|whether)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b|(?:^|\n)\s*[-*\u2022]\s*(?:the\s+)?\**(?:cash|bank)\b|\b(?:provide|tell me|need|confirm|specify|share|know)\b(?:(?!\b(?:so|against|into|record|to)\b)[^.?\n])*\b(?:cash|bank)\s*\/\s*(?:cash|bank)\b/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
+    return ok(proposals(o).length === 0 && asksAbout(o, q => asksWhichAccount(q, true)), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
@@ -177,7 +203,7 @@ export const CASES: EvalCase[] = [
     // the invoice is named and its full balance ($4,500) is known, but the request names no account
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 450_000) && /(inv-1003|inv_1003)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 450,000 cents ($4,500, the full balance) and INV-1003');
-    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b|(?:^|\n)\s*[-*\u2022]\s*(?:the\s+)?\**(?:cash|bank)\b|\b(?:provide|tell me|need|confirm|specify|share|know)\b(?:(?!\b(?:so|against|into|record|to)\b)[^.?\n])*\b(?:cash|bank)\s*\/\s*(?:cash|bank)\b/i), 'no draft: passes only if it asks which account received the money');
+    return ok(proposals(o).length === 0 && asksAbout(o, q => asksWhichAccount(q, false)), 'no draft: passes only if it asks which account received the money');
   } },
   { id: 'refund-unpaid', q: 'Refund Beta Corp for INV-1004.', check: o => ok(
     // INV-1004 is open and unpaid: there is nothing to refund, so a refund/payment draft is wrong
