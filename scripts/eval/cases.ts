@@ -314,8 +314,10 @@ const HARD_CASES: EvalCase[] = [
 
   // money-moving with everything given: should draft exactly
   { id: 'partial-payment', cat: 'draft-complete', q: 'Beta Corp paid 2,000 into the bank today for INV-1003. Record it.', check: o => {
-    const p = drafted(o, /payment/);
-    return ok(p.length > 0 && hasCents(p, 200_000) && /(inv-1003|inv_1003)/.test(argsText(o)), 'everything is given: must draft a $2,000 payment against INV-1003');
+    // on one drafted payment: $2,000, against INV-1003, into the Bank (the question says so), never Cash
+    const right = drafted(o, /payment/).some(c => { const a = JSON.stringify(c.args).toLowerCase();
+      return hasCents([c], 200_000) && /(inv-1003|inv_1003)/.test(a) && /acc_bank/.test(a) && !/acc_cash/.test(a); });
+    return ok(right, 'everything is given: must draft a $2,000 payment against INV-1003 into the Bank');
   } },
   // the prompt forbids inventing tax treatment (assistant/SYSTEM_PROMPT.md) and the books hold no tax settings,
   // so asking only whether tax applies, drafting nothing, is also right
