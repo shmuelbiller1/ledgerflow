@@ -15,8 +15,8 @@ for (const width of [390, 1280]) test(`floating assistant preserves page work an
   });
   const invoice = page.getByLabel('Unsaved invoice note');
   await invoice.fill('A draft that stays here');
-  await page.getByRole('button', { name: 'AI assistant' }).click();
-  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
+  const panel = page.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await expect(panel.getByRole('button', { name: 'Start assistant' })).toBeVisible();
   await panel.getByLabel('Your question').fill('open sales');
   await panel.getByRole('button', { name: 'Send question' }).click();
@@ -42,7 +42,7 @@ for (const width of [390, 1280]) test(`floating assistant preserves page work an
   expect(moved!.x + moved!.width).toBeLessThanOrEqual(width);
   await panel.getByRole('button', { name: 'Minimize assistant' }).click();
   await expect(invoice).toHaveValue('A draft that stays here');
-  await page.getByRole('button', { name: 'AI assistant' }).click();
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
   await expect(panel.getByRole('link', { name: 'Open sales in a new tab' })).toBeVisible();
   expect(requests).toEqual([]); // a page shortcut never sends the page, form or question to the model
   expect(errors).toEqual([]);
@@ -63,8 +63,8 @@ test('page context is optional, reviewable and never captures the form value', a
     main.innerHTML = '<h1>Invoice INV-123</h1><p>Acme owes 100</p><input aria-label="Private note" value="unsaved secret">';
     document.body.prepend(main);
   });
-  await page.getByRole('button', { name: 'AI assistant' }).click();
-  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
+  const panel = page.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await expect(panel.getByLabel('Draft workspace')).toBeVisible();
   await panel.getByLabel('Share page text with the assistant').check();
   await panel.getByRole('button', { name: 'Capture page text' }).click();
@@ -86,8 +86,8 @@ test('a viewer can ask about live books without starting a draft', async ({ page
     mounts: [{ module: '/src/components/intelligence/FloatingAssistant.tsx' }],
     api: ({ url }) => url.endsWith('/sandboxes/assistant/turn') ? { json: { status: 'success', answer: 'Acme is a customer.', path: 'code' } } : null,
   });
-  await page.getByRole('button', { name: 'AI assistant' }).click();
-  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
+  const panel = page.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await expect(panel.getByText(/Employee records are unavailable/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Start assistant' })).toHaveCount(0);
   await panel.getByLabel('Your question').fill('Find customer Acme');
@@ -110,8 +110,8 @@ for (const width of [390, 1280]) test(`question is visible on opening and surviv
       return null;
     },
   });
-  await page.getByRole('button', { name: 'AI assistant' }).click();
-  const panel = page.getByRole('dialog', { name: 'Floating AI assistant' });
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
+  const panel = page.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await expect(panel.getByRole('button', { name: 'Start assistant' })).toBeVisible();
   const box = await panel.boundingBox();
   const field = await panel.getByLabel('Your question').boundingBox();
@@ -130,7 +130,7 @@ for (const theme of ['light', 'dark'] as const) test(`floating assistant accessi
     api: ({ url }) => url.endsWith('/sandboxes') ? { json: { sandboxes: [] } } : null,
   });
   await page.evaluate(theme => { document.documentElement.classList.remove('light', 'dark'); document.documentElement.classList.add(theme); }, theme);
-  await page.getByRole('button', { name: 'AI assistant' }).click();
+  await page.getByRole('button', { name: 'Ask Flo' }).click();
   await page.getByRole('button', { name: 'Start assistant' }).waitFor();
   const result = await new AxeBuilder({ page }).include('#floating-assistant').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target) }))).toEqual([]);

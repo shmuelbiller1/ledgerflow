@@ -17,7 +17,7 @@ export function navigationFor(id: string): { isAdvanced: boolean; businessTypes:
 
 export const DAILY_TOOL_LABELS: Record<string, Record<string, string>> = {
   dashboard: { en: 'Overview', he: 'סקירה' }, inbox: { en: 'To review', he: 'לסקירה' },
-  copilot: { en: 'AI assistant', he: 'עוזר בינה מלאכותית' },
+  copilot: { en: 'Ask Flo', he: 'שאלו את Flo' },
   sales: { en: 'Sales', he: 'מכירות' }, purchases: { en: 'Purchases', he: 'רכישות' },
   banking: { en: 'Bank', he: 'בנק' }, reports: { en: 'Reports', he: 'דוחות' }, settings: { en: 'Settings', he: 'הגדרות' },
 };

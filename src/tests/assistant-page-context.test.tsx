@@ -63,8 +63,8 @@ test('page text is opt-in, editable, sent only after review, and cleared on navi
     return Response.json({ status: 'success', answer: 'Check the invoice.', path: 'model' });
   }) as typeof fetch;
   render(<><main id="main-content"><h1>Invoice INV-123</h1><input aria-label="Private note" value="unsaved secret" readOnly /><p>Acme owes 100</p></main><FloatingAssistant /></>);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await within(panel).findByLabelText('Draft workspace');
   fireEvent.change(within(panel).getByLabelText('Your question'), { target: { value: 'What is this?' } });
   fireEvent.click(within(panel).getByRole('button', { name: 'Send question' }));

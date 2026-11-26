@@ -185,7 +185,7 @@ export function RootLayout() {
       </div>
       
       {/* Non-modal: keeps the current page mounted while the person asks for help. */}
-      {canUseAssistant && <LazyOverlayBoundary key={dialogScope} label="AI assistant"><FloatingAssistant /></LazyOverlayBoundary>}
+      {canUseAssistant && <LazyOverlayBoundary key={dialogScope} label="Ask Flo"><FloatingAssistant /></LazyOverlayBoundary>}
       {/* Overlays & Global Components */}
       <BottomNav activeTab={activeTab as unknown as string} onTabChange={setActiveTab as unknown as (tabId: string) => void} />
       {isCommandPaletteOpen && (
