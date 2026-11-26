@@ -61,6 +61,13 @@ export function meteredFetch(spend: Spend, total: { calls: number }, cap: number
 /** The facts the live assistant sends with each question, for the sample company; ASSISTANT_EVAL_FACTS=off leaves them out. */
 /** How many runs the report and docs/eval/runs keep; older runs are still in git history. */
 const KEEP_RUNS = 3;
+/**
+ * ASSISTANT_EVAL_CASES=id1,id2 runs only those questions (for example, re-running on the strong model only what
+ * the cheap model missed); ASSISTANT_EVAL_CATEGORIES=risk,figures runs only those kinds. Unset: every question.
+ */
+const listEnv = (name: string) => (process.env[name] ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const ONLY_CASES = listEnv('ASSISTANT_EVAL_CASES'), ONLY_CATS = listEnv('ASSISTANT_EVAL_CATEGORIES');
+const RUN_CASES = CASES.filter(c => (!ONLY_CASES.length || ONLY_CASES.includes(c.id)) && (!ONLY_CATS.length || ONLY_CATS.includes(c.cat ?? 'core')));
 
 const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assistantFacts({ today: TODAY, currency: 'USD', fiscalYearStartMonth: 1 });
 
@@ -250,7 +257,7 @@ async function main() {
 
   say(`## Model comparison (${date}, via ${new URL(baseUrl).host})`);
   say();
-  say(`Graded on ${CASES.length} questions against a sample company's books (scripts/eval). Individual models run without routing or fallback; the routed row uses the live code/model router and retry. Tier shares count the final answering tier, including failures; code is separate. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
+  say(`Graded on ${RUN_CASES.length} questions against a sample company's books (scripts/eval). Individual models run without routing or fallback; the routed row uses the live code/model router and retry. Tier shares count the final answering tier, including failures; code is separate. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
   say();
   say('| model | correct | final tier share (simple / strong / code) | finished (no error/timeout) | model calls | billed cost | cost per correct answer |');
   say('|---|---|---|---|---|---|---|');
@@ -264,7 +271,7 @@ async function main() {
     let correct = 0, finished = 0;
     const tiers = { simple: 0, strong: 0, code: 0 };
     detail.push('', `#### ${label}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
-    for (const c of CASES) {
+    for (const c of RUN_CASES) {
       // each question runs `repeats` times: models answer differently run to run, so one run is luck
       let right = 0, why = '';
       for (let r = 0; r < repeats; r++) {
@@ -288,9 +295,9 @@ async function main() {
     // only a fully priced run is a measured cost; otherwise say how much is missing
     const known = spend.priced === spend.calls;
     const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
-    const asked = CASES.length * repeats;
+    const asked = RUN_CASES.length * repeats;
     const share = routeModels ? (['simple', 'strong', 'code'] as const).map(t => `${tiers[t]}/${asked} (${(tiers[t] * 100 / asked).toFixed(1)}%)`).join(' / ') : '—';
-    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${share} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${RUN_CASES.length} on average)` : ''} | ${share} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();
