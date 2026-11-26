@@ -2,13 +2,30 @@
 
 This is a scoped audit, **not a release approval or complete end-to-end verification**. Detailed evidence, limitations and handoffs are in `api-ui-parity-review.json` and `api-ui-verification-matrix.json`.
 
+## Final status (26 Nov 2026)
+
+All 35 findings have been worked. Each one's `resolution` in `api-ui-parity-review.json` names its status and the PR that fixed it.
+
+| status | count | findings |
+|---|---|---|
+| Fixed on the server (and screen), merged, with regression tests | 18 | AUP-01, 05, 08, 10, 14, 15, 19, 21, 22, 25, 26, 27, 28, 29, 30, 31, 32, 34 |
+| Fixed in the screen; no server change needed | 13 | AUP-03, 06, 07, 09, 11, 12, 13, 16, 17, 20, 23, 24, 35 |
+| Already safe by design | 1 | AUP-33 |
+| Safe part fixed; the rest waits for the owner | 1 | AUP-04 (re-enabling workspace edit and bulk sync) |
+| Waits for the owner | 1 | AUP-02 (a stock-closing button) |
+| Not started | 1 | AUP-18 (server records of failed sign-ins, part of issue #945) |
+
+Fixes landed in PRs #1039, #1040, #1041, #1043 and #1044; the UI mitigations in #1038. The two owner decisions are written up in `docs/FOR_YOU.md` with the default in use.
+
+**What this does not prove.** The fixes are tested against a disposable database, mocked screens and synthetic identities. None was verified on the deployed site, with real sign-in, or with live Stripe, Plaid or email. That is still the remaining work for the 13 screen fixes and for AUP-05.
+
 ## Coverage and safety
 
 The static scanner identifies 386 route registrations; each matrix row links to at least one narrowly described scenario. This is not proof that every endpoint succeeds or is reachable from the UI: 12 registrations have only a local-app refusal, three only forged-admin refusals, and other evidence uses mocks, synthetic identities or narrow examples. Live authentication, third-party providers, production and complete browser workflows have not been verified.
 
 **AUP-34 (fixed, 24 Nov):** undoing an FX revaluation whose next-day reversal has already taken effect is now refused by the server for every caller (HTTP, named command, UI), so earlier as-of balances can no longer change. Undo stays available, and the panel offers it again, while the reversal is still ahead. Regression: `src/tests/aup34-fx-undo-after-reversal.test.ts`; the audit probe now asserts the fixed behaviour.
 
-Other unresolved issues include billing webhook order-dependent duplicate credits (AUP-15), unsafe legacy CSV row/date handling (AUP-30), financial telemetry semantics (AUP-28/29), and uncertain/partial writes and stale balance risks. See the review and `docs/COORDINATION.md` for the complete AUP-01–35 findings and ownership. UI mitigations do not make direct server callers safe.
+The billing duplicate-credit (AUP-15), CSV row/date (AUP-30) and financial-metric (AUP-28/29) findings listed here before are fixed; see the final status above. UI mitigations alone do not make direct server callers safe, which is why those were fixed on the server.
 
 ## Verification
 

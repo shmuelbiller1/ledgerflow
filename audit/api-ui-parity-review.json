@@ -44,7 +44,13 @@
       ],
       "impact": "The proposed PUT /branding-profiles has no server registration in this revision. The PDF service reads workspace.branding, not brandingProfiles. Previously the screen and help claimed label branding would apply to PDFs; saving led to 404.",
       "mitigation": "Save is disabled and the submit handler guarded; the screen and English/Hebrew help disclose that edits are local and PDFs use books branding. Existing profiles remain inspectable.",
-      "remaining_work": "Full fix is still open: server-owner must implement an authorized, concurrency-safe write contract and label resolution in PDF generation, with end-to-end tests before enabling save. No server, accounting, or permission bypass was introduced."
+      "remaining_work": "Full fix is still open: server-owner must implement an authorized, concurrency-safe write contract and label resolution in PDF generation, with end-to-end tests before enabling save. No server, accounting, or permission bypass was introduced.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1041 (+ #1041 review fixes)",
+        "note": "Branding per label is saved through workspace.brandingprofiles (one label at a time, transactional, stale-checked) and printed on that label's PDFs, including its language.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-03",
@@ -58,7 +64,13 @@
       ],
       "impact": "A non-2xx response produced a success toast, and every displayed response claimed double-entry verification and unmeasured computation units, even when the endpoint was a status query or refused the request.",
       "fix": "Preserve HTTP status and response body including non-JSON bodies, distinguish a network failure from HTTP 500, show error feedback for non-2xx, and remove unverified claims.",
-      "remaining_work": "Named commands now show HTTP 2xx with exact status unavailable instead of an invented 200. Live API and browser checks remain open."
+      "remaining_work": "Named commands now show HTTP 2xx with exact status unavailable instead of an invented 200. Live API and browser checks remain open.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-02",
@@ -73,7 +85,13 @@
         "src/components/platform/useApiHubModel.ts:270"
       ],
       "impact": "The panel can read a closing but does not offer a take-closing action; the named command is available through the API Platform. Absence of a direct POST caller does not imply the operation is entirely inaccessible.",
-      "remaining_work": "Product owner to decide whether to add a discoverable owner-only action and confirm locked-period, stale scope, idempotency and refusal behavior. No financial mutation flow was added."
+      "remaining_work": "Product owner to decide whether to add a discoverable owner-only action and confirm locked-period, stale scope, idempotency and refusal behavior. No financial mutation flow was added.",
+      "resolution": {
+        "status": "owner_decision",
+        "fixed_in": "—",
+        "note": "No stock-closing button yet: it changes the books, so it waits for the owner (docs/FOR_YOU.md). Available through the API.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-04",
@@ -89,7 +107,13 @@
       ],
       "impact": "Previously workspace edits and bulk sync could overwrite unrelated billing fields using browser-derived defaults, and bulk sync never inspected HTTP responses. The server telemetry caps the list at 100, queries shards and transactions only for the first 30, and estimates log attribution; derived balances cannot safely be written back as base balances.",
       "mitigation": "Reads now use authenticated admin telemetry/users endpoints with explicit failures; workspace edit and bulk sync controls and handlers are disabled. The UI identifies the limits and suppresses unreliable credit and transaction totals. This intentionally suspends functionality; it is not a completed bulk-sync fix.",
-      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. (A telemetry failure no longer blocks the Users, Lexicon and Audit Trail tabs: only the Workspaces tab shows the refusal.)"
+      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. (A telemetry failure no longer blocks the Users, Lexicon and Audit Trail tabs: only the Workspaces tab shows the refusal.)",
+      "resolution": {
+        "status": "partly_fixed_owner_decision",
+        "fixed_in": "#1044",
+        "note": "A telemetry failure or slow request no longer hides the other Admin Panel tabs. Workspace edit and bulk sync stay disabled until the owner decides base vs. sharded credit-balance semantics (docs/FOR_YOU.md).",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-05",
@@ -103,7 +127,13 @@
       ],
       "impact": "PUT returns data, not globalAdminConfig. The previous UI replaced state with undefined after success; default values could be submitted after a failed GET. Server responses can contain metadata that a strict update schema rejects.",
       "fix": "Require a valid loaded configuration before saving; consume data from the PUT response, retain only schema fields, and report success. Mocked test verifies two sequential saves and no metadata in either payload.",
-      "remaining_work": "Fixed: the admin config was loaded once per instance, so a warm instance kept the old pricing multipliers, bypass flag and registration limit after an admin changed them. Each instance now re-reads it from the database when its copy is over 30 seconds old (at the auth gates and the public registration-status route); src/tests/aup05-global-config-refresh.test.ts. Not live tested on the deployed environment."
+      "remaining_work": "Fixed: the admin config was loaded once per instance, so a warm instance kept the old pricing multipliers, bypass flag and registration limit after an admin changed them. Each instance now re-reads it from the database when its copy is over 30 seconds old (at the auth gates and the public registration-status route); src/tests/aup05-global-config-refresh.test.ts. Not live tested on the deployed environment.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1044",
+        "note": "Every instance re-reads the admin billing config when its copy is over 30 s old (src/tests/aup05-global-config-refresh.test.ts). Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-06",
@@ -119,7 +149,13 @@
       ],
       "impact": "Key IDs alone are not credentials: the real middleware refuses them. The old selector chose IDs even when a full newly provisioned token was present. Inserting a pasted secret in example snippets would have exposed it.",
       "fix": "Require a full key in a password input for direct and command requests, do not place it in generated examples, clear state on user/workspace switch, and locally reject developer keys for the session-only ledger matching route.",
-      "verification": "Real authentication middleware rejected a missing token and a key ID without secret; mocked UI tests cover full-key header, direct and command actions, secret-free snippets and workspace change. A valid key against a real database and provider remains untested."
+      "verification": "Real authentication middleware rejected a missing token and a key ID without secret; mocked UI tests cover full-key header, direct and command actions, secret-free snippets and workspace change. A valid key against a real database and provider remains untested.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-07",
@@ -136,7 +172,13 @@
       ],
       "impact": "The single transaction form sent flat fields with no transaction envelope or balanced lines; the bulk form also supplied unbalanced rows. Both exposed a dryRun field that the actual route does not promise to honor. The documentation wrongly claimed automatic balancing.",
       "mitigation": "Both unsafe forms are disabled and guarded, and the transaction documentation now shows a balanced object and says it creates an entry. Proper transaction forms and verified preview support remain to be implemented. The command forms are explicitly described as real actions.",
-      "verification": "Mocked component tests prove the disabled actions send no POST, including a programmatic dry-run selection; documentation example passes the transaction schema with server-provided uid and balances to zero. No posting or database test was performed."
+      "verification": "Mocked component tests prove the disabled actions send no POST, including a programmatic dry-run selection; documentation example passes the transaction schema with server-provided uid and balances to zero. No posting or database test was performed.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-08",
@@ -152,7 +194,13 @@
       ],
       "impact": "A simulated successful invoice-create followed by a failed time-link request and a screen remount sent a second invoice-create request for the same approved time. The current same-mount recovery ref is not durable. Issue #97 is closed but this distinct remount case remains a risk.",
       "verification": "A fault-injection component probe recorded two create requests and two failed link requests; it does not prove actual database persistence or an independently duplicated posting.",
-      "remaining_work": "Server owner to implement atomic or durable idempotent create-and-link, with concurrency, unknown-response and remount/reload tests. The accounting flow was not patched in this audit."
+      "remaining_work": "Server owner to implement atomic or durable idempotent create-and-link, with concurrency, unknown-response and remount/reload tests. The accounting flow was not patched in this audit.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039, #1043",
+        "note": "The made draft is found again after a remount or reload; invoice-level refusals (INVOICE_MISSING/INVOICE_VOID) forget it; entry-level ones keep it, and a stale note is dropped with a warning when the hours change.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-09",
@@ -169,7 +217,13 @@
       ],
       "impact": "A refused or failed request was displayed as no emails or no watched records, concealing unknown data.",
       "mitigation": "Both screens show a refusal and retry; malformed success envelopes are refused. A pending watch-list read does not permit new watches.",
-      "remaining_work": "Mocked component tests verify request and feedback, not real database, authentication or email delivery."
+      "remaining_work": "Mocked component tests verify request and feedback, not real database, authentication or email delivery.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-10",
@@ -182,7 +236,13 @@
       ],
       "impact": "A database query failure is caught and translated into HTTP 200 success with zero workspaces, so API consumers cannot distinguish failed lookup from a genuinely empty owned-workspace list. Only owned workspaces are queried.",
       "mitigation": "Reported to the server owner; no server logic changed.",
-      "remaining_work": "Server owner should return a failure for database errors, clarify owned-only versus member list, and add database-fault and client regression tests. No database fault was injected here."
+      "remaining_work": "Server owner should return a failure for database errors, clarify owned-only versus member list, and add database-fault and client regression tests. No database fault was injected here.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1041",
+        "note": "A failed lookup returns 500 instead of an empty list.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-11",
@@ -196,7 +256,13 @@
       ],
       "impact": "An HTTP error page or missing document was converted to a file and sent to the AI reader instead of stopping at the failed download. This could mislead a user and unnecessarily invoke a provider.",
       "mitigation": "Check response.ok, surface the HTTP status and stop before OCR; unsafe document URLs now replace the existing loading toast.",
-      "remaining_work": "Mocked 404 regression and existing Vault tests pass; actual external documents, OCR service, auth and downstream posting were not tested."
+      "remaining_work": "Mocked 404 regression and existing Vault tests pass; actual external documents, OCR service, auth and downstream posting were not tested.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-14",
@@ -211,7 +277,13 @@
       ],
       "impact": "Manage Portal is conditioned on billingStatus.stripeSubscriptionId, but the status response does not include that property; paymentStatus is also absent. A cached workspace may separately contain paymentStatus.",
       "mitigation": "Server-owner handoff in docs/COORDINATION.md; no billing changes made.",
-      "remaining_work": "Test owner/viewer and status-failure/workspace-switch behavior with actual authentication; decide an authorized status contract. The local status response omitted both properties even when stored; UI behavior is source-derived, not browser-tested."
+      "remaining_work": "Test owner/viewer and status-failure/workspace-switch behavior with actual authentication; decide an authorized status contract. The local status response omitted both properties even when stored; UI behavior is source-derived, not browser-tested.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1041",
+        "note": "Billing status returns hasSubscription and paymentStatus.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-15",
@@ -227,7 +299,13 @@
       ],
       "impact": "On isolated PostgreSQL, real webhook-first then verify-session granted 2,000,000 credits for a 1,000,000-credit plan, while verify-first granted 1,000,000. Stripe retrieval was mocked and the billing user injected. The separate source-derived failure window after the verification claim remains untested.",
       "mitigation": "Handed to AI #1 for atomic shared entitlement/idempotency design and fault/order/concurrency regression tests; server code unchanged.",
-      "remaining_work": "AI #1 to resolve shared atomic idempotency, add concurrent delivery and claim/update failure tests, and verify with real authentication/provider as appropriate."
+      "remaining_work": "AI #1 to resolve shared atomic idempotency, add concurrent delivery and claim/update failure tests, and verify with real authentication/provider as appropriate.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039",
+        "note": "Verification and webhook share one checkout claim, so plan credits are granted once whichever arrives first.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-16",
@@ -242,7 +320,13 @@
       ],
       "impact": "The previous workspace usage remained visible until the next fetch finished, and an error silently hid the panel. A malformed usage object could break rendering.",
       "mitigation": "Key displayed usage by workspace/user/request, ignore obsolete responses, validate meter shape, and show loading plus retryable error.",
-      "remaining_work": "Isolated DB/router test passed meter values, viewer and outsider cases with injected identity; UI tests remain mocked. No live browser or production auth."
+      "remaining_work": "Isolated DB/router test passed meter values, viewer and outsider cases with injected identity; UI tests remain mocked. No live browser or production auth.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-17",
@@ -257,7 +341,13 @@
       ],
       "impact": "Status service marks sign-in, email, payments and bank feeds operational from configured environment alone; page counted them as working and claimed everything worked despite not testing those providers. Malformed responses could crash the page.",
       "mitigation": "Distinguish configuration from live provider checks, exclude those rows from the operational-check count, qualify the headline and handle malformed status responses.",
-      "remaining_work": "UI and fake-database status-service tests passed; no deployed endpoint, live database, provider connectivity or actual payment test."
+      "remaining_work": "UI and fake-database status-service tests passed; no deployed endpoint, live database, provider connectivity or actual payment test.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-18",
@@ -273,7 +363,13 @@
       ],
       "impact": "Fetch failure or malformed response appeared as no recent sign-ins; logout and token refresh events were displayed as sign-ins, and prior-account results could remain visible after switching user. The route accepts login, logout, and token_refresh but not failed_login; the screen cannot be presented as complete failed-attempt monitoring.",
       "mitigation": "Identify event types correctly, disclose the bounded/incomplete history, show loading and retryable errors, and isolate results by signed-in user.",
-      "remaining_work": "Mocked UI tests only; no live authentication, database/RLS or browser verification. Failed-login recording is part of open issue #945 and remains in the server-owner lane."
+      "remaining_work": "Mocked UI tests only; no live authentication, database/RLS or browser verification. Failed-login recording is part of open issue #945 and remains in the server-owner lane.",
+      "resolution": {
+        "status": "open",
+        "fixed_in": "#1038 (UI only)",
+        "note": "The screen reports failures honestly; recording failed sign-ins on the server is part of issue #945 and not started.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-12",
@@ -289,7 +385,13 @@
       ],
       "impact": "An accepted response without a token yielded /c/undefined or /e/undefined; absent clipboard support was reported as copied. A late request could update cache or copy a link after switching context. An uncertain portal revoke/rotation could leave an old link presented as current.",
       "mitigation": "Reject missing tokens, accurately report clipboard availability, guard stale user/workspace/customer/estimate results and repeated activation; hide the cached portal link after an uncertain change and require reloading authoritative state.",
-      "remaining_work": "Isolated database/router tests now cover portal link creation/rotation/revocation and estimate signing with injected identities; mock UI covers error and stale contexts. No live provider, actual browser clipboard or production auth/deployment verification."
+      "remaining_work": "Isolated database/router tests now cover portal link creation/rotation/revocation and estimate signing with injected identities; mock UI covers error and stale contexts. No live provider, actual browser clipboard or production auth/deployment verification.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-13",
@@ -304,7 +406,13 @@
       ],
       "impact": "A failed GET left an empty list for writers and hid the section for readers, potentially obscuring existing relationships and enabling writes while the list was unknown.",
       "mitigation": "Show loading and retryable read errors, validate link lists, isolate state by workspace/user/transaction, block writes when state is unknown, prevent duplicate pending writes and require a fresh read after uncertain mutation responses.",
-      "remaining_work": "Isolated database/router test passed link creation, scoped read, deletion and role cases with injected identities; UI tests remain mocked. No live authentication or browser verification."
+      "remaining_work": "Isolated database/router test passed link creation, scoped read, deletion and role cases with injected identities; UI tests remain mocked. No live authentication or browser verification.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-19",
@@ -318,7 +426,13 @@
       ],
       "impact": "HTTP refusals and network errors previously fell through to an empty or stale list; overlapping requests could show results for an earlier filter, and the record detail hardcoded PRODUCTION regardless of environment.",
       "mitigation": "Surface read failures and malformed records, order requests, clear on user change, label the result as limited, and remove the unsupported environment claim.",
-      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. The route now attaches the document id to every row (an id stored in the row still wins), so older rows without one are displayed (src/tests/aup19-audit-log-ids.test.ts)."
+      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. The route now attaches the document id to every row (an id stored in the row still wins), so older rows without one are displayed (src/tests/aup19-audit-log-ids.test.ts).",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1044",
+        "note": "Every audit-log row carries an id; an old row without one no longer blanks the viewer.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-20",
@@ -333,7 +447,13 @@
       ],
       "impact": "A failed profile preference read became empty/default preferences and a failed email-mode read became off, so the UI could misrepresent existing choices and allow writes based on guessed state. Two independent writes could partially succeed while reporting a generic failure.",
       "mitigation": "Require successful reads and a valid email mode before saving, offer retry, isolate identity, block duplicate submits, and disclose partial save uncertainty while retaining the draft. Guest mode shows email preferences as unavailable.",
-      "remaining_work": "Isolated database tests passed email mode read/write and digest delivery with injected user and mocked mail transport. No actual provider, live auth, browser or atomic multi-write verification."
+      "remaining_work": "Isolated database tests passed email mode read/write and digest delivery with injected user and mocked mail transport. No actual provider, live auth, browser or atomic multi-write verification.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-21",
@@ -350,7 +470,13 @@
       ],
       "impact": "A mocked fault-injection probe observed an Inbox request omit the cached version and an old response patch a switched workspace cache containing the same ID. Server source skips the version check without the value, so a concurrent permitted edit may be overwritten if other ledger guards pass. No actual database overwrite or production ID collision was established.",
       "mitigation": "Handed to AI #1 for authoritative concurrency design and isolated DB/browser regressions. No money/posting code changed.",
-      "remaining_work": "Exercise concurrent same-entry edits, legacy missing timestamps, 409 handling, workspace/user transitions and server-accepted-but-response-lost behavior. Mocked UI tests do not prove accounting or persistence."
+      "remaining_work": "Exercise concurrent same-entry edits, legacy missing timestamps, 409 handling, workspace/user transitions and server-accepted-but-response-lost behavior. Mocked UI tests do not prove accounting or persistence.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1040",
+        "note": "Batch filing sends each entry's version (409 on a stale one) and ignores answers for a switched workspace.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-22",
@@ -366,7 +492,13 @@
       ],
       "impact": "Opening fetch key depends on workspace, cutoff date and transaction count, not contents or versions. A mocked hook probe changed a cutoff-day entry without changing count or date and observed no new request and the old opening. Since entriesAfter excludes the cutoff day, computed balances can remain stale after such an edit. Real concurrent DB/UI edit behavior not tested.",
       "mitigation": "AI #1 handoff; no accounting/store/server changes made.",
-      "remaining_work": "Test actual committed cutoff-day edits and remote changes, scope and race cases; design safe refresh/invalidation without excess request churn."
+      "remaining_work": "Test actual committed cutoff-day edits and remote changes, scope and race cases; design safe refresh/invalidation without excess request churn.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1040",
+        "note": "An edit to an opening-day entry changes the refresh key, so the server opening is re-read.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-23",
@@ -379,7 +511,13 @@
       ],
       "impact": "Previously a success envelope was cast without validation; missing schedule silently rendered nothing and malformed jobs/date/outcomes could throw.",
       "mitigation": "Validate rendered fields, job outcomes and IDs; report unreadable schedule. Mocked UI tests cover malformed payloads.",
-      "remaining_work": "Validate live authenticated schedule response and scheduler behavior."
+      "remaining_work": "Validate live authenticated schedule response and scheduler behavior.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-24",
@@ -394,7 +532,13 @@
       ],
       "impact": "Before the fix a fake Plaid SDK callback captured in one workspace still sent a token exchange after switching workspaces; a 200 response lacking link_token left the button disabled. A request already sent before a switch may still commit despite client abort.",
       "mitigation": "Scope the launcher to workspace and user, reject stale callbacks and duplicate callbacks, abort obsolete requests, validate link-token and write response, show a recovery warning when connection state is uncertain. Tested with fake SDK/mock fetch; real-router isolated DB tests use fake Plaid.",
-      "remaining_work": "Validate actual Plaid lifecycle/provider and account switch in browser; assess server-side idempotency and uncertain-result recovery for an exchange already sent."
+      "remaining_work": "Validate actual Plaid lifecycle/provider and account switch in browser; assess server-side idempotency and uncertain-result recovery for an exchange already sent.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-25",
@@ -409,7 +553,13 @@
       ],
       "impact": "The synthetic isolated-DB S-39 fixture returns HTTP 500 and “An internal server error occurred.” for named reconciliations.banklinepay and reconciliations.banklinesplit calls on a closed-period bank line. The test confirms the counted rows remain unchanged. This is a refusal-message/status problem, not a demonstrated financial write. The legacy UI-facing routes share command definitions but their exact closed-period response has not been independently tested.",
       "mitigation": "Reported to AI #1; no server/accounting code changed. Probe intentionally asserts current behavior and should not be treated as a desired regression test.",
-      "remaining_work": "Map the underlying closed-period refusal to an actionable 4xx for named and legacy routes; add exact response and no-write tests, including the UI."
+      "remaining_work": "Map the underlying closed-period refusal to an actionable 4xx for named and legacy routes; add exact response and no-write tests, including the UI.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1041",
+        "note": "Closed-period refusals answer 409 PERIOD_LOCKED on named commands; legacy routes keep their 400.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-26",
@@ -426,7 +576,13 @@
       ],
       "impact": "On an isolated local Express router/database with a real test-scoped API key, two identical POST /api/v1/projects requests using the same Idempotency-Key produced two 201 responses and two distinct project IDs. API Hub exposes this endpoint and sample integrations. An uncertain response followed by retry can therefore create a duplicate; production occurrence and session-auth behavior were not demonstrated.",
       "mitigation": "The API Hub project playground and project documentation now warn that retry can create another project and advise checking the project list. This is not server-side idempotency.",
-      "remaining_work": "AI #1 should decide a compatible idempotency/recovery contract for the legacy endpoint; cover repeated, changed-payload, concurrent and lost-response requests, and actual UI/provider auth."
+      "remaining_work": "AI #1 should decide a compatible idempotency/recovery contract for the legacy endpoint; cover repeated, changed-payload, concurrent and lost-response requests, and actual UI/provider auth.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039",
+        "note": "Legacy project creation honours Idempotency-Key.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-27",
@@ -440,7 +596,13 @@
       ],
       "impact": "The isolated scoped-API-key test observes POST /api/v1/projects returning HTTP 500 with a QUOTA_EXCEEDED message, while the named project.create command returns 429 for the corresponding quota condition. The test confirms no forbidden project write; no production or browser behavior was measured.",
       "mitigation": "Reported to server owner; no quota or server code changed.",
-      "remaining_work": "AI #1 should choose and test a consistent client-actionable quota response without breaking existing integrations."
+      "remaining_work": "AI #1 should choose and test a consistent client-actionable quota response without breaking existing integrations.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1041",
+        "note": "Quota exhaustion answers 429 (and payment required 402) instead of 500.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-28",
@@ -455,7 +617,13 @@
       ],
       "impact": "Local full Express app and PostgreSQL, real test-scoped API key, synthetic entries: GET /api/v1/metrics/summary reported gross revenue of 70,000 cents where GET /api/v1/metrics reported 30,000 cents for the same books. The summary counted draft and forecast entries and used 10,000 raw EUR cents rather than 20,000 USD cents at rate 2. An API Hub document had described the summary as financial figures. No live data or production impact measured.",
       "mitigation": "API Hub summary documentation warns not to use this endpoint as an authoritative financial report. This does not change external API results.",
-      "remaining_work": "AI #1: align summary with posted, converted book amounts and agreed period/currency semantics, and test draft, forecast, void, mixed currency and supported book currencies against authoritative reports."
+      "remaining_work": "AI #1: align summary with posted, converted book amounts and agreed period/currency semantics, and test draft, forecast, void, mixed currency and supported book currencies against authoritative reports.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1040",
+        "note": "The summary counts posted entries in the book currency, as /metrics does.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-29",
@@ -471,7 +639,13 @@
       ],
       "impact": "Local full app/database: with zero operating expense, GET /api/v1/metrics returned monthlyBurnCents 400,000. Source shows further fallback/assumption values and labels revenue minus expense netOperatingCashFlowCents; this is not a cash-flow statement. Browser consumers or external integrations may mistake these for observed metrics; production impact unmeasured.",
       "mitigation": "API Hub docs and sandbox warn that shifting values include assumptions/fallbacks and that the cash-flow-named field is not a cash-flow statement. API results remain unchanged.",
-      "remaining_work": "AI #1: remove or explicitly distinguish assumptions and unavailable data; define truthful metric/currency semantics, including zero and foreign-currency cases, and test real API consumers."
+      "remaining_work": "AI #1: remove or explicitly distinguish assumptions and unavailable data; define truthful metric/currency semantics, including zero and foreign-currency cases, and test real API consumers.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1040, #1043",
+        "note": "No invented fallback figures; unsupported metrics are null, including gross margin with no cost-of-goods account.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-30",
@@ -488,7 +662,13 @@
       ],
       "impact": "The local app and isolated DB accepted a synthetic CSV, returned 200 with an invalid-amount row omitted, and changed an invalid date to the current UTC day without returning row warnings. The upload alone did not write ledger rows. The staged UI can send imported transactions to the ledger action, risking incomplete or incorrectly dated entries if not carefully checked; downstream write and production behavior were not tested.",
       "mitigation": "BankFeedImport now warns about omissions and date substitution and requires users to confirm comparison of row count, dates and amounts before importing. This is a caution, not a parser fix or guarantee of comparison.",
-      "remaining_work": "AI #1: return actionable per-row errors or fail closed without substituting dates or values; review two-column amount parsing, timezone/format semantics and import/retry/UI behavior; replace the observation with desired regression tests."
+      "remaining_work": "AI #1: return actionable per-row errors or fail closed without substituting dates or values; review two-column amount parsing, timezone/format semantics and import/retry/UI behavior; replace the observation with desired regression tests.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039",
+        "note": "Unreadable CSV rows are refused with 422 and named rows; the written day is kept.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-31",
@@ -504,7 +684,13 @@
       ],
       "impact": "Local actual route returns a four-field outlier, whereas the prior screen treated it as a full transaction and invoked zScore.toFixed, causing a rendering error when a result was present; empty, skipped and failed scans could misleadingly appear clean. The server scans up to 200 unordered records and compares raw amounts without excluding drafts or converting currencies. Production impact is unmeasured.",
       "mitigation": "Fixed on the server and screen. The scan reads a deterministic sample (the newest 200 posted entries, ties by id), leaves out drafts, voids and forecasts, converts each amount at its own rate to the book currency, and returns the currency, how many entries were scanned, whether the sample was capped, and a `skipped` reason (too_few_entries / no_variation) so a scan that could not judge is never shown as clean. The screen formats outliers in the book currency, states the sample, and renders the skipped states. Tests: src/tests/aup31-forensic-scan.test.ts (isolated database), src/tests/api-parity-forensic-scan.test.tsx; audit probes updated.",
-      "remaining_work": "Live-deployed and browser verification only; the anomaly rule itself (Z-score > 2.5 over the sample) is unchanged."
+      "remaining_work": "Live-deployed and browser verification only; the anomaly rule itself (Z-score > 2.5 over the sample) is unchanged.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1044",
+        "note": "Newest 200 posted entries in the book currency, a skipped reason when it cannot judge; the screen shows money and the real coverage.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-32",
@@ -518,7 +704,13 @@
       ],
       "impact": "Isolated router/DB tests with injected identity observe repeated legacy compute recording with the same idempotency key creates distinct traces and increases metering twice, while named billing.recordcompute replays once. No direct current UI caller was identified and neither the actual application auth mount nor production impact was tested.",
       "mitigation": "No behavior changed. Named command offers idempotency for compatible consumers; this is not a fix for legacy clients.",
-      "remaining_work": "AI #1: define and implement compatible legacy retry handling or document the legacy semantics; test mounted route, concurrent requests and uncertain outcomes."
+      "remaining_work": "AI #1: define and implement compatible legacy retry handling or document the legacy semantics; test mounted route, concurrent requests and uncertain outcomes.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039",
+        "note": "Legacy compute metering honours Idempotency-Key.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-33",
@@ -532,7 +724,13 @@
       ],
       "impact": "A mocked component test reproduced that a preview checked for one workspace remained enabled after switching to another. Confirm would use the new workspace and the old checked file; the server validates the file again, but matching contacts could allow posting into the wrong books. Delayed responses could also update or close the new dialog. A real cross-workspace posting was not attempted.",
       "mitigation": "The dialog resets its draft and preview on identity/session, workspace or document-side change, rejects obsolete async results, prevents simultaneous clicks, and warns that a failed or lost import response may leave some lines saved. The actual dialog preview/confirm was exercised against the local app and disposable database with a synthetic identity.",
-      "remaining_work": "An already-sent request cannot be undone by the UI; confirm writes one document at a time and may partly succeed. Validate real authentication, browser switching and concurrent/retry behavior; server ownership remains with AI #1."
+      "remaining_work": "An already-sent request cannot be undone by the UI; confirm writes one document at a time and may partly succeed. Validate real authentication, browser switching and concurrent/retry behavior; server ownership remains with AI #1.",
+      "resolution": {
+        "status": "no_server_change_needed",
+        "fixed_in": "#1038 (UI)",
+        "note": "Confirm validates every row first, saves each document under a stable idempotency key, and reports how many were saved before a failure.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-34",
@@ -548,7 +746,13 @@
       ],
       "impact": "In a disposable DB, actual HTTP run of a 31 October revaluation posted its next-day 1 November reversal. A 15 November balance API read showed zero net receivables impact. An owner HTTP undo on 24 November voided that already-past reversal and posted a mirror on the later date; the same 15 November balance read then showed +18000 cents. This changes historical reporting in this fixture. This is local synthetic-token evidence, not a claim about production books. The named command shares the service but was not independently exercised for this case.",
       "mitigation": "FxRevaluationPanel warns before posting and disables its undo action until the accounting owner fixes the issue. The server, direct API, named command and other callers remain available and are not fixed by this UI restriction.",
-      "remaining_work": "AI #1: determine correct temporal accounting for an already-effective scheduled reversal, preserving earlier as-of reports and closed periods; prevent unsafe direct and command requests, review the post-reversal undo accounting design, and test dates/timezones, locks, snapshots and concurrency. Replace the observation assertion with a desired-behavior regression after fixing."
+      "remaining_work": "AI #1: determine correct temporal accounting for an already-effective scheduled reversal, preserving earlier as-of reports and closed periods; prevent unsafe direct and command requests, review the post-reversal undo accounting design, and test dates/timezones, locks, snapshots and concurrency. Replace the observation assertion with a desired-behavior regression after fixing.",
+      "resolution": {
+        "status": "fixed",
+        "fixed_in": "#1039",
+        "note": "Undoing a revaluation whose reversal already took effect is refused for every caller; earlier as-of balances cannot change.",
+        "as_of": "2026-11-26"
+      }
     },
     {
       "id": "AUP-35",
@@ -561,7 +765,13 @@
       ],
       "impact": "A mocked component reproduction showed a plan from one workspace still displayed and Post enabled after switching to another workspace. The panel would send the currently selected workspace with a plan reviewed for different books. This is a UI risk; a real cross-workspace posting was not attempted.",
       "mitigation": "The panel remounts for changed identity/session or workspace, prevents simultaneous requests, and ignores obsolete responses. Mocked tests cover workspace switches after and during preview, a late posting response, and same-user reauthentication. An already-sent posting may still complete in its original books.",
-      "remaining_work": "Verify actual browser switches, auth, and uncertain-response recovery against the deployed environment; users should check the original books before retrying a request whose response was lost."
+      "remaining_work": "Verify actual browser switches, auth, and uncertain-response recovery against the deployed environment; users should check the original books before retrying a request whose response was lost.",
+      "resolution": {
+        "status": "fixed_in_ui",
+        "fixed_in": "#1038",
+        "note": "Not verified against the deployed site, real sign-in or live providers.",
+        "as_of": "2026-11-26"
+      }
     }
   ],
   "scanner_defects_fixed": [
@@ -2670,5 +2880,24 @@
     "Admin user edit converts zero limits to null and displays zero as system default; validate intended zero semantics before changing privilege/billing behavior.",
     "Admin telemetry controls other tabs: a telemetry load failure blocks user management and audit tabs, even if their routes are healthy.",
     "Admin global config is persisted to admins/globalConfig and loaded into per-instance memory at app boot (serverKit.ts, server.ts); cross-instance live propagation and failure-to-load behavior need runtime investigation."
-  ]
+  ],
+  "resolution_summary": {
+    "as_of": "2026-11-26",
+    "counts": {
+      "fixed": 18,
+      "owner_decision": 1,
+      "fixed_in_ui": 13,
+      "partly_fixed_owner_decision": 1,
+      "open": 1,
+      "no_server_change_needed": 1
+    },
+    "meaning": {
+      "fixed": "server (and screen where needed) fixed and merged, with regression tests",
+      "fixed_in_ui": "the screen no longer misreports; no server change was needed; live verification still to do",
+      "partly_fixed_owner_decision": "the safe part is merged; the rest waits for an owner decision",
+      "owner_decision": "waits for an owner decision (docs/FOR_YOU.md)",
+      "no_server_change_needed": "already safe by design",
+      "open": "not started"
+    }
+  }
 }
