@@ -5,7 +5,18 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-25.
+Last updated: 2026-11-26.
+
+## AI credits: how AI use is priced (26 Nov), design in docs/design/AI-CREDITS.md
+
+One balance of **AI credits** replaces today's three meters. Every call is priced from its real model cost plus a markup, failed calls are free, and each plan includes credits every month. Defaults I'm building with (reply with any change):
+1. **Markup: 20%** on top of what the model costs us (covers calls that fail and can't be charged). The admin page shows the real failure overhead each month.
+2. **1 AI credit = $0.001.**
+3. **Monthly included credits:** Free 250 · Growth 5,000 · Pro 25,000 · Enterprise 125,000.
+4. **Enterprise:** 125,000 credits can cost us up to ~$104 of the $299. Keep it, or lower it to 50,000?
+5. **Top-up packs (phase 2, needs you to create Stripe products):** 10,000 credits for $10.
+
+This also settles **AUP-04** below: the admin will edit what goes *in* (plan, granted credits, markup), never the balance itself.
 
 ## AUP-04 (API/UI parity audit, #1038): turn Admin workspace edit and bulk sync back on?
 
