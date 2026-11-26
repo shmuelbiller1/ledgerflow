@@ -1,0 +1,65 @@
+/**
+ * AI credits (docs/design/AI-CREDITS.md): what an AI call costs us, plus a markup, shown as whole
+ * credits. 1 credit = $0.001 of price, so 1 cent of price = 10 credits. Failed calls and answers the
+ * books give without a model are never charged.
+ */
+
+/** Default markup on real model cost (20%); the admin can override it per workspace (`aiCreditMarkup`). */
+export const DEFAULT_AI_MARKUP = 0.2;
+/** Credits per cent of price. */
+export const CREDITS_PER_CENT = 10;
+
+/** Monthly included credits by plan. They reset on the 1st (UTC) and do not roll over. */
+export const PLAN_AI_CREDITS: Record<string, number> = {
+  free: 250,
+  growth: 5_000,
+  pro: 25_000,
+  enterprise: 125_000,
+};
+
+/** The markup for a workspace: its admin override when it is a sensible number (0–5 = 0%–500%), else the default. */
+export function markupFor(ws: Record<string, unknown> | undefined): number {
+  const m = Number(ws?.aiCreditMarkup);
+  return Number.isFinite(m) && m >= 0 && m <= 5 && ws?.aiCreditMarkup !== undefined && ws?.aiCreditMarkup !== null ? m : DEFAULT_AI_MARKUP;
+}
+
+/** Credits for a real cost in cents, exact (a 0.06¢ call is 0.72 credits, not rounded up). */
+export function creditsForCostCents(costCents: number, markup = DEFAULT_AI_MARKUP): number {
+  if (!Number.isFinite(costCents) || costCents <= 0) return 0;
+  return costCents * (1 + markup) * CREDITS_PER_CENT;
+}
+
+export interface AiCreditBalance {
+  /** Included this month by the plan (or the admin's "treat as plan" override). */
+  included: number;
+  /** Granted by the admin; not reset monthly. */
+  granted: number;
+  used: number;
+  /** Rounded down for the screen; never negative. */
+  left: number;
+  markup: number;
+  /** The first day of next month (UTC), YYYY-MM-DD. */
+  resetsOn: string;
+  /** No AI limit (admin "unlimited AI" or billing bypass). */
+  unlimited: boolean;
+}
+
+/** The workspace's balance from its plan, its admin overrides and this month's real cost. */
+export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth: number, now = new Date()): AiCreditBalance {
+  const planKey = String(ws.aiCreditsPlanOverride || ws.plan || 'free').toLowerCase();
+  const included = PLAN_AI_CREDITS[planKey] ?? PLAN_AI_CREDITS.free;
+  const grantedRaw = Number(ws.aiCreditsGranted);
+  const granted = Number.isFinite(grantedRaw) && grantedRaw > 0 ? grantedRaw : 0;
+  const markup = markupFor(ws);
+  const used = creditsForCostCents(costCentsThisMonth, markup);
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return {
+    included,
+    granted,
+    used,
+    left: Math.max(0, Math.floor(included + granted - used)),
+    markup,
+    resetsOn: next.toISOString().slice(0, 10),
+    unlimited: ws.aiUnlimited === true || ws.bypassBilling === true,
+  };
+}

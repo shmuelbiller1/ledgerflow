@@ -23,7 +23,8 @@ interface Usage {
   seats: Meter;
   storageMb: Meter;
   /** SBX-2 Part 7: this month's assistant answers that used an AI model, and their cost. */
-  assistant?: { month: string; turns: number; modelTurns: number; costCents: number; limits: { modelTurns: number; costCents: number } | null };
+  assistant?: { month: string; turns: number; modelTurns: number; costCents: number; limits: { modelTurns: number; costCents: number } | null;
+    credits?: { included: number; granted: number; used: number; left: number; resetsOn: string; unlimited: boolean } };
 }
 
 /** Near a limit from 80% on, so it is seen before anything is refused. */
@@ -120,7 +121,16 @@ export default function UsagePanel() {
     // only answers that needed an AI model count; answers read straight from the books are free
     const refusal = 'The assistant’s AI limit for this month is reached: questions that need AI are refused until next month or a plan change. Answers read straight from your books still work.';
     rows.push({ label: 'Assistant answers using AI (this month)', used: usage.assistant.modelTurns, limit: usage.assistant.limits.modelTurns, refusalNoun: 'AI answers', refusal });
-    rows.push({
+    const credits = usage.assistant.credits;
+    if (credits && !credits.unlimited) rows.push({
+      label: `AI credits (this month, reset ${credits.resetsOn})`,
+      used: Math.ceil(credits.used),
+      limit: credits.included + credits.granted,
+      formatValue: n => `${n.toLocaleString()} credits`,
+      refusalNoun: 'AI answers',
+      refusal,
+    });
+    else rows.push({
       label: 'Assistant AI cost (this month)',
       used: Math.ceil(usage.assistant.costCents),
       limit: usage.assistant.limits.costCents,

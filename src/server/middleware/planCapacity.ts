@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
+import { aiCreditBalance, type AiCreditBalance } from '../../lib/aiCredits';
 import { getDb, requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 
@@ -198,6 +199,8 @@ export interface AssistantUsage {
   unpricedTurns: number;
   /** null when billing is not enforced for the workspace */
   limits: { modelTurns: number; costCents: number } | null;
+  /** AI credits (docs/design/AI-CREDITS.md): this month's cost plus markup against the plan's credits. */
+  credits?: AiCreditBalance;
 }
 
 type Runner = Pick<Firestore['pool'], 'query'>;
@@ -228,10 +231,11 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
     outputTokens: Number(row?.output ?? 0),
     costCents: Number(row?.cents ?? 0),
     unpricedTurns: row?.unpriced ?? 0,
-    limits: workspace.bypassBilling === true ? null : {
+    limits: workspace.bypassBilling === true || workspace.aiUnlimited === true ? null : {
       modelTurns: Number(workspace.maxAssistantModelTurns || 0) || limits.assistantModelTurnsPerMonth,
       costCents: Number(workspace.maxAssistantCents || 0) || limits.assistantCentsPerMonth,
     },
+    credits: aiCreditBalance(workspace, Number(row?.cents ?? 0), now),
   };
 }
 
@@ -240,8 +244,9 @@ export function assistantLimitRefusal(usage: AssistantUsage): { code: 'ASSISTANT
   if (!usage.limits) return null;
   const turnsOut = usage.modelTurns >= usage.limits.modelTurns;
   const centsOut = usage.costCents >= usage.limits.costCents;
-  if (!turnsOut && !centsOut) return null;
-  const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : 'the assistant allowance';
+  const creditsOut = !!usage.credits && !usage.credits.unlimited && usage.credits.included + usage.credits.granted - usage.credits.used <= 0;
+  if (!turnsOut && !centsOut && !creditsOut) return null;
+  const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : creditsOut ? 'this month’s AI credits' : 'the assistant allowance';
   return {
     code: 'ASSISTANT_LIMIT_REACHED',
     message: `This workspace has used ${what} included in its plan for ${usage.month}. Questions the books answer directly (balances, totals, an invoice by number) still work. To ask the assistant more this month, upgrade the plan in Settings → Billing & Plan; the allowance resets on the 1st.`,
