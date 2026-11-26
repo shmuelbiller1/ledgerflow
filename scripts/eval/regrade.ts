@@ -1,7 +1,12 @@
 /** Re-grades a saved run (docs/eval/runs/*.json) with the current graders, without calling any model. */
 import fs from 'node:fs';
+import path from 'node:path';
 import { CASES } from './cases';
-const file = process.argv[2];
+// only a saved run in docs/eval/runs, named by its file name (never an arbitrary path)
+const RUNS = path.resolve('docs/eval/runs');
+const name = path.basename(process.argv[2] ?? '');
+if (!/^[\w.-]+\.json$/.test(name)) throw new Error('Usage: regrade.ts <run file name in docs/eval/runs>');
+const file = path.join(RUNS, name);
 const run = JSON.parse(fs.readFileSync(file, 'utf8')) as { turns: Array<{ configuration: string; case: string; category?: string; pass: boolean; answer: string; calls: never[]; error?: string }> };
 const table = new Map<string, Map<string, { right: number; of: number }>>();
 const totals = new Map<string, { right: number; of: number }>();

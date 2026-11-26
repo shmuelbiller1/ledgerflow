@@ -5,7 +5,7 @@ stronger model, and how the app should choose the model.
 
 **Run:** `docs/eval/runs/2026-11-26-23-16.json`. It used the sample company in `scripts/eval/sampleBooks.ts`
 and the real system prompt, with each model on its own (no fallback).
-**Graded after the run** with `npx tsx scripts/eval/regrade.ts <run>`. This fixed three grader mistakes,
+**Graded after the run** with `npx tsx scripts/eval/regrade.ts <run file name>`. This fixed three grader mistakes,
 listed below. The report table in `docs/assistant-model-eval.md` still shows the grades from before the fix.
 
 ## Result
