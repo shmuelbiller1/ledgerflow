@@ -71,6 +71,14 @@ const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assi
  */
 export interface RoutedModels { simple: string; strong: string }
 
+/** The live server refuses to delete an invoice or bill with payments recorded against it. */
+function deleteRefusal(command: string, args: Record<string, unknown>): string | null {
+  const kind = command === 'invoice.delete' ? 'invoice' : command === 'bill.delete' ? 'bill' : null;
+  if (!kind) return null;
+  const doc = (bookTool('get_record', { collection: `${kind}s`, id: String(args.id ?? '') }) as { record?: { paidCents?: number } }).record;
+  return doc && (doc.paidCents ?? 0) > 0 ? `Cannot delete ${kind} with recorded payments or credit applications. Void or unapply settlements first.` : null;
+}
+
 export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS, routed?: RoutedModels) {
   const commands = ownerCommands();
   const tools = assistantToolsFor(commands, q)[0].functionDeclarations as FunctionDeclaration[];
@@ -102,6 +110,13 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
         const issue = parsed?.error?.issues?.[0];
         calls[calls.length - 1].refusal = command ? `${issue?.path?.join('.') || 'input'}: ${issue?.message ?? 'invalid'}` : 'unknown command';
         return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
+      }
+      // the books' own refusal, as the live server gives it (documentPostService): a paid document cannot be deleted
+      const refusal = deleteRefusal(command.name, args);
+      if (refusal) {
+        calls[calls.length - 1].ok = false;
+        calls[calls.length - 1].refusal = refusal;
+        return { error: refusal };
       }
       const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
       steps.push(step);
