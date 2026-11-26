@@ -108,20 +108,22 @@ export function registerMetricsAuditRoutes(app: express.Express, _ctx: ServerCon
           }
         };
       } else if (businessType === 'retail' || businessType === 'manufacturing' || businessType === 'inventory') {
+        const isCogsAccount = (a: { type?: string; name: string }) => a.type === 'expense' && /cogs|cost of goods|inventory/i.test(a.name);
         const cogsCents = transactions.reduce((acc, t) => {
           if (!isPostable(t)) return acc;
           let sumCogs = 0;
           t.lines?.forEach((l) => {
              const accObj = accounts.find(a => a.id === l.accountId);
-             if (accObj?.type === 'expense' && (accObj.name.toLowerCase().includes('cogs') || accObj.name.toLowerCase().includes('cost of goods') || accObj.name.toLowerCase().includes('inventory'))) {
-                sumCogs += lineAmount(l, t);
-             }
+             if (accObj && isCogsAccount(accObj)) sumCogs += lineAmount(l, t);
           });
           return acc + sumCogs;
         }, 0);
 
-        const grossProfitCents = totalRevenueCents - cogsCents;
-        const grossMargin = totalRevenueCents > 0 ? Number.parseFloat((grossProfitCents / totalRevenueCents * 100).toFixed(2)) : 0;
+        // AUP-29: with no cost-of-goods account the books cannot say what goods cost, so gross profit and
+        // margin are unknown (null), not "all revenue" / 100%; a COGS account with no postings is a real 0
+        const hasCogsAccount = accounts.some(isCogsAccount);
+        const grossProfitCents = hasCogsAccount ? totalRevenueCents - cogsCents : null;
+        const grossMargin = grossProfitCents !== null && totalRevenueCents > 0 ? Number.parseFloat((grossProfitCents / totalRevenueCents * 100).toFixed(2)) : null;
         
         // AUP-29: no assumed 40% COGS or invented inventory balance; a ratio without its inputs is not given
         const inventoryAccountVal = accounts.filter(a => a.name.toLowerCase().includes('inventory'))

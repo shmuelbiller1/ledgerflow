@@ -3,7 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { TanStackDataGrid } from '../ui/TanStackDataGrid';
 import { runCommand, commandErrorMessage, ServerCommandError } from '../../lib/runCommand';
 import { uiLanguageNow } from '../../lib/i18n/uiLanguageNow';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -65,6 +65,8 @@ function rememberPendingTimeInvoice(workspaceId: string, hours: string, invoice:
 function forgetPendingTimeInvoice(workspaceId: string, hours: string): void {
   const all = pendingStore(); delete all[`${workspaceId}|${hours}`]; writePending(all);
 }
+/** The stable key for a set of billable entries: their ids sorted, so the note matches regardless of list order. */
+const hoursKey = (entries: TimeEntry[]) => entries.map(e => e.id).sort((a, b) => a.localeCompare(b)).join(',');
 
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
@@ -90,12 +92,28 @@ export default function TimeView() {
   const currency = workspace?.currency || 'USD';
   const canBill = ['owner', 'accountant', 'bookkeeper'].includes(role);
   const [loadCount, setLoadCount] = useState(0);
+  // AUP-08: a draft kept after a refusal about the time itself. Once the reload arrives, if these hours are no
+  // longer the same set, the draft's lines no longer match and its note (keyed by the old hours) would never be
+  // found again: forget it and say so, instead of leaving a silent orphan. Same hours: kept, the next press re-links.
+  const staleDraft = useRef<{ hours: string; customerId: string; number: string } | null>(null);
 
   useEffect(() => {
     if (!workspaceId) return;
     let live = true;
     call(workspaceId, '')
-      .then(data => { if (live) { setEntries(data.entries || []); setRates(data.rates); setCanApprove(Boolean(data.canApprove)); setFailed(''); } })
+      .then(data => {
+        if (!live) return;
+        const fresh: TimeEntry[] = data.entries || [];
+        setEntries(fresh); setRates(data.rates); setCanApprove(Boolean(data.canApprove)); setFailed('');
+        const stale = staleDraft.current;
+        if (!stale) return;
+        staleDraft.current = null;
+        const now = hoursKey(fresh.filter(e => e.billable && e.status === 'approved' && !e.invoiceId && e.customerId === stale.customerId));
+        if (now !== stale.hours) {
+          forgetPendingTimeInvoice(workspaceId, stale.hours);
+          toast.warning(`Draft invoice ${stale.number} no longer matches the time waiting to be billed: review or void it in Sales.`);
+        }
+      })
       .catch(err => { if (live) setFailed(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [workspaceId, loadCount]);
@@ -147,7 +165,7 @@ export default function TimeView() {
   const makeInvoice = async () => {
     if (!billFor || lines.length === 0) return;
     setBusy(true);
-    const hours = billable.map(e => e.id).sort().join(',');
+    const hours = hoursKey(billable);
     // AUP-08: the invoice made for these hours is found again after a remount or reload, both from this
     // browser's note and from the invoice itself (it names the time it was made from), so no second one is made
     // a noted invoice the loaded list shows as voided since is dropped, so a fresh one is made for these hours;
@@ -170,8 +188,9 @@ export default function TimeView() {
           }
           // some of the time changed (removed, sent back, linked elsewhere): keep the invoice and reload the time
           if (err instanceof ServerCommandError && (err.status === 404 || err.status === 409)) {
+            staleDraft.current = { hours, customerId: billFor, number: pending.number };
             setLoadCount(n => n + 1);
-            throw new Error(`Some of this time changed since the list was loaded (${commandErrorMessage(err, uiLanguageNow())}). The time list was reloaded; draft invoice ${pending.number} is kept.`, { cause: err });
+            throw new Error(`Some of this time changed since the list was loaded (${commandErrorMessage(err, uiLanguageNow())}). The time list was reloaded; check draft invoice ${pending.number} before pressing again.`, { cause: err });
           }
           throw err;
         }
