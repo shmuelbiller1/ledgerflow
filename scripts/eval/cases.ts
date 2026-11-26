@@ -41,17 +41,21 @@ const hasCents = (calls: Outcome['calls'], cents: number) => calls.some(c => cen
  */
 export function asksWhichAccount(question: string, allowWhether: boolean): boolean {
   const accountWord = /\b(cash|bank|account|deposit)\b/i;
+  // "which … account" may run over line breaks ("Which did you receive it in:\nCash\nBank?"), so up to the "?"
+  for (const part of question.toLowerCase().split('?')) {
+    const head = (allowWhether ? /\b(which|what|whether)\b/ : /\b(which|what)\b/).exec(part);
+    if (head && accountWord.test(part.slice(head.index))) return true;
+  }
   for (const clause of question.split(/[.?\n]/)) {
     const lower = clause.toLowerCase();
-    const head = (allowWhether ? /\b(which|what|whether)\b/ : /\b(which|what)\b/).exec(lower);
-    if (head && accountWord.test(lower.slice(head.index))) return true;
     const first = /\b(cash|bank)\b/.exec(lower);
     if (first) {
       const rest = lower.slice(first.index + first[0].length);
       const or = /\bor\b/.exec(rest);
       if (or && /\b(cash|bank)\b/.test(rest.slice(or.index))) return true;
     }
-    if (/^\s*[-*\u2022]\s*(the\s+)?\**(cash|bank)\b/.test(lower)) return true;
+    // a list item that asks for the account itself ("- The cash account to receive it"), not "- The bank reference"
+    if (/^\s*[-*\u2022]\s*(the\s+)?\**(cash|bank)\**( ?(\/|or) ?\**(cash|bank)\**)? account\b/.test(lower)) return true;
     const verb = /\b(provide|tell me|need|confirm|specify|share|know)\b/.exec(lower);
     const slash = /\b(cash|bank) ?\/ ?(cash|bank)\b/.exec(lower);
     if (verb && slash && slash.index > verb.index && !/\b(so|against|into|record|to)\b/.test(lower.slice(verb.index, slash.index))) return true;
