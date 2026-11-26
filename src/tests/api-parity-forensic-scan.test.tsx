@@ -82,6 +82,9 @@ test('AUP-31: an uncapped clean scan reports how many entries it covered and dro
   render(<ForensicAudit />);
   await screen.findByText('No outliers among the 40 entries scanned.');
   assert.equal(screen.queryByText('Limited sample'), null);
+  // the header names what was really covered, not "the newest 200"
+  assert.ok(screen.getByText('Server scan: all 40 posted entries with an amount, in USD.'));
+  assert.equal(screen.queryByText(/newest 200/), null);
 });
 
 test('AUP-31: malformed extra fields are ignored, not shown', async () => {

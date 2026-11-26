@@ -214,7 +214,10 @@ const ForensicAudit = React.memo(() => {
                     Statistical Outliers
                  </h2>
                  <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">{scan?.state === 'ready' && scan.info?.currency
-                   ? `Server sample: the newest ${scan.info.sampleLimit ?? 200} posted entries, in ${scan.info.currency}; not a complete audit.`
+                   // not capped: every posted entry with an amount was scanned, so say that, not "the newest 200"
+                   ? scan.info.sampleCapped === false && scan.info.scanned !== undefined
+                     ? `Server scan: all ${scan.info.scanned} posted entries with an amount, in ${scan.info.currency}.`
+                     : `Server sample: the newest ${scan.info.sampleLimit ?? 200} posted entries, in ${scan.info.currency}; not a complete audit.`
                    : 'Server sample: at most 200 entries; not a complete audit.'}</p>
               </div>
               {(scan?.state !== 'ready' || scan.info?.sampleCapped !== false) && (
