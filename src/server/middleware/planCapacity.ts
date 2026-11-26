@@ -204,6 +204,8 @@ export interface AssistantUsage {
 }
 
 type Runner = Pick<Firestore['pool'], 'query'>;
+/** How long an unsettled credit hold counts before it lapses (a turn is far shorter than this). */
+const HOLD_LAPSES_AFTER_MS = 10 * 60 * 1000;
 
 export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Record<string, unknown>, now = new Date(), runner: Runner = db.pool): Promise<AssistantUsage | null> {
   requireLiveDb(db, 'Assistant usage');
@@ -219,12 +221,14 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
             count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced,
             -- AI credits: what each successful turn was charged when settled; older rows (before credits)
             -- are priced at today's markup. A failed turn is never charged.
-            coalesce(sum((data->>'aiCredits')::numeric) filter (where data ? 'aiCredits'), 0)::text as credits,
+            -- a hold whose turn never settled (the server stopped, or the settling write failed) lapses after 10 minutes
+            coalesce(sum((data->>'aiCredits')::numeric) filter (where data ? 'aiCredits'
+              and not (coalesce(data->'assistantTurn'->>'reserved', '') = 'true' and data->>'timestamp' < $3)), 0)::text as credits,
             coalesce(sum((data->'assistantTurn'->>'costCents')::numeric) filter (where not data ? 'aiCredits'
               and coalesce((data->'assistantTurn'->>'ok')::boolean, true)), 0)::text as legacy_cents
        from ${db.tableSource('billingLedgerTraces')}
       where workspace_id = $1 and data->>'algorithmName' = 'ASSISTANT_TURN' and left(data->>'timestamp', 7) = $2`,
-    [workspaceId, month]);
+    [workspaceId, month, new Date(now.getTime() - HOLD_LAPSES_AFTER_MS).toISOString()]);
   const row = rows[0];
   const plan = String(workspace.aiCreditsPlanOverride || workspace.plan || 'free').toLowerCase();
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;

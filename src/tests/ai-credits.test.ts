@@ -99,6 +99,10 @@ describe('AI credits against the database', { skip: !dbUrl && 'LF_TEST_DATABASE_
       assert.ok('refusal' in third, 'nothing left to hold: refused');
       for (const r of [a, b]) await recordAssistantTurn(db, workspaceId, 'u1', metric(false, 0) as never, (r as { id: string }).id, 0.2);
       await db.collection('billingLedgerTraces').doc(`spend-${workspaceId}`).delete();
+      // a hold whose turn never settled lapses after 10 minutes
+      await db.collection('billingLedgerTraces').doc(`stale-${workspaceId}`).set({ id: `stale-${workspaceId}`, workspaceId, algorithmName: 'ASSISTANT_TURN',
+        timestamp: new Date(Date.now() - 11 * 60 * 1000).toISOString(), aiCredits: RESERVED_TURN_CREDITS,
+        assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false } });
       const before = await assistantUsage(db, workspaceId);
       assert.ok(Math.abs(before!.credits!.used - (120 + 60)) < 1e-6, `used ${before!.credits!.used}`);
       await db.collection('workspaces').doc(workspaceId).update({ aiCreditMarkup: 1 });
