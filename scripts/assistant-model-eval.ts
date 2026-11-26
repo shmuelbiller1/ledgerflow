@@ -258,7 +258,7 @@ async function main() {
         const tier = routeModels ? (metric?.modelTier ?? (metric?.path === 'code' || metric?.path === 'cache' ? 'code' : undefined)) : undefined;
         if (tier) tiers[tier]++;
         const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
-        log.push({ model: metric?.model ?? (tier === 'code' ? null : model), configuration: name, tier: tier ?? (routeModels ? 'unknown' : 'single'), reason: metric?.modelReason ?? (tier === 'code' ? 'code' : routeModels ? 'unknown' : 'single-model'), prompt: prompt.name, case: c.id, question: c.q, run: r + 1, pass: g.pass, why: g.why, answer: outcome.answer,
+        log.push({ model: metric?.model ?? (tier === 'code' ? null : model), configuration: name, tier: tier ?? (routeModels ? 'unknown' : 'single'), reason: metric?.modelReason ?? (tier === 'code' ? 'code' : routeModels ? 'unknown' : 'single-model'), prompt: prompt.name, case: c.id, category: c.cat ?? 'core', question: c.q, run: r + 1, pass: g.pass, why: g.why, answer: outcome.answer,
           error: outcome.error, calls: outcome.calls, ms: Date.now() - started, modelCalls: spend.calls - before.calls,
           billedCents: spend.priced - before.priced === spend.calls - before.calls ? Math.round((spend.usd - before.usd) * 1e6) / 1e4 : null, metric });
         if (!outcome.error) finished++;
@@ -293,6 +293,16 @@ async function main() {
       say(`| ${model} | ${fields} / ${RECEIPTS.length * 4} | ${full} / ${RECEIPTS.length} | ${spend.priced === spend.calls ? `${(spend.usd * 100).toFixed(2)}¢` : 'unknown (no billed cost on some calls)'} |`);
     }
   }
+  // what each model is good at: the share right per kind of question (cases.ts `cat`)
+  const byCat = new Map<string, Map<string, { right: number; of: number }>>();
+  for (const e of log as Array<{ configuration: string; category: string; pass: boolean }>) {
+    const row = byCat.get(e.category) ?? new Map(); byCat.set(e.category, row);
+    const cell = row.get(e.configuration) ?? { right: 0, of: 0 }; cell.of++; if (e.pass) cell.right++; row.set(e.configuration, cell);
+  }
+  const configs = runs.map(r => r.name);
+  say(); say('### By kind of question'); say();
+  say(`| kind | ${configs.join(' | ')} |`); say(`|---|${configs.map(() => '---').join('|')}|`);
+  for (const [cat, row] of byCat) say(`| ${cat} | ${configs.map(n => { const c = row.get(n); return c ? `${c.right}/${c.of} (${Math.round(c.right * 100 / c.of)}%)` : '—'; }).join(' | ')} |`);
   say(); say('### Per question'); detail.forEach(l => say(l));
   say(); say(`Model calls in this run: ${total.calls} (cap ${cap}).`);
 
