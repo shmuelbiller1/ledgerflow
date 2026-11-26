@@ -89,7 +89,7 @@
       ],
       "impact": "Previously workspace edits and bulk sync could overwrite unrelated billing fields using browser-derived defaults, and bulk sync never inspected HTTP responses. The server telemetry caps the list at 100, queries shards and transactions only for the first 30, and estimates log attribution; derived balances cannot safely be written back as base balances.",
       "mitigation": "Reads now use authenticated admin telemetry/users endpoints with explicit failures; workspace edit and bulk sync controls and handlers are disabled. The UI identifies the limits and suppresses unreliable credit and transaction totals. This intentionally suspends functionality; it is not a completed bulk-sync fix.",
-      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. Telemetry failure currently prevents access to other Admin Panel tabs."
+      "remaining_work": "Design complete paginated authoritative workspace reads and safe partial writes; resolve base vs sharded balance semantics, preserve unrelated fields, handle per-workspace refusals and partial completion, add actual backend/browser tests, then replace the unsafe dormant implementation before re-enabling. (A telemetry failure no longer blocks the Users, Lexicon and Audit Trail tabs: only the Workspaces tab shows the refusal.)"
     },
     {
       "id": "AUP-05",
