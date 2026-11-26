@@ -65,6 +65,8 @@ function rememberPendingTimeInvoice(workspaceId: string, hours: string, invoice:
 function forgetPendingTimeInvoice(workspaceId: string, hours: string): void {
   const all = pendingStore(); delete all[`${workspaceId}|${hours}`]; writePending(all);
 }
+/** The stable key for a set of billable entries: their ids sorted, so the note matches regardless of list order. */
+const hoursKey = (entries: TimeEntry[]) => entries.map(e => e.id).sort((a, b) => a.localeCompare(b)).join(',');
 
 export default function TimeView() {
   // the log-time form offers the customers and projects it labels time with
@@ -106,7 +108,7 @@ export default function TimeView() {
         const stale = staleDraft.current;
         if (!stale) return;
         staleDraft.current = null;
-        const now = fresh.filter(e => e.billable && e.status === 'approved' && !e.invoiceId && e.customerId === stale.customerId).map(e => e.id).sort().join(',');
+        const now = hoursKey(fresh.filter(e => e.billable && e.status === 'approved' && !e.invoiceId && e.customerId === stale.customerId));
         if (now !== stale.hours) {
           forgetPendingTimeInvoice(workspaceId, stale.hours);
           toast.warning(`Draft invoice ${stale.number} no longer matches the time waiting to be billed: review or void it in Sales.`);
@@ -163,7 +165,7 @@ export default function TimeView() {
   const makeInvoice = async () => {
     if (!billFor || lines.length === 0) return;
     setBusy(true);
-    const hours = billable.map(e => e.id).sort().join(',');
+    const hours = hoursKey(billable);
     // AUP-08: the invoice made for these hours is found again after a remount or reload, both from this
     // browser's note and from the invoice itself (it names the time it was made from), so no second one is made
     // a noted invoice the loaded list shows as voided since is dropped, so a fresh one is made for these hours;
