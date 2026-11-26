@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { CASES, RECEIPTS, gradeReceipt, mentions, recommended, whatHappened } from '../../scripts/eval/cases';
+import { CASES, type Outcome, RECEIPTS, gradeReceipt, mentions, recommended, whatHappened } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
 import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
 import { stepCommand } from '../server/commands/sandboxStepCommands';
@@ -326,4 +326,19 @@ test('the routed CLI writes tier, reason, billed cost and tier shares', async ()
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('grader: correct clarifications in other wording pass (25 Nov Luna run), wrong ones still fail', () => {
+  const o = (answer: string, calls: Outcome['calls'] = []): Outcome => ({ answer, calls });
+  const payment = byId('payment'), recurring = byId('recurring'), markPaid = byId('mark-paid');
+  // Luna's real answers, marked wrong before
+  assert.equal(payment.check(o('I found Acme Ltd’s **INV-1001** (invoice `inv_1001`), marked overdue and unpaid. To draft a **USD 500.00** payment against it, I need:\n\n- The payment date\n- The cash account to receive it: **Cash** or **Bank**\n')).pass, true);
+  assert.equal(recurring.check(o('I found **Beta Corp** (`cus_beta`, billing@beta.example). I can set up the monthly amount as **USD 1,000.00**, but I need:\n\n- The **start date** for the recurring invoice\n- The **invoice line description** (what the charge is for)\n')).pass, true);
+  assert.equal(markPaid.check(o('I found **INV-1003** for **Beta Corp**: it’s overdue, with **USD 4,500.00** outstanding.\n\nDo you mean that Beta Corp has actually paid it? If so, tell me the **payment date** and the **cash/bank account** to record it against. I’ll draft the payment for your review.')).pass, true);
+  // still failing: a claim of having done it, asking nothing, or asking only an unrelated detail
+  assert.equal(payment.check(o('I recorded the payment of 500 to the Bank account.')).pass, false);
+  assert.equal(payment.check(o('INV-1001 is overdue and unpaid. It is for 1,200.00.')).pass, false);
+  assert.equal(payment.check(o('I need:\n- The payment date\n')).pass, false, 'asks only the date, not which account');
+  assert.equal(markPaid.check(o('INV-1003 is now marked as paid.')).pass, false);
+  assert.equal(recurring.check(o('Beta Corp will be invoiced 1,000 monthly.')).pass, false);
 });

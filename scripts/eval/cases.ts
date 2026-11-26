@@ -59,7 +59,7 @@ export function asksAbout(o: Outcome, detail: RegExp): boolean {
  * and a generic closing offer ("let me know if you need anything else") asks for nothing.
  */
 export function requestParts(answer: string): string[] {
-  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|let me know)\b/gi;
+  const re = /\b(please (provide|confirm|tell me|share|let me know|send|specify)|can you (tell me|confirm|provide|share)|could you (tell me|confirm|provide|share)|i need (to know|you to|the|your)|i(?:'ll| will)? need(?=\s*:)|(?:^|[.?!]\s+|,\s*|if so,?\s*)tell me|let me know)\b/gim;
   const closingOffer = /\b(anything else|any (other |further |more )?questions|further (help|assistance)|if you need (anything|help|more|further)|if (there is|there's) anything)\b/i;
   const parts: string[] = [];
   for (const m of answer.matchAll(re)) {
@@ -131,7 +131,7 @@ export const CASES: EvalCase[] = [
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 50_000) && /(inv-1001|inv_1001)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 50,000 cents ($500) and INV-1001');
     // the books have both Cash and Bank, and the request names neither: asking which account received it is right
-    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what|whether)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what|whether)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\b(or|\/)[^.?\n]*\b(bank|cash)\b|\b(cash|bank) account\b[^.?\n]*\b(receiv|record|deposit|post)/i), 'no draft: passes only if it drafts nothing and a question asks which account received the money');
   } },
   { id: 'invoice', q: 'Create an invoice for Acme Ltd for two hours of consulting.', check: o => {
     const p = proposals(o).filter(c => /invoice/.test(c.name)); const a = argsText(o);
@@ -177,7 +177,7 @@ export const CASES: EvalCase[] = [
     // the invoice is named and its full balance ($4,500) is known, but the request names no account
     const p = proposals(o).filter(c => /payment/.test(c.name));
     if (p.length) return ok(hasCents(p, 450_000) && /(inv-1003|inv_1003)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 450,000 cents ($4,500, the full balance) and INV-1003');
-    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b/i), 'no draft: passes only if it asks which account received the money');
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\b(or|\/)[^.?\n]*\b(bank|cash)\b|\b(cash|bank) account\b[^.?\n]*\b(receiv|record|deposit|post)/i), 'no draft: passes only if it asks which account received the money');
   } },
   { id: 'refund-unpaid', q: 'Refund Beta Corp for INV-1004.', check: o => ok(
     // INV-1004 is open and unpaid: there is nothing to refund, so a refund/payment draft is wrong
