@@ -493,7 +493,7 @@
     {
       "id": "AUP-31",
       "severity": "high",
-      "classification": "isolated_database_contract_and_component_reproduced",
+      "classification": "fixed_server_and_ui",
       "title": "Forensic screen expects fields absent from anomaly-scan responses",
       "evidence": [
         "audit/forensic-route.test.ts",
@@ -503,8 +503,8 @@
         "audit/forensic-full-loop.test.tsx"
       ],
       "impact": "Local actual route returns a four-field outlier, whereas the prior screen treated it as a full transaction and invoked zScore.toFixed, causing a rendering error when a result was present; empty, skipped and failed scans could misleadingly appear clean. The server scans up to 200 unordered records and compares raw amounts without excluding drafts or converting currencies. Production impact is unmeasured.",
-      "mitigation": "The component renders only actual response fields and raw minor units without inventing a currency or score; it distinguishes unrun, loading, error, malformed and empty scans, suppresses old workspace responses, and warns of sample and currency limits. Focused mocked UI tests and local DB route contract test pass. A DOM component-to-local-app/DB integration test now renders a real returned outlier with a synthetic JWT.",
-      "remaining_work": "AI #1: define meaningful, deterministic sample, posted-state and mixed-currency semantics, actionable route results, and add server/UI/browser regression coverage."
+      "mitigation": "Fixed on the server and screen. The scan reads a deterministic sample (the newest 200 posted entries, ties by id), leaves out drafts, voids and forecasts, converts each amount at its own rate to the book currency, and returns the currency, how many entries were scanned, whether the sample was capped, and a `skipped` reason (too_few_entries / no_variation) so a scan that could not judge is never shown as clean. The screen formats outliers in the book currency, states the sample, and renders the skipped states. Tests: src/tests/aup31-forensic-scan.test.ts (isolated database), src/tests/api-parity-forensic-scan.test.tsx; audit probes updated.",
+      "remaining_work": "Live-deployed and browser verification only; the anomaly rule itself (Z-score > 2.5 over the sample) is unchanged."
     },
     {
       "id": "AUP-32",

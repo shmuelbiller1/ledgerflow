@@ -12,6 +12,12 @@ type LabelInput = { id?: unknown; description?: unknown; memo?: unknown; payee?:
 import { WorkspaceIdSchema } from "../../schemas";
 import { TruthEngine } from "../../modules/integrity/TruthEngine";
 import { assertWorkspaceAccess, getDb } from "../db/firestore";
+import { baseAbsoluteTotal, isPostable } from "../../lib/txFilters";
+
+/** Anomaly scan (AUP-31): the newest posted entries are scanned; fewer than the minimum cannot be judged. */
+const ANOMALY_SAMPLE_LIMIT = 200;
+const ANOMALY_FETCH_LIMIT = 1000;
+const ANOMALY_MIN_ENTRIES = 5;
 
 /** Routes moved out of server.ts (F-01), registered in the same place and order. */
 export function registerLabelingRoutes(app: express.Express, _ctx: ServerContext): void {
@@ -22,28 +28,38 @@ export function registerLabelingRoutes(app: express.Express, _ctx: ServerContext
     try {
       await authorizeWorkspace(authReq, workspaceId);
       const db = getDb();
-      const snapshot = await db.collection("transactions")
-        .where("workspaceId", "==", workspaceId)
-        .limit(200)
-        .get();
-      const txs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as LedgerTransaction);
-      
-      const amounts = txs.map(t => Math.abs(t.totalAmountCents || 0)).filter(a => a > 0);
+      // AUP-31: a deterministic sample of real, posted entries in the book's currency. Newest first (ties by id),
+      // drafts / voids / forecasts left out, each amount converted at its own rate. A wider window is read so the
+      // exclusions don't shrink the sample, then the newest SAMPLE_LIMIT posted entries are scanned.
+      const [snapshot, workspaceDoc] = await Promise.all([
+        db.collection("transactions").where("workspaceId", "==", workspaceId).orderBy("date", "desc").orderBy("__name__").limit(ANOMALY_FETCH_LIMIT).get(),
+        db.collection("workspaces").doc(workspaceId).get(),
+      ]);
+      const currency = String(workspaceDoc.data()?.currency || "USD");
+      const posted = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as LedgerTransaction).filter(t => isPostable(t));
+      const txs = posted.slice(0, ANOMALY_SAMPLE_LIMIT);
+      const sized = txs.map(t => ({ t, cents: baseAbsoluteTotal(t) })).filter(x => x.cents > 0);
+      const amounts = sized.map(x => x.cents);
       let anomalies: Array<{ id: string; description: string; amountCents: number; reason: string }> = [];
-      if (amounts.length >= 5) {
+      // a scan that cannot say anything must say so, not look clean
+      let skipped: "too_few_entries" | "no_variation" | null = amounts.length < ANOMALY_MIN_ENTRIES ? "too_few_entries" : null;
+      if (!skipped) {
         const mean = amounts.reduce((a, b) => a + b, 0) / amounts.length;
         const stdDev = Math.sqrt(amounts.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / amounts.length);
-        anomalies = txs.filter(t => {
-          const amt = Math.abs(t.totalAmountCents || 0);
-          return stdDev > 0 && Math.abs(amt - mean) > 2.5 * stdDev;
-        }).map(t => ({
-          id: t.id,
-          description: t.description || 'Transaction',
-          amountCents: t.totalAmountCents,
+        if (stdDev === 0) skipped = "no_variation";
+        else anomalies = sized.filter(x => Math.abs(x.cents - mean) > 2.5 * stdDev).map(x => ({
+          id: x.t.id,
+          description: x.t.description || 'Transaction',
+          amountCents: x.cents,
           reason: 'Statistically anomalous amount (Z-Score > 2.5)'
         }));
       }
-      res.json({ status: "success", anomalies });
+      res.json({
+        status: "success", anomalies, currency, skipped,
+        scanned: sized.length, sampleLimit: ANOMALY_SAMPLE_LIMIT,
+        // more posted entries exist than were scanned: this is the newest slice, not the whole ledger
+        sampleCapped: posted.length > ANOMALY_SAMPLE_LIMIT || snapshot.docs.length >= ANOMALY_FETCH_LIMIT,
+      });
     } catch (error) {
       sendError(res, "Failed to run anomaly scan", 500, errorMessage(error));
     }
