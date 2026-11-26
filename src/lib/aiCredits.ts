@@ -70,3 +70,16 @@ export function aiCreditBalance(ws: Record<string, unknown>, costCentsThisMonth:
     unlimited: ws.aiUnlimited === true || ws.bypassBilling === true,
   };
 }
+
+/**
+ * Credits held for a model turn from its reservation until it is settled, so turns asked together cannot
+ * spend past the balance (about one hard question on the strong model). Settlement replaces the hold with
+ * the real charge, or 0 for a failed turn.
+ */
+export const RESERVED_TURN_CREDITS = 15;
+
+/** The balance after `credits` more are used. */
+export function settleCredits(balance: AiCreditBalance, credits: number): AiCreditBalance {
+  const used = balance.used + (Number.isFinite(credits) && credits > 0 ? credits : 0);
+  return { ...balance, used, left: Math.max(0, Math.floor(balance.included + balance.granted - used)) };
+}

@@ -120,6 +120,16 @@ describe('Settings → Billing: usage', () => {
     assert.equal(screen.queryByText('Assistant AI cost (this month)'), null);
   });
 
+  test('AI credits just under the limit are not shown as reached (compared unrounded, like the server)', async () => {
+    setComponentWorkspace('owner');
+    stubFetchWithBodies(200, { status: 'success', usage: { plan: 'growth', unlimited: false, seats: { used: 1, limit: 5 }, storageMb: { used: 0, limit: 500 },
+      assistant: { month: '2026-11', turns: 10, modelTurns: 5, costCents: 100, limits: { modelTurns: 1000, costCents: 500 },
+        credits: { included: 5000, granted: 0, used: 4999.6, left: 0, resetsOn: '2026-12-01', unlimited: false } } } });
+    render(<UsagePanel />);
+    await waitFor(() => assert.ok(screen.getByText('AI credits (this month, reset 2026-12-01)')));
+    assert.ok(!screen.queryAllByRole('alert').some(a => /AI limit for this month is reached/.test(a.textContent || '')));
+  });
+
   test('no limits: said in one line', async () => {
     setComponentWorkspace('owner');
     stubFetchWithBodies(200, { status: 'success', usage: { plan: 'pro', unlimited: true, entries: { used: 1, limit: null }, seats: { used: 1, limit: 25 }, storageMb: { used: 0, limit: 25000 } } });

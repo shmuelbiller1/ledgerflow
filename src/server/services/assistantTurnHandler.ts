@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { ASSISTANT_SYSTEM_PROMPT } from '../../../assistant/systemPrompt.generated';
 import type { reviewSandbox } from '../commands/sandboxReview';
 import type { Firestore } from '../db/firestore';
-import { markupFor } from '../../lib/aiCredits';
+import { creditsForCostCents, markupFor, settleCredits } from '../../lib/aiCredits';
 import { assistantLimitRefusal, assistantUsage, reserveAssistantModelTurn } from '../middleware/planCapacity';
 import { assistantToolsFor, draftableCommands, findAssistantCommands } from './assistantCatalog';
 import { findCommandInput, geminiReadTools } from './assistantToolDefinitions';
@@ -228,6 +228,8 @@ export function assistantTurnHandler<Sandbox extends { workspaceId: string; sand
       outputTokens: usage.outputTokens + metric.outputTokens,
       costCents: usage.costCents + (metric.costCents ?? 0),
       unpricedTurns: usage.unpricedTurns + (metric.modelCalls > 0 && metric.costCents === null ? 1 : 0),
+      // the balance after this turn: a successful turn's settled credits are used; a failed one is free
+      ...(usage.credits ? { credits: settleCredits(usage.credits, metric.ok ? creditsForCostCents(metric.costCents ?? 0, markupFor(workspace)) : 0) } : {}),
     };
     res.json({
       status: metric.ok ? 'success' : 'error', answer,

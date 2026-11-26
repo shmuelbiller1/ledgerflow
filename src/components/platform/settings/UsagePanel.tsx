@@ -124,9 +124,10 @@ export default function UsagePanel() {
     const credits = usage.assistant.credits;
     if (credits && !credits.unlimited) rows.push({
       label: `AI credits (this month, reset ${credits.resetsOn})`,
-      used: Math.ceil(credits.used),
+      // compared unrounded with the limit, as the server does; rounded only for display
+      used: credits.used,
       limit: credits.included + credits.granted,
-      formatValue: n => `${n.toLocaleString()} credits`,
+      formatValue: n => `${Math.round(n).toLocaleString()} credits`,
       refusalNoun: 'AI answers',
       refusal,
     });

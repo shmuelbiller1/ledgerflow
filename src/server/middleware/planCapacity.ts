@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
-import { aiCreditBalance, type AiCreditBalance } from '../../lib/aiCredits';
+import { aiCreditBalance, RESERVED_TURN_CREDITS, type AiCreditBalance } from '../../lib/aiCredits';
 import { getDb, requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 
@@ -382,6 +382,8 @@ export async function reserveAssistantModelTurn(db: Firestore, workspaceId: stri
       id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
       // counts as one model turn until the turn's own metric replaces it
       assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
+      // credits held until settlement, so a turn asked at the same moment sees them as spent
+      aiCredits: RESERVED_TURN_CREDITS,
     };
     await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
     await client.query('commit');

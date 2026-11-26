@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aiCreditBalance, creditsForCostCents, markupFor, DEFAULT_AI_MARKUP, PLAN_AI_CREDITS } from '../lib/aiCredits';
+import { aiCreditBalance, creditsForCostCents, markupFor, settleCredits, DEFAULT_AI_MARKUP, PLAN_AI_CREDITS, RESERVED_TURN_CREDITS } from '../lib/aiCredits';
 import { assistantLimitRefusal, type AssistantUsage } from '../server/middleware/planCapacity';
 
 describe('AI credits', () => {
@@ -45,6 +45,12 @@ describe('AI credits', () => {
     assert.equal(assistantLimitRefusal({ ...pastCostCap, credits: aiCreditBalance({ plan: 'free', aiCreditsPlanOverride: 'pro' }, 2000, now) }), null,
       'credits, not the old cost cap, decide: "treat as Pro" really permits more');
   });
+  test('the balance after a turn includes what it just used', () => {
+    const before = aiCreditBalance({ plan: 'free' }, 0, new Date('2026-11-26T12:00:00Z'));
+    const after = settleCredits(before, 12);
+    assert.deepEqual({ used: after.used, left: after.left }, { used: 12, left: 238 });
+    assert.equal(settleCredits(before, 0).left, 250, 'a failed turn is free');
+  });
   test('admin AI overrides cannot come back in a workspace backup', async () => {
     const { PROTECTED_WORKSPACE_FIELDS } = await import('../server/services/workspaceRestoreService');
     for (const f of ['aiUnlimited', 'aiCreditsGranted', 'aiCreditsGrantedMonth', 'aiCreditsPlanOverride', 'aiCreditMarkup', 'maxAssistantCents', 'maxAssistantModelTurns'])
@@ -70,6 +76,14 @@ describe('AI credits against the database', { skip: !dbUrl && 'LF_TEST_DATABASE_
         timestamp: new Date().toISOString(), assistantTurn: metric(true, 5) });
       await db.collection('billingLedgerTraces').doc(`legacy-fail-${workspaceId}`).set({ id: `legacy-fail-${workspaceId}`, workspaceId, algorithmName: 'ASSISTANT_TURN',
         timestamp: new Date().toISOString(), assistantTurn: metric(false, 99) });
+      // a reservation holds credits until it is settled, so a turn asked at the same moment sees them as spent
+      const { reserveAssistantModelTurn } = await import('../server/middleware/planCapacity');
+      const ws = (await db.collection('workspaces').doc(workspaceId).get()).data()!;
+      const held = await reserveAssistantModelTurn(db, workspaceId, 'u1', ws);
+      assert.ok('id' in held);
+      const during = await assistantUsage(db, workspaceId);
+      assert.ok(Math.abs(during!.credits!.used - (120 + 60 + RESERVED_TURN_CREDITS)) < 1e-6, `held ${during!.credits!.used}`);
+      await recordAssistantTurn(db, workspaceId, 'u1', metric(false, 7) as never, (held as { id: string }).id, 0.2);
       const before = await assistantUsage(db, workspaceId);
       assert.ok(Math.abs(before!.credits!.used - (120 + 60)) < 1e-6, `used ${before!.credits!.used}`);
       await db.collection('workspaces').doc(workspaceId).update({ aiCreditMarkup: 1 });
