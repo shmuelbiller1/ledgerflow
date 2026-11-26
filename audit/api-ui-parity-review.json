@@ -103,7 +103,7 @@
       ],
       "impact": "PUT returns data, not globalAdminConfig. The previous UI replaced state with undefined after success; default values could be submitted after a failed GET. Server responses can contain metadata that a strict update schema rejects.",
       "fix": "Require a valid loaded configuration before saving; consume data from the PUT response, retain only schema fields, and report success. Mocked test verifies two sequential saves and no metadata in either payload.",
-      "remaining_work": "Backend and deployed behavior are not live tested; server config is process-local and its synchronization guarantees need separate investigation."
+      "remaining_work": "Fixed: the admin config was loaded once per instance, so a warm instance kept the old pricing multipliers, bypass flag and registration limit after an admin changed them. Each instance now re-reads it from the database when its copy is over 30 seconds old (at the auth gates and the public registration-status route); src/tests/aup05-global-config-refresh.test.ts. Not live tested on the deployed environment."
     },
     {
       "id": "AUP-06",

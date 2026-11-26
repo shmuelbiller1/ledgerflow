@@ -53,6 +53,7 @@ export const globalAdminConfig = {
 };
 
 export async function syncGlobalAdminConfig() {
+  globalConfigLoadedAt = Date.now();
   try {
     const db = getDb();
     const doc = await db.collection("admins").doc("globalConfig").get();
@@ -74,6 +75,24 @@ export async function syncGlobalAdminConfig() {
   }
 }
 
+/**
+ * AUP-05: the config above is read from memory by billing and registration checks, and was loaded once when the
+ * app was built. An instance that stays warm (Vercel keeps functions for a long time, and several run at once)
+ * kept charging the old multipliers or the old bypass flag after an admin changed them. So an instance re-reads
+ * it from the database when its copy is older than this, at most one read per instance per window. A failed
+ * read keeps the last good values (syncGlobalAdminConfig does not reset them) and waits a window to try again.
+ */
+export const GLOBAL_CONFIG_TTL_MS = 30_000;
+let globalConfigLoadedAt = 0;
+let globalConfigLoading: Promise<void> | null = null;
+export function refreshGlobalAdminConfigIfStale(now: number = Date.now()): Promise<void> {
+  if (now - globalConfigLoadedAt < GLOBAL_CONFIG_TTL_MS) return Promise.resolve();
+  // concurrent requests share one read
+  globalConfigLoading ??= syncGlobalAdminConfig().finally(() => { globalConfigLoading = null; });
+  return globalConfigLoading;
+}
+/** Forget how old this instance's copy is, so the next API request re-reads it (tests; a deploy hook could use it too). */
+export function invalidateGlobalAdminConfig(): void { globalConfigLoadedAt = 0; }
 /** Workspace overrides of the admin billing settings (all optional). */
 export interface WorkspaceBillingOverrides {
   creditCostMultiplier?: number | string;
@@ -265,6 +284,8 @@ export const authenticate = async (req: express.Request, res: express.Response, 
   }
 
   const idToken = authHeader.split("Bearer ")[1];
+
+  await refreshGlobalAdminConfigIfStale(); // AUP-05: billing reads this instance's copy of the admin config
 
   try {
     const decodedToken = await verifyIdToken(idToken) as AuthUser;
