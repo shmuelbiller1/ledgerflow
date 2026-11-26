@@ -220,7 +220,7 @@ projects (V 9), fixed assets (X 9), inventory depth (W 8).
 | 7 | Field / CommandForm | ◐ one form, generated from the command's own schema |
 | 8 | Registry smoke + accessibility | ✔ every view mounts and passes its accessibility limit |
 | 9 | Delete / defer decisions | ⏸ **waiting for you** (~71 items) |
-| 10 | Mechanical cleanup via ratchet | ◐ (22 Oct, `quality-baseline.json`) `any` 1,287 → **50** · UTC dates 40 → **35** · array keys 64 → **0** · console.log 8 → **0** · files > 800 lines 15 → **0** · views without a registry smoke test 77 → **44** (the one still open) |
+| 10 | Mechanical cleanup via ratchet | ◐ (measured 26 Nov, `quality-baseline.json`) `any` 1,287 → **0** · UTC dates 40 → **6** · array keys 64 → **0** · console.log 8 → **0** · files > 800 lines 15 → **0** · views without a registry smoke test 77 → **0** · suppressions **0** · direct DB writes **0**. Still above zero: UTC dates **6**, raw tables **2**, hand-typed API calls **5**, `server.ts` **187** lines |
 | 11 | Data-health checks registry | ☐ |
 | 12 | Import adapter registry | ☐ |
 | 13 | Money display | ✔ one rule (`formatCurrency` takes cents), guard test bans `/100` |
