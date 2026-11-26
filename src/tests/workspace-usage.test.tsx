@@ -3,6 +3,7 @@
  * rental units, monthly payment volume, people with access, document storage) while confirming
  * ledger entries are unlimited on standard plans.
  */
+import { aiCreditBalance } from '../lib/aiCredits';
 import './helpers/dom';
 import test, { after, afterEach, before, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,7 +62,8 @@ describe('Against the database', { skip: !process.env.LF_TEST_DATABASE_URL && 'L
       seats: { used: 2, limit: 5 },
       storageMb: { used: 12, limit: 5000 },
       // SBX-2 Part 7: this month's assistant use against the growth plan's allowance
-      assistant: { month: new Date().toISOString().slice(0, 7), turns: 0, modelTurns: 0, inputTokens: 0, outputTokens: 0, costCents: 0, unpricedTurns: 0, limits: { modelTurns: 1000, costCents: 500 } },
+      assistant: { month: new Date().toISOString().slice(0, 7), turns: 0, modelTurns: 0, inputTokens: 0, outputTokens: 0, costCents: 0, unpricedTurns: 0, limits: { modelTurns: 1000, costCents: 500 },
+        credits: aiCreditBalance({ plan: 'growth' }, 0) },
     });
     assert.equal((await get('stranger')).status, 403);
   });
@@ -105,6 +107,27 @@ describe('Settings → Billing: usage', () => {
     assert.ok(screen.getByText('Assistant AI cost (this month)'));
     const alerts = screen.getAllByRole('alert').map(a => a.textContent || '');
     assert.ok(alerts.some(text => /Answers read straight from your books still work/.test(text)));
+  });
+
+  test('AI credits replace the raw cost row: used of plan + granted, with the reset date', async () => {
+    setComponentWorkspace('owner');
+    stubFetchWithBodies(200, { status: 'success', usage: { plan: 'growth', unlimited: false, seats: { used: 1, limit: 5 }, storageMb: { used: 0, limit: 500 },
+      assistant: { month: '2026-11', turns: 10, modelTurns: 5, costCents: 100, limits: { modelTurns: 1000, costCents: 500 },
+        credits: { included: 5000, granted: 1000, used: 1200, left: 4800, resetsOn: '2026-12-01', unlimited: false } } } });
+    render(<UsagePanel />);
+    await waitFor(() => assert.ok(screen.getByText('AI credits (this month, reset 2026-12-01)')));
+    assert.ok(screen.getByText('1,200 credits of 6,000 credits'));
+    assert.equal(screen.queryByText('Assistant AI cost (this month)'), null);
+  });
+
+  test('AI credits just under the limit are not shown as reached (compared unrounded, like the server)', async () => {
+    setComponentWorkspace('owner');
+    stubFetchWithBodies(200, { status: 'success', usage: { plan: 'growth', unlimited: false, seats: { used: 1, limit: 5 }, storageMb: { used: 0, limit: 500 },
+      assistant: { month: '2026-11', turns: 10, modelTurns: 5, costCents: 100, limits: { modelTurns: 1000, costCents: 500 },
+        credits: { included: 5000, granted: 0, used: 4999.6, left: 0, resetsOn: '2026-12-01', unlimited: false } } } });
+    render(<UsagePanel />);
+    await waitFor(() => assert.ok(screen.getByText('AI credits (this month, reset 2026-12-01)')));
+    assert.ok(!screen.queryAllByRole('alert').some(a => /AI limit for this month is reached/.test(a.textContent || '')));
   });
 
   test('no limits: said in one line', async () => {

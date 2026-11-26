@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { errorMessage, requestUser } from '../auth/requestUser';
 import express from 'express';
 import { PLANS, planFor, type PlanLimits } from '../../lib/plans';
+import { aiCreditBalance, RESERVED_TURN_CREDITS, type AiCreditBalance } from '../../lib/aiCredits';
 import { getDb, requireLiveDb } from '../db/firestore';
 import type { Firestore } from '../db/firestore';
 
@@ -198,27 +199,38 @@ export interface AssistantUsage {
   unpricedTurns: number;
   /** null when billing is not enforced for the workspace */
   limits: { modelTurns: number; costCents: number } | null;
+  /** AI credits (docs/design/AI-CREDITS.md): this month's cost plus markup against the plan's credits. */
+  credits?: AiCreditBalance;
 }
 
 type Runner = Pick<Firestore['pool'], 'query'>;
+/** How long an unsettled credit hold counts before it lapses (a turn is far shorter than this). */
+const HOLD_LAPSES_AFTER_MS = 10 * 60 * 1000;
 
 export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Record<string, unknown>, now = new Date(), runner: Runner = db.pool): Promise<AssistantUsage | null> {
   requireLiveDb(db, 'Assistant usage');
   const workspace = ws ?? (await db.collection('workspaces').doc(workspaceId).get()).data();
   if (!workspace) return null;
   const month = now.toISOString().slice(0, 7);
-  const { rows } = await runner.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number }>(
+  const { rows } = await runner.query<{ turns: number; model_turns: number; input: string; output: string; cents: string | null; unpriced: number; credits: string; legacy_cents: string }>(
     `select count(*)::int as turns,
             count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0)::int as model_turns,
             coalesce(sum((data->'assistantTurn'->>'inputTokens')::bigint), 0)::text as input,
             coalesce(sum((data->'assistantTurn'->>'outputTokens')::bigint), 0)::text as output,
             coalesce(sum((data->'assistantTurn'->>'costCents')::numeric), 0)::text as cents,
-            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced
+            count(*) filter (where (data->'assistantTurn'->>'modelCalls')::int > 0 and data->'assistantTurn'->'costCents' = 'null'::jsonb)::int as unpriced,
+            -- AI credits: what each successful turn was charged when settled; older rows (before credits)
+            -- are priced at today's markup. A failed turn is never charged.
+            -- a hold whose turn never settled (the server stopped, or the settling write failed) lapses after 10 minutes
+            coalesce(sum((data->>'aiCredits')::numeric) filter (where data ? 'aiCredits'
+              and not (coalesce(data->'assistantTurn'->>'reserved', '') = 'true' and data->>'timestamp' < $3)), 0)::text as credits,
+            coalesce(sum((data->'assistantTurn'->>'costCents')::numeric) filter (where not data ? 'aiCredits'
+              and coalesce((data->'assistantTurn'->>'ok')::boolean, true)), 0)::text as legacy_cents
        from ${db.tableSource('billingLedgerTraces')}
       where workspace_id = $1 and data->>'algorithmName' = 'ASSISTANT_TURN' and left(data->>'timestamp', 7) = $2`,
-    [workspaceId, month]);
+    [workspaceId, month, new Date(now.getTime() - HOLD_LAPSES_AFTER_MS).toISOString()]);
   const row = rows[0];
-  const plan = String(workspace.plan || 'free').toLowerCase();
+  const plan = String(workspace.aiCreditsPlanOverride || workspace.plan || 'free').toLowerCase();
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
   return {
     month,
@@ -228,20 +240,26 @@ export async function assistantUsage(db: Firestore, workspaceId: string, ws?: Re
     outputTokens: Number(row?.output ?? 0),
     costCents: Number(row?.cents ?? 0),
     unpricedTurns: row?.unpriced ?? 0,
-    limits: workspace.bypassBilling === true ? null : {
+    limits: workspace.bypassBilling === true || workspace.aiUnlimited === true ? null : {
       modelTurns: Number(workspace.maxAssistantModelTurns || 0) || limits.assistantModelTurnsPerMonth,
       costCents: Number(workspace.maxAssistantCents || 0) || limits.assistantCentsPerMonth,
     },
+    credits: aiCreditBalance(workspace, Number(row?.legacy_cents ?? 0), now, Number(row?.credits ?? 0)),
   };
 }
 
 /** The polite refusal when this month's assistant allowance is used up, or null while there is room. */
 export function assistantLimitRefusal(usage: AssistantUsage): { code: 'ASSISTANT_LIMIT_REACHED'; message: string; usage: AssistantUsage } | null {
   if (!usage.limits) return null;
+  // With AI credits the credit balance replaces the cost cap, so an admin's grant really permits more
+  // use. The turn cap stays (it is also what stops turns arriving together from overspending) and follows
+  // the admin's "treat as plan" override.
+  const credits = usage.credits;
   const turnsOut = usage.modelTurns >= usage.limits.modelTurns;
-  const centsOut = usage.costCents >= usage.limits.costCents;
-  if (!turnsOut && !centsOut) return null;
-  const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : 'the assistant allowance';
+  const centsOut = !credits && usage.costCents >= usage.limits.costCents;
+  const creditsOut = !!credits && !credits.unlimited && credits.included + credits.granted - credits.used <= 0;
+  if (!turnsOut && !centsOut && !creditsOut) return null;
+  const what = turnsOut ? `all ${usage.limits.modelTurns} assistant answers` : creditsOut ? 'this month’s AI credits' : 'the assistant allowance';
   return {
     code: 'ASSISTANT_LIMIT_REACHED',
     message: `This workspace has used ${what} included in its plan for ${usage.month}. Questions the books answer directly (balances, totals, an invoice by number) still work. To ask the assistant more this month, upgrade the plan in Settings → Billing & Plan; the allowance resets on the 1st.`,
@@ -364,10 +382,15 @@ export async function reserveAssistantModelTurn(db: Firestore, workspaceId: stri
       return { refusal };
     }
     const id = `trace-${randomUUID()}`;
+    // hold at most what is left, so turns asked together can never hold more than the balance between them
+    const c = usage?.credits;
+    const hold = c && !c.unlimited ? Math.min(RESERVED_TURN_CREDITS, Math.max(0, c.included + c.granted - c.used)) : RESERVED_TURN_CREDITS;
     const row = {
       id, workspaceId, uid, algorithmName: 'ASSISTANT_TURN', timestamp: new Date().toISOString(), calls: [],
       // counts as one model turn until the turn's own metric replaces it
       assistantTurn: { reserved: true, path: 'model', modelCalls: 1, inputTokens: 0, outputTokens: 0, costCents: 0, ok: false },
+      // credits held until settlement, so a turn asked at the same moment sees them as spent
+      aiCredits: hold,
     };
     await client.query(`insert into ${db.tableSource('billingLedgerTraces')} (id, data) values ($1, $2::jsonb)`, [id, JSON.stringify(row)]);
     await client.query('commit');
