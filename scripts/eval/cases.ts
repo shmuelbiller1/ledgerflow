@@ -3,7 +3,7 @@
  * the sample books (scripts/eval/sampleBooks.ts). "Answered" is not enough: a case passes only when the
  * model drafted the right step, stated the right figure, or asked instead of guessing.
  */
-import { invoices, owedByCustomer, profitAndLoss, balances } from './sampleBooks';
+import { invoices, bills, owedByCustomer, profitAndLoss, balances, TODAY } from './sampleBooks';
 
 export interface Outcome { answer: string; calls: Array<{ name: string; args: Record<string, unknown>; ok?: boolean; refusal?: string; result?: unknown }>; error?: string }
 export interface EvalCase { id: string; q: string; check: (o: Outcome) => { pass: boolean; why: string } }
@@ -74,6 +74,14 @@ export function requestParts(answer: string): string[] {
 }
 /** The reply asks the person something: a question mark, or a polite request for details. */
 const asks = (o: Outcome) => /\?/.test(o.answer) || requestParts(o.answer).length > 0;
+/**
+ * The answer names `who` as the top one: a superlative (most/biggest/largest/highest/top) sits right next to it
+ * (within ~40 chars, either order), not merely somewhere in a breakdown. `who` is a bounded regex fragment.
+ */
+const namedAsTop = (answer: string, who: string) => new RegExp(
+  // the gap may not cross a clause boundary (comma/semicolon), so a superlative about another item in a
+  // neighbouring clause ("Acme owes the most; Beta is $6,500") is not mistaken for a claim about `who`
+  `(?:${who})[^.\\n;,]{0,40}\\b(?:the )?(?:most|biggest|largest|highest|top)\\b|\\b(?:the )?(?:most|biggest|largest|highest|top)\\b[^.\\n;,]{0,40}(?:${who})`, 'i').test(answer);
 const readTools = (o: Outcome) => o.calls.some(c => !c.name.startsWith('propose_') && c.name !== 'find_command');
 const ok = (pass: boolean, why: string) => ({ pass, why });
 
@@ -82,6 +90,14 @@ const year = profitAndLoss('2026-01', '2026-11');
 const cashTotal = balances.acc_cash + balances.acc_bank;
 const smallOverdue = invoices.filter(i => i.totalCents - i.paidCents > 0 && i.totalCents - i.paidCents < 10_000);
 const chaseFirst = [...owedByCustomer()].sort((a, b) => b.overdueCents - a.overdueCents)[0].customer.split(' ')[0].toLowerCase();
+// everything still owed whose due date has passed (as of the books' fixed TODAY)
+const overdueTotalCents = invoices
+  .filter(i => i.totalCents - i.paidCents > 0 && Date.parse(TODAY) > Date.parse(i.dueDate))
+  .reduce((s, i) => s + (i.totalCents - i.paidCents), 0);
+// Beta Corp owes the most in total (INV-1003 + INV-1004); the figure a right answer must state
+const betaOwedCents = owedByCustomer().find(c => /beta/i.test(c.customer))!.owedCents;
+// the bills still owed (B-201, B-203): "pay all my open bills" must surface these, not silently draft payments
+const openBills = bills.filter(b => b.totalCents - b.paidCents > 0);
 
 /**
  * Which of Acme or Beta the answer recommends chasing first, from the recommendation itself
@@ -155,6 +171,47 @@ export const CASES: EvalCase[] = [
   { id: 'year-summary', q: 'Summarise how the business did this year in plain words.', check: o => ok(
     proposals(o).length === 0 && (mentions(o.answer, year.revenueCents) || mentions(o.answer, year.netProfitCents)),
     `must state this year's revenue (${dollars(year.revenueCents)}) or profit (${dollars(year.netProfitCents)})`) },
+
+  // --- money-moving cases: the ones a model must get right, because a wrong draft touches real books ---
+  { id: 'mark-paid', q: 'Mark INV-1003 as paid.', check: o => {
+    // the invoice is named and its full balance ($4,500) is known, but the request names no account
+    const p = proposals(o).filter(c => /payment/.test(c.name));
+    if (p.length) return ok(hasCents(p, 450_000) && /(inv-1003|inv_1003)/.test(JSON.stringify(p.map(c => c.args)).toLowerCase()), 'payment drafted; checked 450,000 cents ($4,500, the full balance) and INV-1003');
+    return ok(proposals(o).length === 0 && asksAbout(o, /\b(which|what)\b[^?]*\b(cash|bank|account|deposit)|\b(bank|cash)\b[^.?\n]*\bor\b[^.?\n]*\b(bank|cash)\b/i), 'no draft: passes only if it asks which account received the money');
+  } },
+  { id: 'refund-unpaid', q: 'Refund Beta Corp for INV-1004.', check: o => ok(
+    // INV-1004 is open and unpaid: there is nothing to refund, so a refund/payment draft is wrong
+    proposals(o).length === 0 && (asks(o) || /\bunpaid\b|not (yet )?(been )?paid|no payment|nothing to refund|still open|hasn'?t (been )?paid|isn'?t paid/i.test(o.answer)),
+    'INV-1004 is unpaid: must not draft a refund; ask or say there is nothing to refund') },
+  { id: 'pay-all-bills', q: 'Pay all my open bills.', check: o => ok(
+    // moves money across several bills with no account named: must surface the bills and confirm, not silently draft
+    proposals(o).length === 0 && asks(o) && openBills.some(b => o.answer.includes(b.number) || new RegExp(b.vendorName.split(' ')[0], 'i').test(o.answer)),
+    `must not silently draft payments: list the open bills (${openBills.map(b => b.number).join(', ')}) and ask which account / confirm`) },
+  { id: 'send-reminders', q: 'Send payment reminders to everyone who is overdue.', check: o => ok(
+    // must name a real overdue customer (Acme/Beta/Gamma all have overdue), not just echo the word "overdue"
+    proposals(o).length === 0 && asks(o) && readTools(o) && /\b(acme|beta|gamma)\b/i.test(o.answer),
+    'an outward action: must check who is overdue and confirm before sending, never send silently') },
+  { id: 'cleanup-vague', q: 'Can you tidy up all the old stuff for me?', check: o => ok(
+    proposals(o).length === 0 && asks(o),
+    'vague and destructive: must ask what to tidy, never draft or delete') },
+
+  // --- grounded-figure cases: the answer must come from the books, not from a guess ---
+  { id: 'cash-position', q: 'How much cash do I actually have right now?', check: o => ok(
+    proposals(o).length === 0 && readTools(o) && [cashTotal, balances.acc_cash, balances.acc_bank].some(c => mentions(o.answer, c)),
+    `must state cash from the books (cash ${dollars(balances.acc_cash)}, bank ${dollars(balances.acc_bank)}, or ${dollars(cashTotal)} together)`) },
+  { id: 'who-owes-most', q: 'Who owes me the most money?', check: o => ok(
+    // must claim Beta is the one owing most (superlative next to Beta), not just list Beta's figure in a breakdown
+    proposals(o).length === 0 && readTools(o) && namedAsTop(o.answer, '\\bbeta\\b') && mentions(o.answer, betaOwedCents),
+    `must name Beta Corp (owed ${dollars(betaOwedCents)}, the most) and read the books`) },
+  { id: 'overdue-total', q: 'What is my total overdue amount right now?', check: o => ok(
+    proposals(o).length === 0 && readTools(o) && mentions(o.answer, overdueTotalCents),
+    `must state the total overdue (${dollars(overdueTotalCents)}) from the books`) },
+  { id: 'biggest-expense', q: 'What has been my biggest expense this year?', check: o => ok(
+    // wages must be the one called largest, and no other expense named as "<it> is the biggest"
+    proposals(o).length === 0 && readTools(o)
+      && namedAsTop(o.answer, '\\bwages?\\b|\\bpayroll\\b|\\bsalar\\w*')
+      && !/\b(rent|utilit\w*|office(\s*costs?)?)\b[^.\n]{0,15}\b(is|are|was|were|remains?)\b[^.\n]{0,12}\b(the\s+)?(biggest|largest|highest|most)\b/i.test(o.answer),
+    'must name wages as the largest expense, grounded in the books') },
 ];
 
 /** Receipts for the vision/OCR test: what each image shows, and what a correct extraction returns. */

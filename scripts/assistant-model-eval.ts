@@ -168,12 +168,27 @@ function selfTest() {
     bill: { answer: 'Drafted.', calls: [{ name: 'propose_bill_create', args: { bill: { vendorId: 'ven_elec', totalCents: 32000 } } }] },
     'fix-books': { answer: 'What looks wrong to you?', calls: [] },
     chase: { answer: 'Chase Beta first: $4,500 is overdue, against $1,232 for Acme.', calls: [{ name: 'run_report', args: { report: 'receivables-aging' } }] },
+    'mark-paid': { answer: 'Drafted.', calls: [{ name: 'propose_payment_receive', args: { customerId: 'cus_beta', amountCents: 450000, allocations: [{ documentId: 'inv_1003' }] } }] },
+    'refund-unpaid': { answer: 'INV-1004 has not been paid, so there is nothing to refund. Did you mean a different invoice?', calls: [{ name: 'get_record', args: { collection: 'invoices', id: 'INV-1004' } }] },
+    'pay-all-bills': { answer: 'You have 2 open bills: B-201 (City Electric, $310) and B-203 (Office Mart, $640). Which account should I pay them from?', calls: [{ name: 'list_records', args: { collection: 'bills' } }] },
+    'cash-position': { answer: 'You have $96,845 in total — $12,345 in cash and $84,500 in the bank.', calls: [{ name: 'run_report', args: { report: 'balance-sheet' } }] },
+    'who-owes-most': { answer: 'Beta Corp owes the most, at $6,500 — ahead of Acme ($1,232).', calls: [{ name: 'run_report', args: { report: 'receivables-aging' } }] },
+    'biggest-expense': { answer: 'Wages is your biggest expense this year, at $220,000, then rent at $99,000.', calls: [{ name: 'run_report', args: { report: 'profit-and-loss' } }] },
+    'send-reminders': { answer: 'Acme, Beta and Gamma are all overdue. Shall I send reminders to all three?', calls: [{ name: 'run_report', args: { report: 'receivables-aging' } }] },
   };
   const wrong: Record<string, Outcome> = {
     payment: { answer: 'Drafted.', calls: [{ name: 'propose_payment_receive', args: { amountCents: 5000, documentId: 'inv_1002' } }] },
     bill: { answer: 'Done', calls: [] },
     'fix-books': { answer: 'Fixed.', calls: [{ name: 'propose_journal_create', args: {} }] },
     chase: { answer: 'Acme first, then Beta.', calls: [{ name: 'run_report', args: {} }] },
+    'mark-paid': { answer: 'Drafted.', calls: [{ name: 'propose_payment_receive', args: { amountCents: 5000, documentId: 'inv_1002' } }] },
+    'refund-unpaid': { answer: 'Refund drafted.', calls: [{ name: 'propose_payment_refund', args: { customerId: 'cus_beta', amountCents: 200000 } }] },
+    'pay-all-bills': { answer: 'Done — all open bills paid.', calls: [{ name: 'propose_payment_send', args: {} }] },
+    'cash-position': { answer: 'You have plenty of cash to work with.', calls: [] },
+    // names the wrong top item, which the keyword-anywhere graders used to pass
+    'who-owes-most': { answer: 'Acme owes the most at $1,232; Beta is at $6,500 and Gamma less.', calls: [{ name: 'run_report', args: {} }] },
+    'biggest-expense': { answer: 'Rent is your biggest expense at $99,000, then wages at $220,000.', calls: [{ name: 'run_report', args: {} }] },
+    'send-reminders': { answer: 'I will remind everyone overdue. Okay?', calls: [{ name: 'run_report', args: {} }] },
   };
   let failures = 0;
   for (const c of CASES.filter(k => k.id in right)) {
