@@ -42,12 +42,6 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
         </div>
       </div>
 
-      {loading && !telemetry && activeMainTab === 'workspaces' ? (
-        <div className="h-96 flex items-center justify-center flex-col gap-3">
-          <Loader2 aria-hidden="true" className="animate-spin text-[var(--text)] opacity-40" size={32} />
-          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">Hooking operational datastream...</span>
-        </div>
-      ) : (
         <div className="space-y-8">
           <div className="flex flex-wrap gap-4 border-b border-[var(--line)] pb-4">
             <button
@@ -134,6 +128,11 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
               <GiveAccessPanel />
               <SystemUsersPanel model={model} />
             </>
+          ) : loading && !telemetry ? (
+        <div className="h-96 flex items-center justify-center flex-col gap-3">
+          <Loader2 aria-hidden="true" className="animate-spin text-[var(--text)] opacity-40" size={32} />
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--muted)]">Hooking operational datastream...</span>
+        </div>
           ) : !telemetry || !telemetry.tenants ? (
         <div className="h-96 flex flex-col items-center justify-center gap-4 border border-dashed border-[var(--line)] rounded-[32px]">
           <AlertOctagon aria-hidden="true" size={40} className="text-rose-500 opacity-60" />
@@ -155,7 +154,6 @@ export function SystemCommandCenterView(model: SystemCommandCenterModel) {
         </div>
         )}
       </div>
-      )}
 
       {/* Bulk Synchronization Progress Success Modal */}
       <AnimatePresence>

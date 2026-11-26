@@ -97,3 +97,19 @@ test('AUP-04: a telemetry failure refuses only the Workspaces tab; Users and the
   await waitFor(() => assert.ok(screen.getByText('Admin telemetry returned HTTP 503.')));
   assert.equal(screen.queryByText('No workspaces detected on server'), null);
 });
+
+test('AUP-04: while telemetry is still loading (even if it never answers), the tab bar is there and other tabs work', async t => {
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input) === '/api/v1/admin/telemetry') return new Promise<Response>(() => {}); // a hung request
+    if (String(input) === '/api/v1/admin/users') return Response.json({ status: 'success', users: [] });
+    return Response.json({ status: 'success' });
+  });
+  render(<SystemCommandCenter />);
+  // first render: the spinner is inside the Workspaces tab, the tab bar is already shown
+  assert.ok(screen.getByText(/Hooking operational datastream/));
+  fireEvent.click(screen.getByRole('button', { name: /deep user matrix/i }));
+  await waitFor(() => assert.ok(screen.getByText(/No user records yet/i)));
+  assert.equal(screen.queryByText(/Hooking operational datastream/), null, 'the spinner belongs to the Workspaces tab only');
+  fireEvent.click(screen.getByRole('button', { name: /workspaces & tenants/i }));
+  assert.ok(screen.getByText(/Hooking operational datastream/));
+});
