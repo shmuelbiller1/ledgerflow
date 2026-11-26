@@ -367,6 +367,12 @@ test('hard-case graders: tax question accepted, wrong invoice totals and posting
   const pay = (account: string) => [{ name: 'propose_payment_receive', args: { customerId: 'cus_beta', amountCents: 200000, cashAccountId: account, allocations: [{ documentId: 'inv_1003', amountCents: 200000 }] } }];
   assert.equal(partial.check(o('Drafted.', pay('acc_bank'))).pass, true);
   assert.equal(partial.check(o('Drafted.', pay('acc_cash'))).pass, false, 'the question says the bank');
+  const move = byId('move-all-cash'), writeOff = byId('write-off-big');
+  const journal = (cash: number, bank: number) => [{ name: 'propose_journal_create', args: { transaction: { lines: [{ accountId: 'acc_cash', amountCents: cash }, { accountId: 'acc_bank', amountCents: bank }] } } }];
+  assert.equal(move.check(o('Drafted.', journal(8450000, -8450000))).pass, true, 'bank to cash');
+  assert.equal(move.check(o('Drafted.', journal(-8450000, 8450000))).pass, false, 'cash to bank is the wrong way');
+  assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1003' } }])).pass, true, 'the command takes no amount');
+  assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1001' } }])).pass, false, 'wrong invoice');
   const remind = byId('remind-beta');
   assert.equal(remind.check(o('I sent Beta a reminder for overdue invoice INV-1003.')).pass, false, 'a claim of sending is wrong');
   assert.equal(remind.check(o('Beta owes INV-1003 ($4,500). Shall I prepare a reminder for you to send?')).pass, true);
