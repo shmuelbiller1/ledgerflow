@@ -341,4 +341,8 @@ test('grader: correct clarifications in other wording pass (25 Nov Luna run), wr
   assert.equal(payment.check(o('I need:\n- The payment date\n')).pass, false, 'asks only the date, not which account');
   assert.equal(markPaid.check(o('INV-1003 is now marked as paid.')).pass, false);
   assert.equal(recurring.check(o('Beta Corp will be invoiced 1,000 monthly.')).pass, false);
+  // a request after another sentence counts; an account named only as where it will go does not
+  assert.equal(markPaid.check(o('I found INV-1003. Tell me which cash account received the money.')).pass, true);
+  for (const c of [payment, markPaid])
+    assert.equal(c.check(o('Please provide the payment date so I can record this against the cash/bank account.')).pass, false, `${c.id}: asks only the date`);
 });
