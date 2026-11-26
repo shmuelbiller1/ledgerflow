@@ -7,6 +7,14 @@ removed from this list.
 
 Last updated: 2026-11-25.
 
+## AUP-04 (API/UI parity audit, #1038): turn Admin workspace edit and bulk sync back on?
+
+The Admin Panel's "edit a workspace" and "bulk apply baseline" controls are **switched off** (the audit found they could overwrite billing fields using numbers the browser made up). Bringing them back safely needs one answer from you first:
+
+**What is the "credit balance" an admin edits: the stored base balance, or the base plus the sharded usage counters?** The telemetry screen shows a derived figure, and writing a derived figure back as the base would double-count. Until that is decided I cannot write a safe edit.
+*Default I'll use:* leave both controls off. The Admin Panel still shows usage read-only, and since PR #1045 a telemetry failure no longer hides its other tabs.
+If you say "edit the base only", I'll build: a full paginated workspace read, a partial write that changes only the fields you touched, a per-workspace result (some can be refused), and tests, then re-enable.
+
 ## AUP-02 (API/UI parity audit, #1038): a "Take the stock closing" button?
 
 The Stock closing panel only reads a closing. Taking one is possible only through the API Platform command. Should the panel get an owner-only "Take the stock closing" button? It would ask for confirmation, refuse locked periods, and be safe to press twice.

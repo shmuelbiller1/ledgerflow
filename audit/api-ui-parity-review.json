@@ -318,7 +318,7 @@
       ],
       "impact": "HTTP refusals and network errors previously fell through to an empty or stale list; overlapping requests could show results for an earlier filter, and the record detail hardcoded PRODUCTION regardless of environment.",
       "mitigation": "Surface read failures and malformed records, order requests, clear on user change, label the result as limited, and remove the unsupported environment claim.",
-      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. Route returns doc.data() without explicitly attaching doc.id; older rows lacking an id are rejected rather than silently displayed, and need a server-owner contract decision."
+      "remaining_work": "Five mocked-fetch component tests pass; no live admin authentication or database test. The route now attaches the document id to every row (an id stored in the row still wins), so older rows without one are displayed (src/tests/aup19-audit-log-ids.test.ts)."
     },
     {
       "id": "AUP-20",

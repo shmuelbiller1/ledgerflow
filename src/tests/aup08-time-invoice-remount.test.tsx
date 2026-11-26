@@ -15,6 +15,18 @@ import { getSupabase } from '../lib/db/client';
 
 afterEach(async () => { cleanup(); localStorage.clear(); getSupabase().realtime.disconnect(); await getSupabase().auth.dispose(); });
 
+/** One approved, billable hour for Acme; `over` lets a test change fields (e.g. mark it invoiced elsewhere). */
+const approvedHour = (workspaceId: string, over: Record<string, unknown> = {}) => ({
+  id: 'time-1', kind: 'timeEntry', workspaceId, person: 'test-user', date: '2026-10-05', minutes: 60,
+  description: 'Design', billable: true, customerId: 'c1', status: 'approved', createdAt: '2026-10-05T10:00:00Z', ...over,
+});
+/** Pick the customer in the bill panel and press "Make a draft invoice". */
+const billApprovedTime = async () => {
+  const region = await screen.findByRole('region', { name: 'Bill approved time' });
+  fireEvent.change(within(region).getByLabelText('Customer'), { target: { value: 'c1' } });
+  fireEvent.click(within(region).getByRole('button', { name: 'Make a draft invoice' }));
+};
+
 /** Bills the approved hour once (the link fails), remounts with `between` applied, and bills again. */
 async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: string) => void, retryAnswer?: () => Response) {
   const workspace = setComponentWorkspace('owner');
@@ -29,28 +41,23 @@ async function failLinkThenRemount(t: TestContext, between: (firstInvoiceId: str
       if (linkedTo.length === 2 && retryAnswer) return retryAnswer();
       return linkedTo.length === 1 ? Response.json({ status: 'error', message: 'link unavailable' }, { status: 503 }) : Response.json({ status: 'success' });
     }
-    if (url.endsWith('/time')) return Response.json({ status: 'success', entries: [{ id: 'time-1', kind: 'timeEntry', workspaceId: workspace.id, person: 'test-user', date: '2026-10-05', minutes: 60, description: 'Design', billable: true, customerId: 'c1', status: 'approved', createdAt: '2026-10-05T10:00:00Z' }], rates: { customers: { c1: 10000 } }, canApprove: true });
+    if (url.endsWith('/time')) return Response.json({ status: 'success', entries: [approvedHour(workspace.id)], rates: { customers: { c1: 10000 } }, canApprove: true });
     if (url.endsWith('/next-number')) return Response.json({ number: `INV-${creates + 1}` });
     if (url.endsWith('/commands/invoice.create')) { creates++; createdIds.push(JSON.parse(String(init?.body)).input.invoice.id); return Response.json({ status: 'success', data: {} }); }
     if (init?.method === 'POST') return Response.json({ status: 'success' });
     return Response.json([]);
   });
-  const bill = async () => {
-    const region = await screen.findByRole('region', { name: 'Bill approved time' });
-    fireEvent.change(within(region).getByLabelText('Customer'), { target: { value: 'c1' } });
-    fireEvent.click(within(region).getByRole('button', { name: 'Make a draft invoice' }));
-  };
   const first = render(<TimeView />);
-  await bill();
+  await billApprovedTime();
   await waitFor(() => assert.equal(linkedTo.length, 1));
   first.unmount();
   between(createdIds[0]);
   render(<TimeView />);
-  await bill();
+  await billApprovedTime();
   await waitFor(() => assert.equal(linkedTo.length, 2));
   if (retryAnswer) {
     await waitFor(() => assert.equal(screen.getByRole('button', { name: 'Make a draft invoice' }).hasAttribute('disabled'), false));
-    await bill();
+    await billApprovedTime();
     await waitFor(() => assert.equal(linkedTo.length, 3));
   }
   return { creates, linkedTo, createdIds };
@@ -91,4 +98,34 @@ test('a refusal saying the invoice is void forgets it: the next press makes a fr
     () => Response.json({ status: 'error', message: 'That invoice is void; make a new one for this time', code: 'INVOICE_VOID' }, { status: 409 }));
   assert.equal(creates, 2);
   assert.equal(linkedTo[2], createdIds[1]);
+});
+
+test('a refusal after which the time changed forgets the stale note and warns about the draft', async t => {
+  const workspace = setComponentWorkspace('owner');
+  useLedgerStore.setState({ customers: [makeCustomer({ id: 'c1', name: 'Acme' })], projects: [], invoices: [] });
+  let links = 0, refused = false;
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.endsWith('/time/invoiced')) {
+      links++;
+      if (links === 1) return Response.json({ status: 'error', message: 'link unavailable' }, { status: 503 });
+      refused = true; // someone else invoiced the entry meanwhile
+      return Response.json({ status: 'error', message: 'The 2026-10-05 entry is not approved billable time waiting for an invoice', code: 'CONFLICT' }, { status: 409 });
+    }
+    if (url.endsWith('/time')) return Response.json({ status: 'success', entries: [approvedHour(workspace.id, refused ? { status: 'invoiced', invoiceId: 'other' } : {})], rates: { customers: { c1: 10000 } }, canApprove: true });
+    if (url.endsWith('/next-number')) return Response.json({ number: 'INV-1' });
+    if (url.endsWith('/commands/invoice.create')) return Response.json({ status: 'success', data: {} });
+    if (init?.method === 'POST') return Response.json({ status: 'success' });
+    return Response.json([]);
+  });
+  const first = render(<TimeView />);
+  await billApprovedTime();
+  await waitFor(() => assert.equal(links, 1));
+  assert.ok(Object.keys(JSON.parse(localStorage.getItem('lf.time.pendingInvoice') || '{}')).length === 1, 'the made draft is noted');
+  first.unmount();
+  render(<TimeView />);
+  await billApprovedTime();
+  await waitFor(() => assert.equal(links, 2));
+  // the reload shows the entry invoiced elsewhere: the hours changed, so the stale note is gone
+  await waitFor(() => assert.deepEqual(JSON.parse(localStorage.getItem('lf.time.pendingInvoice') || '{}'), {}));
 });
