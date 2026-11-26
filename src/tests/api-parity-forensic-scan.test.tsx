@@ -91,4 +91,8 @@ test('AUP-31: malformed extra fields are ignored, not shown', async () => {
   globalThis.fetch = answer({ anomalies: [], currency: 'not a currency', skipped: 'bogus', scanned: 'many', sampleCapped: 'yes' });
   render(<ForensicAudit />);
   await screen.findByText(/No outliers were returned for this limited sample/);
+  // ignored extras: the generic header (no invented currency or count) and the "limited" badge stay
+  assert.ok(screen.getByText('Server sample: at most 200 entries; not a complete audit.'));
+  assert.ok(screen.getByText('Limited sample'));
+  assert.equal(screen.queryByText(/not a currency|NOT A CURRENCY/i), null);
 });
