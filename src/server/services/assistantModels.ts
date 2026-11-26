@@ -77,15 +77,21 @@ const LONG = 300;
  */
 export function chooseModel(question: string, routerReason: string, commands: readonly AnyCommandDefinition[],
   models = assistantModels()): ModelChoice {
+  // 26 Nov 2026 model test (docs/eval/LUNA-VS-TERRA-2026-11-26.md, 59 questions twice): the simple model matched
+  // the strong one on vague, several-step and long questions at about 1/7.5 of the cost, and drafted complete
+  // requests better. So only high-risk requests start on the strong model; everything else starts simple, and a
+  // simple turn that fails is retried once on the strong model (assistantRouter.answerTurn). The reason is
+  // kept so the metric still shows what kind of question it was.
   const strong = (reason: string): ModelChoice => ({ tier: 'strong', model: models.strong, reason });
+  const simple = (reason: string): ModelChoice => ({ tier: 'simple', model: models.simple, reason });
   const text = question.trim().replace(/\s+/g, ' ');
-  if (routerReason === 'vague' || routerReason === 'several-questions' || VAGUE.test(text)) return strong('ambiguous');
   const [closest] = findAssistantCommands(commands, text, 1, { strict: true });
   const closestRisk = closest ? commands.find(command => command.name === closest.command)?.risk : undefined;
   if (HIGH_RISK.test(text) || closestRisk === 'high') return strong('high-risk');
-  if ((text.match(ACTIONS) ?? []).length >= 2 || CHAIN.test(text) || ANALYSIS.test(text)) return strong('several-steps');
-  if (text.length > LONG) return strong('long');
-  return { tier: 'simple', model: models.simple, reason: 'simple' };
+  if (routerReason === 'vague' || routerReason === 'several-questions' || VAGUE.test(text)) return simple('ambiguous');
+  if ((text.match(ACTIONS) ?? []).length >= 2 || CHAIN.test(text) || ANALYSIS.test(text)) return simple('several-steps');
+  if (text.length > LONG) return simple('long');
+  return simple('simple');
 }
 
 /**

@@ -163,19 +163,24 @@ describe('Part 6: two models by a written rule, priced from the provider page; O
     const d = routeQuestion(q);
     return chooseModel(q, d.path === 'model' ? d.reason : 'code-answer-incomplete', owners);
   };
-  test('pinned: simple turns go to the cheap model, ambiguous, high-risk and multi-step ones to the strong model', () => {
+  test('pinned: only high-risk turns start on the strong model; ambiguous, multi-step and long ones start simple (26 Nov model test)', () => {
     const SIMPLE = ['Create an invoice for Acme Ltd for two hours of consulting.', 'Record a payment of 500 from Acme Ltd for INV-1001.',
       'Make a bill from the electricity company for 320.', 'Who owes me money?', 'Which bills are due this week?', 'Run the profit and loss for this year.'];
     const STRONG: Array<[string, string]> = [
-      ['Fix the books.', 'ambiguous'], ['Something looks off with my numbers, can you check?', 'ambiguous'],
-      ['What is my cash balance and who owes me?', 'ambiguous'],
       ['Write off the small balances customers will never pay.', 'high-risk'], ['Delete invoice INV-1001.', 'high-risk'],
       ['Merge the two Acme contacts.', 'high-risk'], ["Move all of last month's office costs to a new project.", 'high-risk'],
+      ['Can you tidy up all the old stuff for me?', 'high-risk'],
+    ];
+    // still labelled by kind for the metric, but answered by the simple model first (a failure retries on the strong one)
+    const SIMPLE_LABELLED: Array<[string, string]> = [
+      ['Fix the books.', 'ambiguous'], ['Something looks off with my numbers, can you check?', 'ambiguous'],
+      ['What is my cash balance and who owes me?', 'ambiguous'],
       ['Create a bill for the rent and then pay it from the bank.', 'several-steps'], ['Why is my profit lower than last month?', 'several-steps'],
       ['Can I afford to hire someone next quarter?', 'several-steps'], [`Create an invoice for Acme with these lines: ${'consulting hours, '.repeat(20)}`, 'long'],
     ];
     for (const q of SIMPLE) assert.deepEqual(pick(q), { tier: 'simple', model: DEFAULT_ASSISTANT_MODELS.simple, reason: 'simple' }, q);
     for (const [q, reason] of STRONG) assert.deepEqual(pick(q), { tier: 'strong', model: DEFAULT_ASSISTANT_MODELS.strong, reason }, q);
+    for (const [q, reason] of SIMPLE_LABELLED) assert.deepEqual(pick(q), { tier: 'simple', model: DEFAULT_ASSISTANT_MODELS.simple, reason }, q);
   });
 
   test('overrides: only priced models; another provider only with its endpoint set (owner approved other providers 22 Nov)', () => {
@@ -474,7 +479,7 @@ describe('SBX-2 cache invalidation and the assistant turn (PostgreSQL)', { skip:
     assert.deepEqual([model.json.path, model.json.modelTier, model.json.modelReason], ['model', 'simple', 'simple']);
     assert.deepEqual(modelCalls, [DEFAULT_ASSISTANT_MODELS.simple]);
     const strong = await a.turn('Why is my profit lower than last month?');
-    assert.deepEqual([strong.json.modelTier, strong.json.modelReason], ['strong', 'several-steps']);
+    assert.deepEqual([strong.json.modelTier, strong.json.modelReason], ['simple', 'several-steps'], 'a several-step question starts on the simple model');
     const usage = strong.json.usage as AssistantUsage;
     assert.equal(usage.turns, 4);
     assert.equal(usage.modelTurns, 2);

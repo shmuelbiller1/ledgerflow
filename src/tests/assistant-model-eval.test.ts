@@ -229,10 +229,15 @@ test('routed model evaluation uses the live tier choice and code answers', async
   const routed = { simple: 'gpt-6-luna', strong: 'gpt-6.1-terra' };
   const run = (question: string) => runCase('https://model.test/v1', fake, routed.simple, 'sys', question, 5000, routed);
 
+  // a vague question starts on the simple model (26 Nov model test); only a high-risk one starts on the strong model
   const vague = await run('Something looks wrong.');
-  assert.deepEqual(requested.splice(0), [routed.strong]);
-  assert.equal(vague.metric?.modelTier, 'strong');
+  assert.deepEqual(requested.splice(0), [routed.simple]);
+  assert.equal(vague.metric?.modelTier, 'simple');
   assert.equal(vague.metric?.modelReason, 'ambiguous');
+  const risky = await run('Delete invoice INV-1001.');
+  assert.deepEqual(requested.splice(0), [routed.strong]);
+  assert.equal(risky.metric?.modelTier, 'strong');
+  assert.equal(risky.metric?.modelReason, 'high-risk');
 
   const simple = await run('Record a payment of 500 from Acme Ltd for INV-1001.');
   assert.deepEqual(requested.splice(0), [routed.simple]);
