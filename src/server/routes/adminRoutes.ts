@@ -327,7 +327,9 @@ export function registerAdminRoutes(app: express.Express, ctx: ServerContext): v
       if (endDate) query = query.where("timestamp", "<=", endDate);
       
       const snap = await query.limit(Number(limit)).get();
-      const logs = snap.docs.map(doc => doc.data());
+      // AUP-19: every row carries its document id (an id stored in the row itself still wins), so an older row
+      // written without one is shown instead of making the whole viewer reject the response
+      const logs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
       res.json({ status: "success", logs });
     } catch (err) {
