@@ -76,3 +76,40 @@ test('admin users refusal is reported rather than presented as an empty director
   await waitFor(() => assert.ok(screen.getByText('Admin users returned HTTP 403.')));
   assert.equal(screen.queryByText('No user records yet'), null);
 });
+
+test('AUP-04: a telemetry failure refuses only the Workspaces tab; Users and the other tabs stay reachable', async t => {
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input) === '/api/v1/admin/telemetry') return new Response('denied', { status: 503 });
+    if (String(input) === '/api/v1/admin/users') return Response.json({ status: 'success', users: [] });
+    return Response.json({ status: 'success' });
+  });
+  render(<SystemCommandCenter />);
+  // the Workspaces tab says why it has nothing, and the tab bar is still there
+  await waitFor(() => assert.ok(screen.getByText('Admin telemetry returned HTTP 503.')));
+  assert.ok(screen.getByRole('button', { name: /institutional audit trail/i }));
+  assert.ok(screen.getByRole('button', { name: /site lexicon control/i }));
+  // the Users tab works without telemetry (it has its own endpoint)
+  fireEvent.click(screen.getByRole('button', { name: /deep user matrix/i }));
+  await waitFor(() => assert.equal(screen.queryByText('Admin telemetry returned HTTP 503.'), null), undefined);
+  await waitFor(() => assert.ok(screen.getByText(/No user records yet/i)));
+  // ...and going back to Workspaces still shows the refusal, not an empty list
+  fireEvent.click(screen.getByRole('button', { name: /workspaces & tenants/i }));
+  await waitFor(() => assert.ok(screen.getByText('Admin telemetry returned HTTP 503.')));
+  assert.equal(screen.queryByText('No workspaces detected on server'), null);
+});
+
+test('AUP-04: while telemetry is still loading (even if it never answers), the tab bar is there and other tabs work', async t => {
+  t.mock.method(globalThis, 'fetch', async (input: RequestInfo | URL) => {
+    if (String(input) === '/api/v1/admin/telemetry') return new Promise<Response>(() => {}); // a hung request
+    if (String(input) === '/api/v1/admin/users') return Response.json({ status: 'success', users: [] });
+    return Response.json({ status: 'success' });
+  });
+  render(<SystemCommandCenter />);
+  // first render: the spinner is inside the Workspaces tab, the tab bar is already shown
+  assert.ok(screen.getByText(/Hooking operational datastream/));
+  fireEvent.click(screen.getByRole('button', { name: /deep user matrix/i }));
+  await waitFor(() => assert.ok(screen.getByText(/No user records yet/i)));
+  assert.equal(screen.queryByText(/Hooking operational datastream/), null, 'the spinner belongs to the Workspaces tab only');
+  fireEvent.click(screen.getByRole('button', { name: /workspaces & tenants/i }));
+  assert.ok(screen.getByText(/Hooking operational datastream/));
+});
