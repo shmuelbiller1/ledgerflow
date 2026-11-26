@@ -7,6 +7,14 @@ removed from this list.
 
 Last updated: 2026-11-26.
 
+## Online invoice payments: money was going to the platform's Stripe, not the business's (26 Nov, PR #1048)
+
+Every invoice link showed a **Pay** button. A business must connect **its own** Stripe account for the money to reach it, but **there is no screen to do that**, so the checkout ran on **your** platform Stripe account: a paying customer's money would land with you while the business's books marked the invoice paid. **PR #1048** switches online payment **off** until a business has connected its own account. The invoice page then tells the customer to pay the business directly.
+
+**To turn online payments on, Stripe Connect onboarding needs building** ("Connect your Stripe account" in Settings). Two things only you can do in the Stripe dashboard first:
+1. Enable **Stripe Connect** on your platform account and choose the account type. *Default I'd build:* **Express** accounts (Stripe hosts the sign-up and identity checks; you keep the platform fee from your plan table).
+2. Confirm the **platform fee** per plan stays as in `src/lib/plans.ts` (0.50% Free … 0.10% Enterprise on cards; ACH half that, minimum 0.05%).
+
 ## AI credits: how AI use is priced (26 Nov), design in docs/design/AI-CREDITS.md
 
 One balance of **AI credits** replaces today's three meters. Every call is priced from its real model cost plus a markup, failed calls are free, and each plan includes credits every month. Defaults I'm building with (reply with any change):
