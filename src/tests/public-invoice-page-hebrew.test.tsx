@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import PublicInvoicePage from '../components/sales/PublicInvoicePage';
 import { makeInvoice } from './fixtures';
 
-const invoice = { ...makeInvoice({ number: 'INV-42', customerName: 'לקוח Acme', date: '2026-03-01', currency: 'USD', paymentToken: 'public-test', metadata: { memo: 'עיצוב Design — ירושלים' } }), remainingBalanceCents: 7500 };
+const invoice = { ...makeInvoice({ number: 'INV-42', customerName: 'לקוח Acme', date: '2026-03-01', currency: 'USD', paymentToken: 'public-test', metadata: { memo: 'עיצוב Design — ירושלים' } }), remainingBalanceCents: 7500, payOnline: true };
 afterEach(() => { cleanup(); window.history.replaceState({}, '', '/'); });
 
 test('public invoice displays mixed-language data and uses the server balance for the payment request', async () => {

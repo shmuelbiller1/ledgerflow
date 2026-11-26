@@ -8,7 +8,8 @@ import { useTimeout } from '../../hooks/useTimeout';
 import { BRAND_NAME } from '../../config/brand';
 import { runCommand, ServerCommandError } from '../../lib/runCommand';
 /** The invoice as the public link returns it, with what is still due. */
-type PublicInvoice = Invoice & { remainingBalanceCents?: number };
+/** `payOnline`: the business connected its own Stripe account, so this invoice can be paid online (fail closed). */
+type PublicInvoice = Invoice & { remainingBalanceCents?: number; payOnline?: boolean };
 
 export default function PublicInvoicePage() {
   const [invoice, setInvoice] = useState<PublicInvoice | null>(null);
@@ -107,6 +108,8 @@ export default function PublicInvoicePage() {
                 <CheckCircle2 size={18} />
                 Paid
               </div>
+            ) : invoice.payOnline !== true ? (
+              <p role="status" className="max-w-xs text-sm text-gray-600">Online payment isn't set up for this invoice. Please pay the business directly, using the details they gave you.</p>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 {currency.toUpperCase() === 'USD' && (

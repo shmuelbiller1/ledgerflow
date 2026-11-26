@@ -17,7 +17,7 @@ describe('public invoice page', () => {
   afterEach(() => cleanup());
 
   test('shows the total, the deposit, what was paid and what is still due, in the invoice currency', async () => {
-    stubFetchWithBodies(200, { invoice: makeInvoice({ number: 'INV-7', amountCents: 50000, depositCents: 10000, amountPaidCents: 15000, currency: 'EUR', dueDate: '2026-11-01', status: 'partially_paid', paymentToken: 'tok' }) });
+    stubFetchWithBodies(200, { invoice: { ...makeInvoice({ number: 'INV-7', amountCents: 50000, depositCents: 10000, amountPaidCents: 15000, currency: 'EUR', dueDate: '2026-11-01', status: 'partially_paid', paymentToken: 'tok' }), payOnline: true } });
     open('/i/tok');
     render(<PublicInvoicePage />);
     await waitFor(() => screen.getByRole('heading', { name: 'Invoice INV-7' }));
@@ -30,7 +30,7 @@ describe('public invoice page', () => {
   });
 
   test('Pay asks the server for the checkout page', async () => {
-    const calls = stubFetchWithBodies(200, { invoice: makeInvoice({ number: 'INV-8', amountCents: 10000, status: 'sent', paymentToken: 'tok2' }) });
+    const calls = stubFetchWithBodies(200, { invoice: { ...makeInvoice({ number: 'INV-8', amountCents: 10000, status: 'sent', paymentToken: 'tok2' }), payOnline: true } });
     open('/i/tok2');
     render(<PublicInvoicePage />);
     const pay = await waitFor(() => screen.getByRole('button', { name: /^Pay / }));
@@ -53,5 +53,27 @@ describe('public invoice page', () => {
     render(<PublicInvoicePage />);
     await waitFor(() => screen.getByRole('heading', { name: 'Unable to Load Invoice' }));
     assert.ok(screen.getByText('Invoice not found'));
+  });
+});
+
+describe('public invoice page: online payment needs the business\'s own Stripe account', () => {
+  afterEach(() => cleanup());
+
+  test('not connected: no Pay or bank-transfer button, and the page says how to pay', async () => {
+    stubFetchWithBodies(200, { invoice: { ...makeInvoice({ number: 'INV-10', amountCents: 10000, currency: 'USD', status: 'sent', paymentToken: 'tok3' }), payOnline: false } });
+    open('/i/tok3');
+    render(<PublicInvoicePage />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Invoice INV-10' }));
+    assert.equal(screen.queryByRole('button', { name: /^Pay / }), null);
+    assert.equal(screen.queryByRole('button', { name: /Bank transfer/ }), null);
+    assert.match(screen.getByRole('status').textContent || '', /Online payment isn't set up/);
+  });
+
+  test('an answer without payOnline (an older server) fails closed: no Pay button', async () => {
+    stubFetchWithBodies(200, { invoice: makeInvoice({ number: 'INV-11', amountCents: 10000, status: 'sent', paymentToken: 'tok4' }) });
+    open('/i/tok4');
+    render(<PublicInvoicePage />);
+    await waitFor(() => screen.getByRole('heading', { name: 'Invoice INV-11' }));
+    assert.equal(screen.queryByRole('button', { name: /^Pay / }), null);
   });
 });

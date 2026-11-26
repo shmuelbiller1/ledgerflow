@@ -10,6 +10,25 @@ import { publicEstimateRouter } from './estimateSignRoutes';
 import { recordInvoiceView } from '../services/invoiceViewService';
 
 export const publicInvoiceRouter = express.Router();
+
+/**
+ * The business's own connected Stripe account, the only place an invoice payment may go. Without one the
+ * checkout would run on the platform's Stripe account: the money would land with the platform while the
+ * business's books marked the invoice paid. So no connected account means no online payment (fail closed).
+ */
+function connectedPayoutAccount(ws: Record<string, unknown> | undefined): string | null {
+  const id = ws?.stripeConnectAccountId;
+  return typeof id === 'string' && id.trim() ? id.trim() : null;
+}
+async function workspaceOf(db: ReturnType<typeof getDb>, workspaceId: unknown): Promise<Record<string, unknown> | undefined> {
+  if (typeof workspaceId !== 'string' || !workspaceId) return undefined;
+  try {
+    const snap = await db.collection('workspaces').doc(workspaceId).get();
+    return snap?.exists ? snap.data() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 // the customer portal (K-27) shares this public route and its rate limit: /api/v1/invoices/public/portal/<token>
 publicInvoiceRouter.use('/portal', publicPortalRouter);
 // signing an estimate (Y-20): /api/v1/invoices/public/estimate/<token>
@@ -70,6 +89,7 @@ publicInvoiceRouter.get('/:token', async (req, res) => {
     const remainingBalance = calculateAmountDue(invoice);
     // S-02: the customer opened it (recorded before answering: work after the answer may not run on the host)
     if (!['draft', 'void', 'voided'].includes(String(invoice.status || '').toLowerCase())) await recordInvoiceView(db, doc.ref, invoice);
+    const payOnline = Boolean(connectedPayoutAccount(await workspaceOf(db, invoice.workspaceId)));
 
     res.json({
       invoice: {
@@ -85,6 +105,8 @@ publicInvoiceRouter.get('/:token', async (req, res) => {
         currency: invoice.currency || 'USD',
         customerName: invoice.customerName,
         paymentToken: invoice.paymentToken,
+        // the business connected its own Stripe account: only then can this invoice be paid online
+        payOnline,
         lines: Array.isArray(invoice.lines) ? (invoice.lines as RawInvoiceLine[]).map((l: RawInvoiceLine) => ({
           description: l.description,
           quantity: l.quantity,
@@ -134,8 +156,6 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
       });
     }
 
-    const stripe = getStripe();
-
     // What is still due, by the one money rule (discounts, retainage, credits, payments)
     const remainingBalance = calculateAmountDue(invoice);
 
@@ -146,15 +166,15 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
     // Use configured trusted application URL to prevent host-header poisoning (#85)
     const origin = getTrustedAppUrl(req);
 
-    let wsData: Record<string, unknown> | undefined;
-    if (typeof invoice.workspaceId === 'string' && invoice.workspaceId) {
-      try {
-        const wsSnap = await db.collection('workspaces').doc(invoice.workspaceId).get();
-        if (wsSnap?.exists) wsData = wsSnap.data();
-      } catch {
-        wsData = undefined;
-      }
+    const wsData = await workspaceOf(db, invoice.workspaceId);
+    const connectDestination = connectedPayoutAccount(wsData);
+    if (!connectDestination) {
+      return res.status(409).json({
+        error: 'This business has not set up online payments yet. Contact them to pay this invoice.',
+        code: 'ONLINE_PAYMENTS_NOT_SET_UP',
+      });
     }
+    const stripe = getStripe();
 
     const requestedRail = parsedBody.data.paymentMethod;
     const paymentMethodTypes: Array<'card' | 'us_bank_account'> =
@@ -165,9 +185,6 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
           : ['card', 'us_bank_account'];
     const feeRail = requestedRail === 'us_bank_account' ? 'us_bank_account' : 'card';
     const feeQuote = computePlatformFeeQuote(remainingBalance, String(wsData?.plan || 'free'), feeRail);
-    const connectDestination = typeof wsData?.stripeConnectAccountId === 'string' && wsData.stripeConnectAccountId.trim()
-      ? wsData.stripeConnectAccountId.trim()
-      : null;
 
     // INT-6: one key per invoice and amount still due — a double click gets the same session, not a second one
     const params = {
@@ -193,28 +210,21 @@ publicInvoiceRouter.post('/:token/pay', async (req, res) => {
         invoiceId: doc.id,
         workspaceId: invoice.workspaceId,
         paymentToken: token,
-        ...(connectDestination
-          ? {
-              platformFeeCents: String(feeQuote.platformFeeCents),
-              platformFeeBps: String(feeQuote.platformFeeBps),
-              rail: feeRail,
-            }
-          : {}),
+        platformFeeCents: String(feeQuote.platformFeeCents),
+        platformFeeBps: String(feeQuote.platformFeeBps),
+        rail: feeRail,
       },
-      ...(connectDestination
-        ? {
-            payment_intent_data: {
-              ...(feeQuote.platformFeeCents > 0 ? { application_fee_amount: feeQuote.platformFeeCents } : {}),
-              transfer_data: { destination: connectDestination },
-            },
-          }
-        : {}),
+      // the money goes to the business's own Stripe account; the platform keeps only its fee
+      payment_intent_data: {
+        ...(feeQuote.platformFeeCents > 0 ? { application_fee_amount: feeQuote.platformFeeCents } : {}),
+        transfer_data: { destination: connectDestination },
+      },
     } satisfies Parameters<typeof stripe.checkout.sessions.create>[0];
     // the same parameters get the same key; changed ones (another amount, a renamed invoice) a new one
     const idempotencyKey = checkoutIdempotencyKey(doc.id, remainingBalance, token.slice(-16), checkoutParamsFingerprint(params));
     const session = await stripe.checkout.sessions.create(params, { idempotencyKey });
 
-    res.json({ url: session.url, ...(connectDestination ? { feeQuote } : {}) });
+    res.json({ url: session.url, feeQuote });
 
   } catch (err) {
     if (isIdempotencyInFlight(err)) return res.status(409).json({ error: 'This payment is already being opened. Wait a moment and try again.' });

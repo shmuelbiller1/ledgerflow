@@ -65,7 +65,7 @@ describe('Checkout sessions with a mocked Stripe', { skip: !url && 'LF_TEST_DATA
     const { billingRouter } = await import('../server/routes/billingRoutes');
     const { getDb } = await import('../server/db/firestore');
     db = getDb();
-    await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'Pay links', currency: 'USD', members: [OWNER] });
+    await db.collection('workspaces').doc(ws).set({ uid: OWNER, name: 'Pay links', currency: 'USD', members: [OWNER], stripeConnectAccountId: 'acct_test_business' });
     await db.collection('invoices').doc(invoiceId).set({
       workspaceId: ws, uid: OWNER, number: 'INV-7', customerName: 'Tenant', status: 'sent', currency: 'USD', paymentToken: token,
       amountCents: 100_000, amountPaidCents: 0, date: '2026-10-01', dueDate: '2026-10-31',
@@ -108,6 +108,34 @@ describe('Checkout sessions with a mocked Stripe', { skip: !url && 'LF_TEST_DATA
     assert.ok(calls[2].key?.startsWith(checkoutIdempotencyKey(invoiceId, 60_000, token.slice(-16))), '100,000 − 40,000');
     assert.notEqual(calls[2].key, calls[0].key);
     assert.equal(calls[2].params.line_items[0].price_data.unit_amount, 60_000);
+  });
+
+  test('the money goes to the business\'s own Stripe account, with only the platform fee kept', () => {
+    const intent = calls[0].params.payment_intent_data as { transfer_data?: { destination?: string } };
+    assert.equal(intent?.transfer_data?.destination, 'acct_test_business');
+  });
+
+  test('a business with no connected Stripe account: refused before any Stripe call (the money would land with the platform)', async () => {
+    const before = calls.length;
+    const otherWs = `${ws}_noconnect`, otherToken = `${token}nc`;
+    await db.collection('workspaces').doc(otherWs).set({ uid: OWNER, name: 'Not connected', currency: 'USD', members: [OWNER] });
+    await db.collection('invoices').doc(`${invoiceId}_nc`).set({
+      workspaceId: otherWs, uid: OWNER, number: 'INV-8', customerName: 'Tenant', status: 'sent', currency: 'USD', paymentToken: otherToken,
+      amountCents: 50_000, amountPaidCents: 0, date: '2026-10-01', dueDate: '2026-10-31',
+    });
+    try {
+      const res = await post(`/api/v1/invoices/public/${otherToken}/pay`);
+      assert.equal(res.status, 409, JSON.stringify(res.body));
+      assert.equal(res.body.code, 'ONLINE_PAYMENTS_NOT_SET_UP');
+      assert.equal(calls.length, before, 'no checkout session was opened');
+      const view = await fetch(`${base}/api/v1/invoices/public/${otherToken}`).then(r => r.json()) as { invoice: { payOnline: boolean } };
+      assert.equal(view.invoice.payOnline, false, 'the page is told not to offer online payment');
+      const connected = await fetch(`${base}/api/v1/invoices/public/${token}`).then(r => r.json()) as { invoice: { payOnline: boolean } };
+      assert.equal(connected.invoice.payOnline, true);
+    } finally {
+      await db.pool.query('delete from public.invoices where id = $1', [`${invoiceId}_nc`]).catch(() => {});
+      await db.pool.query('delete from public.workspaces where id = $1', [otherWs]).catch(() => {});
+    }
   });
 
   test('the subscription checkout: Pro twice is one key and one session; Enterprise or a new subscription is another', async () => {
