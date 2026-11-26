@@ -17,7 +17,7 @@ afterEach(async () => { cleanup(); sessionStorage.clear(); getSupabase().realtim
 test('assistant is a visible daily tool; settings no longer pretend to select a model or request a key', () => {
   setComponentWorkspace('owner');
   assert.ok(DAILY_TOOL_IDS.includes('copilot'));
-  assert.equal(DAILY_TOOL_LABELS.copilot.en, 'AI assistant');
+  assert.equal(DAILY_TOOL_LABELS.copilot.en, 'Ask Flo');
   render(<AISettings />);
   assert.ok(screen.getByRole('button', { name: 'Open AI assistant' }));
   assert.equal(screen.queryByText(/Gemini 3\.[18]/), null);
@@ -50,7 +50,8 @@ test('chat opens a sandbox, sends a turn to the real endpoint and links its draf
   assert.equal(turn?.path, '/api/v1/workspaces/component-workspace/sandboxes/draft-1/assistant/turn');
   assert.deepEqual(turn?.body, { question: 'Record a payment of 500 from Acme Ltd for INV-1001' });
   assert.equal(calls.some(c => c.path === '/api/ai/process'), false);
-  assert.ok(screen.getByText(/Model: gpt-6-luna/));
+  assert.ok(screen.getByText(/gpt-6-luna/));
+  assert.ok(screen.getAllByText(/AI answer/).length > 0);
   fireEvent.click(screen.getByRole('button', { name: 'Assistant drafts' }));
   assert.equal(useUIStore.getState().activeTab, 'sandbox-review');
   assert.equal(sessionStorage.getItem('lf_assistant_review_component-workspace'), 'draft-1');

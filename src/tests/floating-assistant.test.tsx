@@ -14,8 +14,8 @@ test('non-modal assistant preserves the underlying form and chat when minimized'
   globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
   render(<><label htmlFor="draft-form">Invoice note</label><input id="draft-form" /><FloatingAssistant /></>);
   fireEvent.change(screen.getByLabelText('Invoice note'), { target: { value: 'Unsaved work' } });
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await within(panel).findByRole('button', { name: 'Start assistant' });
   fireEvent.change(within(panel).getByLabelText('Your question'), { target: { value: 'open sales' } });
   fireEvent.click(within(panel).getByRole('button', { name: 'Send question' }));
@@ -24,8 +24,8 @@ test('non-modal assistant preserves the underlying form and chat when minimized'
   assert.equal(link.getAttribute('target'), '_blank');
   assert.equal((screen.getByLabelText('Invoice note') as HTMLInputElement).value, 'Unsaved work');
   fireEvent.click(within(panel).getByRole('button', { name: 'Minimize assistant' }));
-  assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
+  assert.equal(screen.queryByRole('dialog', { name: 'Flo · your AI assistant' }), null);
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
   assert.ok(screen.getByRole('link', { name: 'Open sales in a new tab' }));
   assert.equal((screen.getByLabelText('Invoice note') as HTMLInputElement).value, 'Unsaved work');
 });
@@ -34,8 +34,8 @@ test('size and keyboard movement remain in the viewport and the question remains
   setComponentWorkspace('owner');
   globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
   render(<FloatingAssistant />);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await within(panel).findByRole('button', { name: 'Start assistant' });
   fireEvent.change(within(panel).getByLabelText('Your question'), { target: { value: 'Draft text' } });
   const width = parseInt(panel.style.width, 10);
@@ -53,14 +53,14 @@ test('Escape minimizes the non-modal assistant and returns focus to its launcher
   setComponentWorkspace('owner');
   globalThis.fetch = (async () => Response.json({ sandboxes: [] })) as typeof fetch;
   render(<FloatingAssistant />);
-  const launcher = screen.getByRole('button', { name: 'AI assistant' });
+  const launcher = screen.getByRole('button', { name: 'Ask Flo' });
   launcher.focus(); fireEvent.click(launcher);
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   assert.equal(panel.getAttribute('aria-modal'), null);
   const move = within(panel).getByRole('button', { name: /Move assistant/ });
   move.focus();
   fireEvent.keyDown(move, { key: 'Escape' });
-  await waitFor(() => assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null));
+  await waitFor(() => assert.equal(screen.queryByRole('dialog', { name: 'Flo · your AI assistant' }), null));
   await waitFor(() => assert.ok(document.activeElement === launcher, 'focus returned to launcher'));
 });
 
@@ -69,8 +69,8 @@ test('draft list can be refreshed after a draft is closed in the other tab', asy
   let open = [1, 2, 3];
   globalThis.fetch = (async () => Response.json({ sandboxes: open.map(n => ({ id: `draft-${n}`, createdAt: '2026-11-23T00:00:00Z', expiresAt: '2026-11-24T00:00:00Z', pendingSteps: 0 })) })) as typeof fetch;
   render(<FloatingAssistant />);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   const add = await within(panel).findByRole('button', { name: 'Open another draft' });
   assert.equal((add as HTMLButtonElement).disabled, true);
   open = [2, 3];
@@ -92,19 +92,19 @@ test('the assistant hides while a modal owns the page and returns with its conve
     return <><button type="button" onClick={() => setModal(true)}>Open invoice modal</button>{modal && <Modal close={() => setModal(false)} />}<FloatingAssistant /></>;
   }
   render(<Screen />);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const assistant = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const assistant = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   await within(assistant).findByRole('button', { name: 'Start assistant' });
   fireEvent.change(within(assistant).getByLabelText('Your question'), { target: { value: 'My question' } });
   const opener = screen.getByRole('button', { name: 'Open invoice modal' });
   opener.focus(); fireEvent.click(opener);
   assert.ok(screen.getByRole('dialog', { name: 'Editing invoice' }));
-  assert.equal(screen.queryByRole('dialog', { name: 'Floating AI assistant' }), null);
-  assert.equal(screen.queryByRole('button', { name: 'AI assistant' }), null);
+  assert.equal(screen.queryByRole('dialog', { name: 'Flo · your AI assistant' }), null);
+  assert.equal(screen.queryByRole('button', { name: 'Ask Flo' }), null);
   fireEvent.keyDown(screen.getByLabelText('Invoice field'), { key: 'Escape' });
   assert.equal(screen.queryByRole('dialog', { name: 'Editing invoice' }), null);
   assert.ok(document.activeElement === opener, 'closing the modal returns focus to its page control');
-  const restored = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  const restored = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   assert.equal((within(restored).getByLabelText('Your question') as HTMLTextAreaElement).value, 'My question');
 });
 
@@ -118,8 +118,8 @@ test('starting a draft keeps a question already typed in the floating assistant'
     return Response.json({ sandboxes: opened ? [draft] : [] });
   }) as typeof fetch;
   render(<FloatingAssistant />);
-  fireEvent.click(screen.getByRole('button', { name: 'AI assistant' }));
-  const panel = screen.getByRole('dialog', { name: 'Floating AI assistant' });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask Flo' }));
+  const panel = screen.getByRole('dialog', { name: 'Flo · your AI assistant' });
   const start = await within(panel).findByRole('button', { name: 'Start assistant' });
   fireEvent.change(within(panel).getByLabelText('Your question'), { target: { value: 'Draft an invoice for Acme' } });
   fireEvent.click(start);

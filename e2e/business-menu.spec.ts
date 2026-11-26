@@ -5,7 +5,7 @@ for (const width of [390, 1280]) test(`EU-F1 daily menu and all tools ${width}px
   await mountJourney(page, { workspaceId: 'business-menu', ledger: {}, mounts: [{ module: '/src/components/layout/Sidebar.tsx', props: { activeTab: 'dashboard', setActiveTab: '__capture:tab', onLogout: '__fn:noop', projects: [], onNewProject: '__fn:noop', workspaces: [], currentWorkspaceId: 'business-menu', onSelectWorkspace: '__fn:noop', onNewWorkspace: '__fn:noop', onAction: '__fn:noop' } }] });
   await page.evaluate(async () => { const { useUIStore } = await import('/src/stores/useUIStore.ts'); useUIStore.setState({ isSidebarOpen: true }); });
   const daily = page.getByRole('navigation', { name: 'Daily tools' });
-  await expect(daily.getByRole('button')).toHaveText(['Overview', 'To review', 'AI assistant', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings']);
+  await expect(daily.getByRole('button')).toHaveText(['Overview', 'To review', 'Ask Flo', 'Sales', 'Purchases', 'Bank', 'Reports', 'Settings']);
   await page.getByText('Show all tools', { exact: true }).click();
   await page.getByLabel('Find a tool').fill('journal');
   await expect(page.getByRole('button', { name: 'Ledger & Journal', exact: true })).toBeVisible();

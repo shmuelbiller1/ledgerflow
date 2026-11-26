@@ -1,5 +1,4 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import Markdown from 'react-markdown';
 import { Check, ChevronDown, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
@@ -7,9 +6,11 @@ import { runCommand } from '../../lib/runCommand';
 import { maskCardNumbers } from '../../lib/cardNumberMask';
 import { useCurrentRole } from '../../hooks/useCurrentRole';
 import { capturePageText, captureSelectedPageText, PAGE_TEXT_LIMIT } from './assistantPageText';
+import { AssistantMessage, AssistantThinking, AssistantWelcome, type ChatMessage } from './AssistantMessage';
+import { ASSISTANT_TITLE, answerSource } from '../../config/assistantIdentity';
 
 interface Sandbox { id: string; createdAt: string; expiresAt: string; pendingSteps: number }
-interface Message { id: number; role: 'user' | 'assistant'; text: string; source?: string; page?: string }
+type Message = ChatMessage;
 
 /** Only exact, harmless page shortcuts; no model output or arbitrary URL is executed. */
 const PAGE_SHORTCUTS: Record<string, string> = {
@@ -33,7 +34,7 @@ export default function Copilot({ preservePage = false }: { preservePage?: boole
   const guest = useAuthStore(s => s.isGuest);
   const canOpenDraft = useCurrentRole() !== 'viewer';
   // A new component instance drops messages and in-flight results on person/workspace changes.
-  if (!workspaceId || !user || guest || user.isAnonymous) return <section className="p-6"><h1 className="text-2xl font-bold">AI assistant</h1><p className="mt-3">Sign in and select a workspace to use the assistant.</p></section>;
+  if (!workspaceId || !user || guest || user.isAnonymous) return <section className="p-6"><h1 className="text-2xl font-bold">{ASSISTANT_TITLE}</h1><p className="mt-3">Sign in and select a workspace to use the assistant.</p></section>;
   return <AssistantChat key={`${user.uid}:${workspaceId}:${canOpenDraft}`} workspaceId={workspaceId} preservePage={preservePage} canOpenDraft={canOpenDraft} />;
 }
 
@@ -102,7 +103,7 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
     const page = preservePage ? pageShortcut(text) : undefined;
     if (page) {
       const userMessage: Message = { id: nextMessageId.current++, role: 'user', text };
-      const reply: Message = { id: nextMessageId.current++, role: 'assistant', text: 'Open this page in a new tab. Return to this tab to continue your current work.', source: 'Page shortcut, not an AI response', page };
+      const reply: Message = { id: nextMessageId.current++, role: 'assistant', text: 'Open this page in a new tab. Return to this tab to continue your current work.', source: { kind: 'shortcut' }, page };
       setMessages(previous => [...previous, userMessage, reply]);
       setQuestion(''); setError('');
       return;
@@ -116,11 +117,11 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
     const userMessage: Message = { id: nextMessageId.current++, role: 'user', text };
     setMessages(previous => [...previous, userMessage]);
     try {
-      const result = await runCommand<{ status: string; answer?: string; path?: string; model?: string }>({
+      const result = await runCommand<{ status: string; answer?: string; path?: string; model?: string; modelTier?: string }>({
         path: canOpenDraft ? `${base}/${encodeURIComponent(sandboxId)}/assistant/turn` : `${base}/assistant/turn`, method: 'POST', body: { question: requestText },
       });
       if (result.status !== 'success' || !result.answer?.trim()) throw new Error('The assistant could not finish this answer.');
-      const reply: Message = { id: nextMessageId.current++, role: 'assistant', text: result.answer, source: result.model ? `Model: ${result.model}` : result.path === 'code' ? 'Answered from your books' : undefined };
+      const reply: Message = { id: nextMessageId.current++, role: 'assistant', text: result.answer, source: answerSource(result) };
       setMessages(previous => [...previous, reply]);
       setQuestion('');
     } catch (err) {
@@ -137,7 +138,7 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
   };
   return <section data-assistant-exclude className={preservePage ? 'mx-auto w-full max-w-4xl space-y-3 p-3' : 'mx-auto w-full max-w-4xl space-y-5 p-4 md:p-8'} aria-labelledby={`${id}-title`}>
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 id={`${id}-title`} className={preservePage ? 'sr-only' : 'flex items-center gap-2 text-2xl font-bold text-[var(--text)]'}><Sparkles aria-hidden="true" /> AI assistant</h1>
+      <div><h1 id={`${id}-title`} className={preservePage ? 'sr-only' : 'flex items-center gap-2 text-2xl font-bold text-[var(--text)]'}><Sparkles aria-hidden="true" /> {ASSISTANT_TITLE}</h1>
         <p className={`${preservePage ? '' : 'mt-2 '}text-sm text-[var(--muted)]`}>{canOpenDraft ? 'Ask about your books or request a draft. Review drafts before they change your books. Employee records and payroll drafts are unavailable to the assistant; other record details and reports are limited.' : 'Ask about the live books. Viewers cannot create drafts or change the books. Employee records are unavailable; other record details are limited.'}</p></div>
       {canOpenDraft && (preservePage ? <a href="#sandbox-review" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts (new tab)</a> : <button type="button" onClick={openReview} className="min-h-11 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold">Assistant drafts</button>)}
     </div>
@@ -157,11 +158,9 @@ function AssistantChat({ workspaceId, preservePage, canOpenDraft }: { workspaceI
       {sandboxes.length >= 3 && <p className="text-sm text-[var(--muted)]">You have three open drafts. Review or close one before opening another.</p>}
     </div>)}
     <div aria-live="polite" aria-relevant="additions" className="space-y-3">
-      {messages.map(message => <div key={message.id} className={`rounded-xl border border-[var(--line)] p-4 ${message.role === 'user' ? 'ms-auto bg-[var(--elevated)]' : 'bg-[var(--surface)]'} max-w-full`}>
-        <p className="mb-2 text-xs font-semibold text-[var(--muted)]">{message.role === 'user' ? 'You' : 'Assistant'}{message.source ? ` · ${message.source}` : ''}</p>
-        {message.role === 'assistant' ? <div className="prose prose-sm max-w-none text-[var(--text)]"><Markdown>{message.text}</Markdown>{message.page && <a href={`${window.location.pathname}#${message.page}`} target="_blank" rel="noopener noreferrer">Open {message.page} in a new tab</a>}</div> : <p className="whitespace-pre-wrap break-words">{message.text}</p>}
-      </div>)}
-      {busy && <p role="status" className="text-sm text-[var(--muted)]">Working…</p>}
+      {messages.length === 0 && !busy && <AssistantWelcome canDraft={canOpenDraft} onPick={example => { setQuestion(example); document.getElementById(`${id}-question`)?.focus(); }} />}
+      {messages.map(message => <AssistantMessage key={message.id} message={message} />)}
+      {busy && <AssistantThinking />}
     </div>
     <form onSubmit={event => void ask(event)} className="space-y-2">
       <label htmlFor={`${id}-question`} className="text-sm font-semibold">Your question</label>
