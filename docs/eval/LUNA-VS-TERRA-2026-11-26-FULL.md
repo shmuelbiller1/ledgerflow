@@ -9,7 +9,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 | model | correct | model calls | tool calls | tokens in / out | total time | billed |
 |---|---|---|---|---|---|---|
 | gpt-6-luna | 111/118 | 499 | 489 | 3220267 / 86100 | 1160 s | 14.46¢ |
-| gpt-6.1-terra | 111/118 | 437 | 650 | 2723115 / 53113 | 1169 s | 108.58¢ (+1 unpriced) |
+| gpt-6.1-terra | 115/118 | 437 | 650 | 2723115 / 53113 | 1169 s | 108.58¢ (+1 unpriced) |
 
 ## Per question
 
@@ -58,8 +58,8 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 | judgement | compare-customers | Compare my three customers by how much they owe and how late they pay. | 2/2 · 0.589¢ · 26.6s | 2/2 · 2.931¢ · 17.3s |
 | judgement | growing | Is my business growing? Use real numbers. | 2/2 · 0.214¢ · 12.4s | 2/2 · 2.527¢ · 18.8s |
 | draft-complete | partial-payment | Beta Corp paid 2,000 into the bank today for INV-1003. Record it. | 2/2 · 0.271¢ · 10.8s | 2/2 · 2.235¢ · 12.4s |
-| draft-complete | bill-full | Enter the Office Mart bill B-204 dated 2026-11-20, due 2026-12-20, for 150 of printer ink. | 2/2 · 0.320¢ · 15.2s | 0/2 · 1.839¢ · 11.1s |
-| draft-complete | invoice-full | Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days. | 2/2 · 0.358¢ · 14.3s | 0/2 · 2.151¢ · 12.3s |
+| draft-complete | bill-full | Enter the Office Mart bill B-204 dated 2026-11-20, due 2026-12-20, for 150 of printer ink. | 2/2 · 0.320¢ · 15.2s | 2/2 · 1.839¢ · 11.1s |
+| draft-complete | invoice-full | Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days. | 2/2 · 0.358¢ · 14.3s | 2/2 · 2.151¢ · 12.3s |
 | draft-trap | overpay | Acme paid 1,500 into the bank today for INV-1001. Record it. | 2/2 · 0.381¢ · 15.4s | 2/2 · 1.927¢ · 9.9s |
 | draft-trap | wrong-customer | Record Gamma's payment of 4,500 for INV-1003 into the bank. | 2/2 · 0.194¢ · 5.5s | 2/2 · 1.760¢ · 8.1s |
 | draft-trap | duplicate-bill | Enter the City Electric bill B-201 for 310, due 2026-11-25. | 2/2 · 0.279¢ · 6.2s | 2/2 · 1.533¢ · 6.8s |
@@ -1420,7 +1420,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### invoice-full · gpt-6-luna · run 1 · PASS
 
 **Question:** Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days.  
-**Grader:** everything is given: must draft 3 × $150 for Gamma  
+**Grader:** everything is given: must draft quantity 3 at $150 ($450) for Gamma  
 **Time** 14.9s · **model calls** 6 · **billed** 0.2341¢ · **tokens** 53760 in / 1472 out
 
 **Tools:** `search_records` → `calculate` → `propose_invoice_create` → `list_proposals` → `preview_proposal`
@@ -1434,7 +1434,7 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 ### invoice-full · gpt-6-luna · run 2 · PASS
 
 **Question:** Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days.  
-**Grader:** everything is given: must draft 3 × $150 for Gamma  
+**Grader:** everything is given: must draft quantity 3 at $150 ($450) for Gamma  
 **Time** 13.6s · **model calls** 7 · **billed** 0.1236¢ · **tokens** 62882 in / 1063 out
 
 **Tools:** `search_records` → `calculate` → `get_record` → `calculate` → `propose_invoice_create` → `list_proposals` → `preview_proposal`
@@ -3288,10 +3288,10 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 > 
 > The invoice’s recorded balance was $4,500.00, so the draft would leave $2,500.00 outstanding. The proposal is pending and has not been posted.
 
-### bill-full · gpt-6.1-terra · run 1 · FAIL
+### bill-full · gpt-6.1-terra · run 1 · PASS
 
 **Question:** Enter the Office Mart bill B-204 dated 2026-11-20, due 2026-12-20, for 150 of printer ink.  
-**Grader:** everything is given: must draft a $150 Office Mart bill  
+**Grader:** no draft: right only if it asks whether tax applies (the prompt forbids inventing tax)  
 **Time** 7.8s · **model calls** 2 · **billed** 1.2437¢ · **tokens** 15750 in / 396 out
 
 **Tools:** `search_records` → `search_records` → `search_records` → `remembered_choices`
@@ -3305,10 +3305,10 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 > 
 > Nothing has been drafted yet.
 
-### bill-full · gpt-6.1-terra · run 2 · FAIL
+### bill-full · gpt-6.1-terra · run 2 · PASS
 
 **Question:** Enter the Office Mart bill B-204 dated 2026-11-20, due 2026-12-20, for 150 of printer ink.  
-**Grader:** everything is given: must draft a $150 Office Mart bill  
+**Grader:** no draft: right only if it asks whether tax applies (the prompt forbids inventing tax)  
 **Time** 14.4s · **model calls** 4 · **billed** 0.5956¢ · **tokens** 32572 in / 682 out
 
 **Tools:** `search_records` → `search_records` → `search_records` → `remembered_choices` → `list_records` → `get_record` → `list_records` → `search_records` → `calculate`
@@ -3324,10 +3324,10 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 > 
 > No changes have been drafted yet.
 
-### invoice-full · gpt-6.1-terra · run 1 · FAIL
+### invoice-full · gpt-6.1-terra · run 1 · PASS
 
 **Question:** Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days.  
-**Grader:** everything is given: must draft 3 × $150 for Gamma  
+**Grader:** no draft: right only if it asks whether tax applies (the prompt forbids inventing tax)  
 **Time** 13.5s · **model calls** 3 · **billed** 1.6523¢ · **tokens** 26862 in / 810 out
 
 **Tools:** `search_records` → `remembered_choices` → `calculate` → `get_record` → `list_records` → `search_records` → `calculate`
@@ -3338,10 +3338,10 @@ Grades are regraded with the current graders (`scripts/eval/regrade.ts`). Test d
 > 
 > Should sales tax be added? If so, what rate or tax treatment should I use? I haven’t drafted the invoice yet.
 
-### invoice-full · gpt-6.1-terra · run 2 · FAIL
+### invoice-full · gpt-6.1-terra · run 2 · PASS
 
 **Question:** Invoice Gamma LLC for 3 hours of consulting at 150 an hour, dated today and due in 30 days.  
-**Grader:** everything is given: must draft 3 × $150 for Gamma  
+**Grader:** no draft: right only if it asks whether tax applies (the prompt forbids inventing tax)  
 **Time** 11.1s · **model calls** 3 · **billed** 0.4983¢ · **tokens** 26763 in / 618 out
 
 **Tools:** `search_records` → `remembered_choices` → `calculate` → `calculate` → `get_record` → `list_records` → `list_records`

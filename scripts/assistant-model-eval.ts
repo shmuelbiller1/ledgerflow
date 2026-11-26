@@ -310,11 +310,14 @@ async function main() {
   }
   // what each model is good at: the share right per kind of question (cases.ts `cat`)
   const byCat = new Map<string, Map<string, { right: number; of: number }>>();
-  for (const e of log as Array<{ configuration: string; category: string; pass: boolean }>) {
+  // one column per model and prompt, as in the main table, so prompt variants are never pooled
+  const columnOf = (configuration: string, prompt: string) => prompts.length > 1 ? `${configuration} (${prompt})` : configuration;
+  for (const e of log as Array<{ configuration: string; prompt: string; category: string; pass: boolean }>) {
     const row = byCat.get(e.category) ?? new Map(); byCat.set(e.category, row);
-    const cell = row.get(e.configuration) ?? { right: 0, of: 0 }; cell.of++; if (e.pass) cell.right++; row.set(e.configuration, cell);
+    const key = columnOf(e.configuration, e.prompt);
+    const cell = row.get(key) ?? { right: 0, of: 0 }; cell.of++; if (e.pass) cell.right++; row.set(key, cell);
   }
-  const configs = runs.map(r => r.name);
+  const configs = runs.map(r => columnOf(r.name, r.prompt.name));
   say(); say('### By kind of question'); say();
   say(`| kind | ${configs.join(' | ')} |`); say(`|---|${configs.map(() => '---').join('|')}|`);
   for (const [cat, row] of byCat) say(`| ${cat} | ${configs.map(n => { const c = row.get(n); return c ? `${c.right}/${c.of} (${Math.round(c.right * 100 / c.of)}%)` : '—'; }).join(' | ')} |`);
