@@ -34,6 +34,6 @@ test('the workspace currency decides when the amount names none', () => {
 
 test('numbers that are not amounts are left alone (Codex review on #1055)', () => {
   for (const text of ['$1,250.00 owed', 'rate 3.6512', 'VAT 17.5%', 'on 2026.11.27', 'version 1.2.34567.8', 'INV-1.123456',
-    'Invoice 2026.123456 is open', 'id a1.123456', 'ratio 0.3333333 of revenue', 'pi 3.1415', 'Revenue: $0.00123456 million', 'about $1.234567k', 'VAT 17.123456%', 'VAT 17.123456 applies', '1.234567 VAT', 'USD 17.123456%'])
+    'Invoice 2026.123456 is open', 'id a1.123456', 'ratio 0.3333333 of revenue', 'pi 3.1415', 'Revenue: $0.00123456 million', 'about $1.234567k', 'VAT 17.123456%', 'VAT 17.123456 applies', '1.234567 VAT', 'USD 17.123456%', 'Revenue: 0.00123456 USD million', '$0.00123456 USD million', '1 USD = 0.923456 EUR', 'at a rate of 3.651234 ILS', 'EUR 0.923456 per USD', '@ 3.651234 ILS'])
     assert.equal(tidyFigures(text, 'USD'), text);
 });

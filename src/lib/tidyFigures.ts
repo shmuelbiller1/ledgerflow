@@ -5,8 +5,8 @@ import { getIsoCurrency } from './isoCurrencyReference';
  * Rounds float noise out of the amounts in a model's answer before it is shown: "$42,454.545454545456"
  * becomes "$42,454.55" (27 Nov 2026 model test: the sum was right, the display was not).
  * Only an amount is touched, meaning a number written next to a currency sign or code ("$", "€", "₪", "USD",
- * "KWD", "ש"ח"), and only when it has five or more decimals. Invoice numbers, rates and percentages are never
- * next to a currency mark in that way, so they stay as written. The amount is rounded to its currency's
+ * "KWD", "ש"ח"), and only when it has five or more decimals. Invoice numbers, percentages, scaled
+ * amounts ("$1.2345678 million") and exchange rates stay as written. The amount is rounded to its currency's
  * minor units: the code written next to it, else the workspace currency, else two. Thousands separators
  * are kept as written.
  */
@@ -17,6 +17,16 @@ const NUMBER = String.raw`(\d{1,3}(?:,\d{3})+|\d+)\.(\d{5,})`;
 // a sign may touch the number ("$-12.5"); a code is followed by one space ("KWD 7.125"), so "INV-1.5" is no amount
 // not before a scale word ("$0.00123456 million" is $1,234.56: rounding it would make it zero) or a percent sign
 const NOT_AFTER = String.raw`(?!\w|\.\d|\s?%|\s?(?:k|K|m|M|bn|thousand|million|billion)\b)`;
+// Read around the whole currency-and-number expression, not just the next character: a scale word or a
+// percent sign after it ("0.00123456 USD million", "$0.0012345 USD million") means the digits are not minor
+// units, and "=", "@", "rate" or "per" around it mean an exchange rate ("1 USD = 0.923456 EUR"), whose precision
+// is its own. Either way the number is left as written.
+const SCALED_AFTER = /^\s?(?:[A-Z]{3}\s?)?(?:%|(?:k|K|m|M|bn|thousand|million|billion)\b|per\b|\/)/;
+const RATE_BEFORE = /(?:=|@|\brate\b[^.\n]*|\bper\b)\s*$/i;
+/** The number between `start` and `end` is an exchange rate, not an amount ("1 USD = 0.92 EUR", "EUR 0.92 per USD"). */
+export const isRateContext = (all: string, start: number, end: number) =>
+  RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:per\b|\/)/.test(all.slice(end, end + 12));
+const leaveAlone = (all: string, start: number, end: number) => SCALED_AFTER.test(all.slice(end, end + 16)) || isRateContext(all, start, end);
 const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}${NOT_AFTER}`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
 
@@ -46,11 +56,12 @@ export function tidyFigures(text: string, workspaceCurrency?: string | null): st
   return text
     .replace(BEFORE, (match: string, sign: string | undefined, code: string | undefined, whole: string, decimals: string, offset: number, all: string) => {
       // three capitals are a currency only when ISO 4217 lists them ("VAT 17.123456" is not an amount)
-      if (code && !getIsoCurrency(code)) return match;
+      if ((code && !getIsoCurrency(code)) || leaveAlone(all, offset, offset + match.length)) return match;
       // "¥123.456 CNY": a code written after the amount names its currency
       const after = /^ ?([A-Z]{3})\b/.exec(all.slice(offset + match.length))?.[1];
       return match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(sign ?? code ?? '', code ?? after, workspaceCurrency)));
     })
-    .replace(AFTER, (match: string, whole: string, decimals: string, mark: string) => /^[A-Z]{3}$/.test(mark) && !getIsoCurrency(mark) ? match :
+    .replace(AFTER, (match: string, whole: string, decimals: string, mark: string, offset: number, all: string) =>
+      (/^[A-Z]{3}$/.test(mark) && !getIsoCurrency(mark)) || leaveAlone(all, offset, offset + match.length) ? match :
       match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(mark, undefined, workspaceCurrency))));
 }
