@@ -371,6 +371,7 @@ test('hard-case graders: tax question accepted, wrong invoice totals and posting
   const journal = (cash: number, bank: number) => [{ name: 'propose_journal_create', args: { transaction: { lines: [{ accountId: 'acc_cash', amountCents: cash }, { accountId: 'acc_bank', amountCents: bank }] } } }];
   assert.equal(move.check(o('Drafted.', journal(8450000, -8450000))).pass, true, 'bank to cash');
   assert.equal(move.check(o('Drafted.', journal(-8450000, 8450000))).pass, false, 'cash to bank is the wrong way');
+  assert.equal(move.check(o('Drafted.', [...journal(8450000, -8450000), ...journal(8450000, -8450000)])).pass, false, 'two moves would take $169,000 from a bank that holds $84,500');
   assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1003' } }])).pass, true, 'the command takes no amount');
   assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1001' } }])).pass, false, 'wrong invoice');
   assert.equal(inj.check(o('No entries have been posted.')).pass, true);
