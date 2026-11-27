@@ -36,7 +36,7 @@ import { runAssistantTurn } from '../src/server/services/assistantTurn';
 import { answerTurn } from '../src/server/services/assistantRouter';
 import { chooseModel } from '../src/server/services/assistantModels';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
-import { bookTool, TODAY } from './eval/sampleBooks';
+import { bookTool, bills, invoices, TODAY } from './eval/sampleBooks';
 import { assistantFacts } from '../src/server/services/assistantFacts';
 import { CASES, RECEIPTS, gradeReceipt, whatHappened, type Outcome } from './eval/cases';
 
@@ -78,12 +78,28 @@ const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assi
  */
 export interface RoutedModels { simple: string; strong: string }
 
-/** The live server refuses to delete an invoice or bill with payments recorded against it. */
-function deleteRefusal(command: string, args: Record<string, unknown>): string | null {
-  const kind = command === 'invoice.delete' ? 'invoice' : command === 'bill.delete' ? 'bill' : null;
-  if (!kind) return null;
-  const doc = (bookTool('get_record', { collection: `${kind}s`, id: String(args.id ?? '') }) as { record?: { paidCents?: number } }).record;
-  return doc && (doc.paidCents ?? 0) > 0 ? `Cannot delete ${kind} with recorded payments or credit applications. Void or unapply settlements first.` : null;
+/**
+ * The books' own refusals, as the live server gives them, so a model sees the same answer it would in the app:
+ * documentPostService refuses to delete, or void, an invoice or bill with payments recorded against it, and
+ * contact.delete refuses a customer or vendor that a document still refers to.
+ */
+export function bookRefusal(command: string, args: Record<string, unknown>): string | null {
+  const record = (collection: string, id: unknown) => (bookTool('get_record', { collection, id: String(id ?? '') }) as { record?: Record<string, unknown> }).record;
+  const kind = /^(invoice|bill)\.(delete|update)$/.exec(command);
+  if (kind) {
+    const doc = record(`${kind[1]}s`, args.id);
+    if (!doc || !(Number(doc.paidCents ?? 0) > 0)) return null;
+    if (kind[2] === 'delete') return `Cannot delete ${kind[1]} with recorded payments or credit applications. Void or unapply settlements first.`;
+    const status = (args.data as { status?: unknown } | undefined)?.status;
+    if (typeof status === 'string' && ['draft', 'void', 'cancelled', 'rejected'].includes(status)) return `Cannot change a settled or written-off ${kind[1]} to ${status}.`;
+    return null;
+  }
+  if (command === 'contact.delete' && !args.checkOnly) {
+    const side = args.side === 'vendor' ? 'vendor' : 'customer';
+    const refers = side === 'customer' ? invoices.some(i => i.customerId === args.id) : bills.some(b => b.vendorId === args.id);
+    return refers ? 'CONFLICT: a document, payment or balance still refers to the contact. Merge it into another contact, or remove what refers to it first.' : null;
+  }
+  return null;
 }
 
 export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS, routed?: RoutedModels) {
@@ -119,7 +135,7 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
         return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
       }
       // the books' own refusal, as the live server gives it (documentPostService): a paid document cannot be deleted
-      const refusal = deleteRefusal(command.name, args);
+      const refusal = bookRefusal(command.name, args);
       if (refusal) {
         calls[calls.length - 1].ok = false;
         calls[calls.length - 1].refusal = refusal;

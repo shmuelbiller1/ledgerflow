@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { CASES, type Outcome, RECEIPTS, gradeReceipt, mentions, recommended, whatHappened } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
-import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
+import { bookRefusal, meteredFetch, runCase } from '../../scripts/assistant-model-eval';
 import { stepCommand } from '../server/commands/sandboxStepCommands';
 
 const byId = (id: string) => CASES.find(c => c.id === id)!;
@@ -396,4 +396,14 @@ test('hard-case graders: tax question accepted, wrong invoice totals and posting
   const billDraft = (args: Record<string, unknown>) => [{ name: 'propose_bill_create', args }];
   assert.equal(bill.check(o('Done.', billDraft({ bill: { vendorId: 'ven_office', amountCents: 15000, splits: [{ amountCents: 15000 }] } }))).pass, true);
   assert.equal(bill.check(o('Done.', billDraft({ bill: { vendorId: 'ven_office', amountCents: 150000, splits: [{ amountCents: 15000 }] } }))).pass, false, '$1,500 is wrong');
+});
+
+test('the test books refuse what the live server refuses: deleting or voiding a paid document, deleting a contact in use', () => {
+  assert.match(bookRefusal('invoice.delete', { id: 'inv_1002' }) ?? '', /recorded payments/);
+  assert.match(bookRefusal('invoice.update', { id: 'inv_1002', data: { status: 'void' } }) ?? '', /settled/);
+  assert.equal(bookRefusal('invoice.update', { id: 'inv_1001', data: { status: 'void' } }), null, 'an unpaid invoice may be voided');
+  assert.equal(bookRefusal('invoice.update', { id: 'inv_1002', data: { notes: 'x' } }), null);
+  assert.match(bookRefusal('contact.delete', { side: 'customer', id: 'cus_acme' }) ?? '', /CONFLICT/);
+  assert.equal(bookRefusal('contact.delete', { side: 'customer', id: 'cus_acme', checkOnly: true }), null, 'the check itself is allowed');
+  assert.equal(bookRefusal('contact.merge', { side: 'customer', keepId: 'cus_acme', mergeId: 'cus_beta' }), null, 'the live server does not block a merge');
 });
