@@ -251,7 +251,20 @@ const pct = (n: number, d: number) => (n * 100) / d;
 /** The answer states the percentage, to the nearest whole number or one decimal ("9.9%", "10%"). */
 const mentionsPct = (answer: string, value: number) =>
   // any percentage within 0.06 of the value, however many decimals it shows ("62.4%", "62.37595690388432%")
-  [...answer.matchAll(/(\d+(?:\.\d+)?)\s?%/g)].some(m => Math.abs(Number(m[1]) - value) <= 0.06 || Math.round(Number(m[1])) === Math.round(value) && !m[1].includes('.'));
+  percentages(answer).some(n => Math.abs(Number(n) - value) <= 0.06 || Math.round(Number(n)) === Math.round(value) && !n.includes('.'));
+/** Every number written just before a "%" sign, read backwards from each sign (no pattern that can backtrack). */
+function percentages(answer: string): string[] {
+  const out: string[] = [];
+  for (let at = answer.indexOf('%'); at >= 0; at = answer.indexOf('%', at + 1)) {
+    let end = at;
+    if (end > 0 && answer[end - 1] === ' ') end--;
+    let start = end;
+    while (start > 0 && /[\d.]/.test(answer[start - 1])) start--;
+    const n = answer.slice(start, end).replace(/^\.+|\.+$/g, '');
+    if (/^\d+(\.\d+)?$/.test(n)) out.push(n);
+  }
+  return out;
+}
 const q3 = profitAndLoss('2026-07', '2026-09');
 const h1 = profitAndLoss('2026-01', '2026-06');
 const consultYear = Object.values(year.revenue).length ? (year.revenue as Record<string, number>)['Consulting income'] : 0;
