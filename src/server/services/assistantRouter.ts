@@ -9,6 +9,7 @@
  * - a code route is taken only on an exact pattern, and the tool's own answer must be complete (e.g.
  *   `ask_books` placed every word and returned a figure); otherwise the turn falls back to the model.
  */
+import { tidyFigures } from '../../lib/tidyFigures';
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { formatMoney } from '../../lib/moneyFormat';
 import { answerCents } from '../../lib/askBooks';
@@ -238,6 +239,11 @@ export interface ModelRule { choose: (routerReason: string) => ModelChoice; stro
  * metric. No retry once the simple model has drafted a step (it would draft it twice). Without a rule, `input.model` answers, as before.
  */
 async function modelTurn(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+  const turn = await modelTurnRaw(input, routerReason, rule);
+  return { ...turn, answer: tidyFigures(turn.answer) };
+}
+
+async function modelTurnRaw(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   if (!rule) return runAssistantTurn(input);
   const choice = rule.choose(routerReason);
   const first = await runAssistantTurn({ ...input, model: choice.model });
