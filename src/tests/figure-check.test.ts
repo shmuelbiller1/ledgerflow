@@ -39,6 +39,16 @@ test('declared currencies, price rates and question identifiers are not loophole
   assert.deepEqual(checkFigures('Paying Beta $850.', [{ x: 1 }], 'pay Beta 850', 'USD').untraced, []);
 });
 
+test('sub-unit amounts are checked, and totals never mix currencies (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Balance: $0.99.', [{ balanceCents: 10 }], 'What is the balance?', 'USD').untraced, ['$0.99']);
+  assert.deepEqual(checkFigures('Balance: $0.10.', [{ balanceCents: 10 }], 'What is the balance?', 'USD').untraced, []);
+  const rows = [{ rows: [{ currency: 'KWD', balanceCents: 7125 }, { currency: 'USD', balanceCents: 1000 }] }];
+  assert.deepEqual(checkFigures('Total KWD 8.125.', rows, 'total?', 'USD').untraced, ['KWD 8.125']);
+  assert.deepEqual(checkFigures('Together 17.125 KWD.', rows, 'total?', 'USD').untraced, ['17.125 KWD'], 'no sums across currencies');
+  const same = [{ rows: [{ currency: 'USD', balanceCents: 1000 }, { currency: 'USD', balanceCents: 2500 }] }];
+  assert.deepEqual(checkFigures('Total $35.', same, 'total?', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

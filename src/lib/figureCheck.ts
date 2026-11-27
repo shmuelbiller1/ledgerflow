@@ -38,7 +38,8 @@ export function answerAmounts(text: string): Array<{ text: string; value: number
       found.set(index, { text: m[0].trim(), value: parse(number, scale), approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }
   }
-  return [...found.entries()].sort((x, y) => x[0] - y[0]).map(([, a]) => a).filter(a => Number.isFinite(a.value) && Math.abs(a.value) >= 1);
+  // every nonzero amount, sub-unit ones too ($0.99 is checked like $99)
+  return [...found.entries()].sort((x, y) => x[0] - y[0]).map(([, a]) => a).filter(a => Number.isFinite(a.value) && a.value !== 0);
 }
 
 const MAX_LEAVES = 400;
@@ -53,42 +54,50 @@ const digitsOf = (code: unknown): number | undefined => {
 /** Every number in the tool results, plus the totals and averages of each numeric list field. A record's own
  * `currency` decides how its minor units convert (a KWD row in a USD workspace has three decimals). */
 function sourceNumbers(results: readonly unknown[], digits: number): number[] {
-  const leaves: Array<[number, number, boolean]> = [];
-  const lists = new Map<string, Array<[number, number, boolean]>>();
-  const walk = (value: unknown, key: string, depth: number, d: number) => {
+  type Leaf = { n: number; d: number; minor: boolean; cur: string };
+  const leaves: Leaf[] = [];
+  const lists = new Map<string, Leaf[]>();
+  // `cur` is the record's declared currency ('' when none): totals, averages, sums and differences never mix currencies
+  const walk = (value: unknown, key: string, depth: number, d: number, cur = '') => {
     if (depth > 8) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
       // a field named in minor units ("balanceCents", "amountMinor") is only ever cents: $577,700 is not 577700 cents
-      const minor = MINOR_FIELD.test(key);
-      leaves.push([value, d, minor]);
-      const list = lists.get(key) ?? [];
-      list.push([value, d, minor]);
-      lists.set(key, list);
-    } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d);
-    else if (Array.isArray(value)) value.forEach(item => walk(item, `${key}[]`, depth + 1, d));
+      const leaf = { n: value, d, minor: MINOR_FIELD.test(key), cur };
+      leaves.push(leaf);
+      const listKey = `${key}@${cur}`;
+      lists.set(listKey, [...(lists.get(listKey) ?? []), leaf]);
+    } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d, cur);
+    else if (Array.isArray(value)) value.forEach(item => walk(item, `${key}[]`, depth + 1, d, cur));
     else if (value && typeof value === 'object') {
-      const own = digitsOf((value as Record<string, unknown>).currency) ?? d;
-      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}`, depth + 1, own);
+      const declared = (value as Record<string, unknown>).currency;
+      const ownDigits = digitsOf(declared);
+      const ownCur = ownDigits === undefined ? cur : String(declared).toUpperCase();
+      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}`, depth + 1, ownDigits ?? d, ownCur);
     }
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));
-  const out = new Set<number>();
-  const add = (n: number, d: number, minor: boolean) => {
-    if (!minor) out.add(n);
+  const groups = new Map<string, Set<number>>();
+  const add = (n: number, { d, minor, cur }: Leaf) => {
+    const group = groups.get(cur) ?? new Set<number>();
+    groups.set(cur, group);
+    if (!minor) group.add(n);
     // a record that declares its currency converts with that currency's digits only (KWD 71.25 is not 7125 fils)
-    out.add(n / 10 ** d);
+    group.add(n / 10 ** d);
   };
-  leaves.forEach(([n, d, minor]) => add(n, d, minor));
+  leaves.forEach(leaf => add(leaf.n, leaf));
   for (const list of lists.values()) {
     if (list.length < 2) continue;
-    const sum = list.reduce((s, [n]) => s + n, 0);
-    const [, d, minor] = list[0];
-    add(sum, d, minor);
-    add(sum / list.length, d, minor);
+    const sum = list.reduce((s, leaf) => s + leaf.n, 0);
+    add(sum, list[0]);
+    add(sum / list.length, list[0]);
   }
-  const base = [...out].filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
-  for (let i = 0; i < base.length; i++)
-    for (let j = i + 1; j < base.length; j++) { out.add(base[i] + base[j]); out.add(Math.abs(base[i] - base[j])); }
+  const out = new Set<number>();
+  for (const group of groups.values()) {
+    const base = [...group].filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
+    for (let i = 0; i < base.length; i++)
+      for (let j = i + 1; j < base.length; j++) { group.add(base[i] + base[j]); group.add(Math.abs(base[i] - base[j])); }
+    group.forEach(n => out.add(n));
+  }
   return [...out];
 }
 
