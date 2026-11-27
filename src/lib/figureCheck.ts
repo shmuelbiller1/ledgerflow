@@ -45,7 +45,9 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
       if (spans.some(([a, b]) => index < b && end > a)) continue;
       const [sign, written, number, scale] = parts(m);
       // a code written after a signed amount names its currency ("$10 CAD" is Canadian dollars)
-      const code = written ?? (sign ? /^ ?([A-Z]{3})\b/.exec(text.slice(end))?.[1] : undefined);
+      // (only a real ISO code: "$85,000 VAT included" stays a dollar amount)
+      const trailing = sign ? /^ ?([A-Z]{3})\b/.exec(text.slice(end))?.[1] : undefined;
+      const code = written ?? (trailing && getIsoCurrency(trailing) ? trailing : undefined);
       // an exchange rate is not an amount of the books
       if (found.has(index) || (code && !getIsoCurrency(code)) || isRateContext(text, index, index + m[0].length)) continue;
       const before = text.slice(Math.max(0, index - 12), index).toLowerCase();
@@ -112,7 +114,7 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
   const out = new Map<string, number[]>();
   for (const [cur, values] of groups) {
     const group = new Set(values);
-    const base = values.filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
+    const base = values.filter(n => n !== 0).slice(0, MAX_LEAVES);
     for (let i = 0; i < base.length; i++)
       for (let j = i + 1; j < base.length; j++) { group.add(base[i] + base[j]); group.add(Math.abs(base[i] - base[j])); }
     out.set(cur, [...group]);

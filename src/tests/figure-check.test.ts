@@ -65,6 +65,11 @@ test('"$10 CAD" is one CAD amount; question amounts keep their currency; equal r
   assert.deepEqual(checkFigures('Together the two invoices total $200.', two, 'What is the combined total?', 'USD').untraced, []);
 });
 
+test('an acronym after a signed amount keeps the amount; sub-unit records add up (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Total: $85,000 VAT included.', [{ balanceCents: 577700 }], 'What is the total?', 'USD').untraced, ['$85,000']);
+  assert.deepEqual(checkFigures('Together the invoices total $0.70.', [{ currency: 'USD', totalAmountCents: 30 }, { currency: 'USD', totalAmountCents: 40 }], 'total?', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);
