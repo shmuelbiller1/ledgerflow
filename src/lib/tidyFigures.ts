@@ -21,12 +21,13 @@ const NOT_AFTER = String.raw`(?!\w|\.\d|\s?%|\s?(?:k|K|m|M|bn|thousand|million|b
 // percent sign after it ("0.00123456 USD million", "$0.0012345 USD million") means the digits are not minor
 // units, and "=", "@", "rate" or "per" around it mean an exchange rate ("1 USD = 0.923456 EUR"), whose precision
 // is its own. Either way the number is left as written.
-const SCALED_AFTER = /^\s?(?:[A-Z]{3}\s?)?(?:%|(?:k|K|m|M|bn|thousand|million|billion)\b|per\b|\/)/;
+const SCALED_AFTER = /^\s?(?:[A-Z]{3}\s?)?(?:%|(?:k|K|m|M|bn|thousand|million|billion)\b)/;
 // "=" or "@" is a conversion only after another currency's amount ("1 USD =", "€1 ="): "Total owed = $85,000" is a total
-const RATE_BEFORE = /(?:(?:\d[\d.,]*\s?[A-Z]{3}|[A-Z]{3}\s?\d[\d.,]*|[$€£₪¥]\s?\d[\d.,]*)\s*[=@]|\brate\b[^.\n]*|\bper\b)\s*$/i;
+// only a currency conversion counts: "the monthly rate is $85,000 per month" is an amount, and is rounded and checked
+const RATE_BEFORE = /(?:(?:\d[\d.,]*\s?[A-Z]{3}|[A-Z]{3}\s?\d[\d.,]*|[$€£₪¥]\s?\d[\d.,]*)\s*[=@]|\bexchange rate\b[^.\n]*)\s*$/i;
 /** The number between `start` and `end` is an exchange rate, not an amount ("1 USD = 0.92 EUR", "EUR 0.92 per USD"). */
 export const isRateContext = (all: string, start: number, end: number) =>
-  RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:per\b|\/|=)/.test(all.slice(end, end + 12));
+  RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:=|(?:per\b|\/)\s?(?:[A-Z]{3}\b|[$€£₪¥]|ש))/.test(all.slice(end, end + 16));
 const leaveAlone = (all: string, start: number, end: number) => SCALED_AFTER.test(all.slice(end, end + 16)) || isRateContext(all, start, end);
 const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}${NOT_AFTER}`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
