@@ -66,6 +66,10 @@ const MAX_LEAVES = 400;
 // the aging report's buckets as the route returns them (reportRoutes `/aging`), and the internal names
 const AGING_SHAPES = [['current', '1-30', '31-60', '61-90', '90+', 'total'], ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus', 'total']];
 const MAJOR_FIELD = /Major(\[\])*$/;
+// report totals the server computes in minor units (computeReports: P&L, balance sheet, aging) though their names do not say so
+const REPORT_MINOR_FIELD = /\.(total|subtotal|balance|grossProfit|netIncome|netProfit|debit|credit|opening|closing|assets|liabilities|equity)(\[\])*$/;
+// lists of financial results, whose emptiness means "none" (not tags or contacts)
+const RESULT_LIST = /\.(rows|items|results|records|lines|entries|invoices|bills|payments|transactions|documents|matches|data)(\[\])*$/i;
 const MINOR_FIELD = /(cents|minor)(\[\])*$/i;
 
 /** Every number in the tool results, plus the totals and averages of each numeric list field. */
@@ -86,7 +90,7 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
     if (depth > 8) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
       // a field named in minor units ("balanceCents", "amountMinor") is only ever cents: $577,700 is not 577700 cents
-      const leaf = { n: value, d, minor: MINOR_FIELD.test(key), major: MAJOR_FIELD.test(key), cur };
+      const leaf = { n: value, d, minor: MINOR_FIELD.test(key) || (Number.isInteger(value) && REPORT_MINOR_FIELD.test(key)), major: MAJOR_FIELD.test(key), cur };
       leaves.push(leaf);
       const listKey = `${key}@${cur}`;
       // appended in place: a 20,000-row report must not be copied row by row
@@ -95,7 +99,7 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
     } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d, cur);
     else if (Array.isArray(value)) {
       // an empty list is the books saying "none": it backs a zero
-      if (!value.length) leaves.push({ n: 0, d, minor: false, major: true, cur });
+      if (!value.length && RESULT_LIST.test(key)) leaves.push({ n: 0, d, minor: false, major: true, cur });
       value.forEach(item => walk(item, `${key}[]`, depth + 1, d, cur));
     }
     else if (value && typeof value === 'object') {
@@ -109,8 +113,12 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       // the aging report's buckets and total are minor units though their names do not say so
       const aging = AGING_SHAPES.some(keys => keys.every(k => typeof record[k] === 'number'));
       // the calculator's `amount` is already major units: it is not divided again ($1.20 is not 120)
-      const unit = (k: string) => (aging || (calculator && k === 'cents') ? 'Cents' : calculator ? 'Major' : '');
-      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}${unit(k)}`, depth + 1, ownDigits ?? d, ownCur);
+      // and its `cents` is the same figure again, so only `amount` is read (one operand, not two)
+      const unit = aging ? 'Cents' : calculator ? 'Major' : '';
+      for (const [k, v] of Object.entries(value)) {
+        if (calculator && k === 'cents') continue;
+        walk(v, `${key}.${k}${unit}`, depth + 1, ownDigits ?? d, ownCur);
+      }
     }
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));

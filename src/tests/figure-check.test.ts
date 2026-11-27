@@ -127,6 +127,14 @@ test('a stated zero is checked too (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('No open bills, so $0 to pay.', [{ rows: [] }], 'bills?', 'USD').untraced, []);
 });
 
+test('report totals are minor units; a calculation is one operand; only result lists back a zero (Codex review on #1056)', () => {
+  const pl = { income: { total: 577700, accounts: { a: { name: 'Sales', balance: 577700 } } }, grossProfit: 577700, netIncome: 400000 };
+  assert.deepEqual(checkFigures('Revenue is USD 577700.', [pl], 'revenue?', 'USD').untraced, ['USD 577700']);
+  assert.deepEqual(checkFigures('Revenue is USD 5,777 and net income USD 4,000.', [pl], 'revenue?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('The total is USD 240.', [{ expression: '100 * 1.2', cents: 12000, amount: 120 }], 'What is the total?', 'USD').untraced, ['USD 240']);
+  assert.deepEqual(checkFigures('The vendor balance is USD 0.', [{ balanceCents: 577700, tags: [] }], 'vendor balance?', 'USD').untraced, ['USD 0']);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);
