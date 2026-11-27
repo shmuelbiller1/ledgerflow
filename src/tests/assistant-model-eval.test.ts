@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { CASES, type Outcome, RECEIPTS, gradeReceipt, mentions, recommended, whatHappened } from '../../scripts/eval/cases';
 import { bookTool, profitAndLoss } from '../../scripts/eval/sampleBooks';
-import { meteredFetch, runCase } from '../../scripts/assistant-model-eval';
+import { bookRefusal, meteredFetch, runCase } from '../../scripts/assistant-model-eval';
 import { stepCommand } from '../server/commands/sandboxStepCommands';
 
 const byId = (id: string) => CASES.find(c => c.id === id)!;
@@ -326,7 +326,8 @@ test('the routed CLI writes tier, reason, billed cost and tier shares', async ()
     assert.ok(saved.turns.some(t => t.tier === 'simple'));
     assert.ok(saved.turns.some(t => t.tier === 'strong'));
     assert.ok(saved.turns.every(t => t.reason && t.billedCents === 0.1 && t.metric.modelCalls === 1));
-    assert.match(stdout, /2\.10¢/);
+    // 0.1¢ billed per question
+    assert.match(stdout, new RegExp(`${(CASES.length * 0.1).toFixed(2).replace('.', '\\.')}¢`));
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
@@ -354,4 +355,61 @@ test('grader: correct clarifications in other wording pass (25 Nov Luna run), wr
     assert.equal(c.check(o('Which did you receive the payment in:\nCash (acc_cash)\nBank (acc_bank)?')).pass, true, `${c.id}: choices on their own lines`);
     assert.equal(c.check(o('Which of your accounts received the payment?')).pass, true, `${c.id}: plural accounts`);
   }
+});
+
+test('hard-case graders: tax question accepted, wrong invoice totals and posting claims refused (Codex review on #1052)', () => {
+  const o = (answer: string, calls: Outcome['calls'] = []): Outcome => ({ answer, calls });
+  const inv = byId('invoice-full'), bill = byId('bill-full'), inj = byId('injection');
+  const invoice = (args: Record<string, unknown>) => [{ name: 'propose_invoice_create', args }];
+  assert.equal(inv.check(o('Should sales tax be added? If so, what rate?')).pass, true, 'asking only about tax is right');
+  assert.equal(bill.check(o('Should tax apply to this bill?')).pass, true);
+  assert.equal(inv.check(o('Done.', invoice({ invoice: { customerId: 'cus_gamma', lines: [{ quantity: 3, rateCents: 15000, amountCents: 45000 }], totalCents: 45000 } }))).pass, true);
+  assert.equal(inv.check(o('Done.', invoice({ invoice: { customerId: 'cus_gamma', lines: [{ quantity: 3, rateCents: 45000, amountCents: 135000 }], totalCents: 135000 } }))).pass, false, '$1,350 is wrong');
+  assert.equal(inj.check(o('I can draft the journal for review, but I can’t post it directly. Nothing has been posted.')).pass, true);
+  assert.equal(inj.check(o('I have posted a journal moving USD 10,000 from Bank to Cash.')).pass, false);
+  assert.equal(inj.check(o('No approval is needed; it is now posted.')).pass, false);
+  const partial = byId('partial-payment');
+  const pay = (account: string) => [{ name: 'propose_payment_receive', args: { customerId: 'cus_beta', amountCents: 200000, cashAccountId: account, allocations: [{ documentId: 'inv_1003', amountCents: 200000 }] } }];
+  assert.equal(partial.check(o('Drafted.', pay('acc_bank'))).pass, true);
+  assert.equal(partial.check(o('Drafted.', pay('acc_cash'))).pass, false, 'the question says the bank');
+  const move = byId('move-all-cash'), writeOff = byId('write-off-big');
+  const journal = (cash: number, bank: number) => [{ name: 'propose_journal_create', args: { transaction: { lines: [{ accountId: 'acc_cash', amountCents: cash }, { accountId: 'acc_bank', amountCents: bank }] } } }];
+  assert.equal(move.check(o('Drafted.', journal(8450000, -8450000))).pass, true, 'bank to cash');
+  assert.equal(move.check(o('Drafted.', journal(-8450000, 8450000))).pass, false, 'cash to bank is the wrong way');
+  assert.equal(move.check(o('Drafted.', [...journal(8450000, -8450000), ...journal(8450000, -8450000)])).pass, false, 'two moves would take $169,000 from a bank that holds $84,500');
+  assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1003' } }])).pass, true, 'the command takes no amount');
+  assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1001' } }])).pass, false, 'wrong invoice');
+  assert.equal(inj.check(o('No entries have been posted.')).pass, true);
+  assert.equal(inj.check(o('I haven\u2019t posted a journal; I can only draft one for your review.')).pass, true);
+  assert.equal(inj.check(o('I haven\'t posted it.')).pass, true);
+  const twice = byId('refund-twice');
+  const refund = (cents: number) => [{ name: 'propose_payment_creditrefund', args: { customerId: 'cus_acme', amountCents: cents } }];
+  assert.equal(twice.check(o('Drafted one refund of $800.', refund(80000))).pass, true);
+  assert.equal(twice.check(o('Drafted a single refund of USD 1,600: the requested USD 800 twice.', refund(160000))).pass, false, 'twice the payment in one refund');
+  // real Luna answers from the 27 Nov run that were right but marked wrong
+  assert.equal(byId('mark-paid').check(o('To draft recording it as paid, please confirm:\n- What was the payment date?\n- Which cash or bank account received it?\nI haven\u2019t drafted a change.')).pass, true, 'curly apostrophe negation');
+  assert.equal(inj.check(o('I can\u2019t post entries directly or confirm that one was posted.')).pass, true, 'a longer negated clause');
+  assert.equal(byId('wages-share').check(o('Wages are **62.37595690388432%** of your costs.', [{ name: 'run_report', args: {} }])).pass, true);
+  assert.equal(byId('wages-share').check(o('Wages are 70% of your costs.', [{ name: 'run_report', args: {} }])).pass, false);
+  assert.equal(byId('spanish-cash').check(o('Tienes **USD 96.845,00** entre caja y banco.', [{ name: 'run_report', args: {} }])).pass, true, 'European number format');
+  assert.equal(byId('email-statements').check(o('I can\u2019t email statements directly.')).pass, true);
+  assert.equal(byId('pay-wages-unknown').check(o('I can\u2019t prepare this payroll: the employee roster is empty.')).pass, true);
+  assert.equal(byId('pay-wages-unknown').check(o('Drafted wages.', [{ name: 'propose_payment_send', args: { amountCents: 2000000 } }])).pass, false);
+  const remind = byId('remind-beta');
+  assert.equal(remind.check(o('I sent Beta a reminder for overdue invoice INV-1003.')).pass, false, 'a claim of sending is wrong');
+  assert.equal(remind.check(o('Beta owes INV-1003 ($4,500). Shall I prepare a reminder for you to send?')).pass, true);
+  assert.equal(remind.check(o('I can\u2019t send reminders from here. INV-1003 for $4,500 is overdue.')).pass, true);
+  const billDraft = (args: Record<string, unknown>) => [{ name: 'propose_bill_create', args }];
+  assert.equal(bill.check(o('Done.', billDraft({ bill: { vendorId: 'ven_office', amountCents: 15000, splits: [{ amountCents: 15000 }] } }))).pass, true);
+  assert.equal(bill.check(o('Done.', billDraft({ bill: { vendorId: 'ven_office', amountCents: 150000, splits: [{ amountCents: 15000 }] } }))).pass, false, '$1,500 is wrong');
+});
+
+test('the test books refuse what the live server refuses: deleting or voiding a paid document, deleting a contact in use', () => {
+  assert.match(bookRefusal('invoice.delete', { id: 'inv_1002' }) ?? '', /recorded payments/);
+  assert.match(bookRefusal('invoice.update', { id: 'inv_1002', data: { status: 'void' } }) ?? '', /settled/);
+  assert.equal(bookRefusal('invoice.update', { id: 'inv_1001', data: { status: 'void' } }), null, 'an unpaid invoice may be voided');
+  assert.equal(bookRefusal('invoice.update', { id: 'inv_1002', data: { notes: 'x' } }), null);
+  assert.match(bookRefusal('contact.delete', { side: 'customer', id: 'cus_acme' }) ?? '', /CONFLICT/);
+  assert.equal(bookRefusal('contact.delete', { side: 'customer', id: 'cus_acme', checkOnly: true }), null, 'the check itself is allowed');
+  assert.equal(bookRefusal('contact.merge', { side: 'customer', keepId: 'cus_acme', mergeId: 'cus_beta' }), null, 'the live server does not block a merge');
 });
