@@ -31,6 +31,14 @@ test('a record in another currency converts with its own decimals; percentages a
   assert.deepEqual(checkFigures('Total owed = $85,000.', [{ balanceCents: 577700 }], 'How much do customers owe?', 'USD').untraced, ['$85,000'], 'a total after "=" is still checked');
 });
 
+test('declared currencies, price rates and question identifiers are not loopholes (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Beta owes KWD 71.25.', [{ rows: [{ currency: 'KWD', balanceCents: 7125 }] }], 'what does Beta owe?', 'USD').untraced, ['KWD 71.25']);
+  assert.deepEqual(checkFigures('The monthly rate is $85,000 per month.', [{ balanceCents: 577700 }], 'what do we pay?', 'USD').untraced, ['$85,000']);
+  assert.deepEqual(checkFigures('The outstanding balance on INV-85000 is $85,000.', [{ balanceCents: 577700 }], 'What is the outstanding balance on INV-85000?', 'USD').untraced, ['$85,000']);
+  assert.deepEqual(checkFigures('Spent $2,026 in 2026.', [{ x: 1 }], 'what did we spend in 2026?', 'USD').untraced, ['$2,026']);
+  assert.deepEqual(checkFigures('Paying Beta $850.', [{ x: 1 }], 'pay Beta 850', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

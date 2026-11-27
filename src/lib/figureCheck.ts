@@ -75,8 +75,8 @@ function sourceNumbers(results: readonly unknown[], digits: number): number[] {
   const out = new Set<number>();
   const add = (n: number, d: number, minor: boolean) => {
     if (!minor) out.add(n);
+    // a record that declares its currency converts with that currency's digits only (KWD 71.25 is not 7125 fils)
     out.add(n / 10 ** d);
-    if (d !== digits) out.add(n / 10 ** digits);
   };
   leaves.forEach(([n, d, minor]) => add(n, d, minor));
   for (const list of lists.values()) {
@@ -106,7 +106,9 @@ export function checkFigures(answer: string, toolResults: readonly unknown[], qu
   try { if (currency) digits = currencyDigits(currency); } catch { /* unknown code: cents */ }
   const sources = sourceNumbers(toolResults, digits);
   const asked = answerAmounts(question).map(a => a.value)
-    .concat([...question.matchAll(/\d[\d,]*(?:\.\d+)?/g)].map(m => Number(m[0].replace(/,/g, ''))));
+    // a bare number the person typed ("pay Beta 850"), but not digits inside an identifier ("INV-85000") or a year
+    .concat([...question.matchAll(/(?<![\w\-./#])\d[\d,]*(?:\.\d+)?(?![\w\-/])/g)]
+      .map(m => m[0]).filter(n => !/^(19|20)\d\d$/.test(n)).map(n => Number(n.replace(/,/g, ''))));
   const untraced = amounts.filter(a => !sources.some(s => close(a.value, s, a.approximate)) && !asked.some(q => close(a.value, q, a.approximate))).map(a => a.text);
   return { checked: amounts.length, untraced };
 }
