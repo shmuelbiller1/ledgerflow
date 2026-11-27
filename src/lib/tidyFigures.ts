@@ -10,13 +10,17 @@ import { currencyDigits } from './currencyMinorUnits';
  * are kept as written.
  */
 const SIGNS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '₪': 'ILS', '¥': 'JPY' };
+// signs more than one currency writes: the code next to the amount decides, then the workspace currency
+const SHARED_SIGNS: Record<string, readonly string[]> = { '¥': ['JPY', 'CNY'], $: ['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'MXN'] };
 const NUMBER = String.raw`(\d{1,3}(?:,\d{3})+|\d+)\.(\d{5,})`;
 // a sign may touch the number ("$-12.5"); a code is followed by one space ("KWD 7.125"), so "INV-1.5" is no amount
 const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}(?!\w|\.\d)`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
 
-function digitsFor(mark: string, fallback: string | null | undefined): number {
-  const code = SIGNS[mark] ?? (/^[A-Z]{3}$/.test(mark) ? mark : mark.startsWith('ש') ? 'ILS' : null);
+function digitsFor(mark: string, written: string | undefined, fallback: string | null | undefined): number {
+  const shared = SHARED_SIGNS[mark];
+  const fromSign = shared && fallback && shared.includes(fallback) ? fallback : SIGNS[mark];
+  const code = written ?? (/^[A-Z]{3}$/.test(mark) ? mark : mark.startsWith('ש') ? 'ILS' : fromSign);
   for (const c of [code, fallback]) {
     if (!c) continue;
     try { return currencyDigits(c); } catch { /* not a currency code: try the next */ }
@@ -24,18 +28,24 @@ function digitsFor(mark: string, fallback: string | null | undefined): number {
   return 2;
 }
 
+/** Half-up rounding on the decimal text itself, so 2.675 is 2.68 (a binary float would give 2.67). */
 function round(whole: string, decimals: string, digits: number): string {
-  const value = Number(`${whole.replace(/,/g, '')}.${decimals}`);
-  const fixed = value.toFixed(digits);
-  const [int, frac] = fixed.split('.');
-  const grouped = whole.includes(',') ? Number(int).toLocaleString('en-US') : int;
-  return frac === undefined ? grouped : `${grouped}.${frac}`;
+  const plain = whole.replace(/,/g, '');
+  const kept = BigInt(plain + decimals.slice(0, digits).padEnd(digits, '0')) + (Number(decimals[digits] ?? '0') >= 5 ? 1n : 0n);
+  const text = kept.toString().padStart(digits + 1, '0');
+  const int = text.slice(0, text.length - digits) || '0';
+  const frac = text.slice(text.length - digits);
+  const grouped = whole.includes(',') ? BigInt(int).toLocaleString('en-US') : int;
+  return digits ? `${grouped}.${frac}` : grouped;
 }
 
 export function tidyFigures(text: string, workspaceCurrency?: string | null): string {
   return text
-    .replace(BEFORE, (match: string, sign: string | undefined, code: string | undefined, whole: string, decimals: string) =>
-      match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(sign ?? code ?? '', workspaceCurrency))))
+    .replace(BEFORE, (match: string, sign: string | undefined, code: string | undefined, whole: string, decimals: string, offset: number, all: string) => {
+      // "¥123.456 CNY": a code written after the amount names its currency
+      const after = /^ ?([A-Z]{3})\b/.exec(all.slice(offset + match.length))?.[1];
+      return match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(sign ?? code ?? '', code ?? after, workspaceCurrency)));
+    })
     .replace(AFTER, (match: string, whole: string, decimals: string, mark: string) =>
-      match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(mark, workspaceCurrency))));
+      match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(mark, undefined, workspaceCurrency))));
 }
