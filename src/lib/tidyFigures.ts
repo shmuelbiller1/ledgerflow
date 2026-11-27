@@ -22,7 +22,8 @@ const NOT_AFTER = String.raw`(?!\w|\.\d|\s?%|\s?(?:k|K|m|M|bn|thousand|million|b
 // units, and "=", "@", "rate" or "per" around it mean an exchange rate ("1 USD = 0.923456 EUR"), whose precision
 // is its own. Either way the number is left as written.
 const SCALED_AFTER = /^\s?(?:[A-Z]{3}\s?)?(?:%|(?:k|K|m|M|bn|thousand|million|billion)\b|per\b|\/)/;
-const RATE_BEFORE = /(?:=|@|\brate\b[^.\n]*|\bper\b)\s*$/i;
+// "=" or "@" is a conversion only after another currency's amount ("1 USD =", "€1 ="): "Total owed = $85,000" is a total
+const RATE_BEFORE = /(?:(?:\d[\d.,]*\s?[A-Z]{3}|[A-Z]{3}\s?\d[\d.,]*|[$€£₪¥]\s?\d[\d.,]*)\s*[=@]|\brate\b[^.\n]*|\bper\b)\s*$/i;
 /** The number between `start` and `end` is an exchange rate, not an amount ("1 USD = 0.92 EUR", "EUR 0.92 per USD"). */
 export const isRateContext = (all: string, start: number, end: number) =>
   RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:per\b|\/|=)/.test(all.slice(end, end + 12));
