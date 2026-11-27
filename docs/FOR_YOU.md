@@ -5,7 +5,16 @@ is needed, it takes the default written below and moves on. When you have time, 
 as you like in one message, e.g. **"1 done, 4 yes, 11 hide, 10 keep Hebrew"**. Answered items are
 removed from this list.
 
-Last updated: 2026-11-26.
+Last updated: 2026-11-27.
+
+## Flo: should risky requests start on Luna too? (27 Nov, docs/eval/ROUTED-104-2026-11-27.md)
+
+Right now requests marked "high-risk" (deleting, voiding, merging, moving money) start on Terra, the strong model.
+The tests show Terra is no safer on them: it made the same risky drafts as Luna. Safety comes from the server's
+refusals, the merge confirmation and your approval step. On 104 test questions, Luna alone scored 103/104 for
+17.5¢. With the current rule, the score was 99/104 for 47.6¢, and the 4 extra misses were ordinary run-to-run variation.
+**Choice:** start everything on Luna, and keep Terra only as the fallback (when Luna fails or an amount isn't
+backed by the books). That costs about a third as much. *Default until you answer:* no change (risky requests stay on Terra).
 
 ## Online invoice payments: money was going to the platform's Stripe, not the business's (26 Nov, PR #1048)
 
