@@ -10,6 +10,7 @@
  *   `ask_books` placed every word and returned a figure); otherwise the turn falls back to the model.
  */
 import { tidyFigures } from '../../lib/tidyFigures';
+import { checkFigures } from '../../lib/figureCheck';
 import { currencyDigits, minorToMajor } from '../../lib/currencyMinorUnits';
 import { formatMoney } from '../../lib/moneyFormat';
 import { answerCents } from '../../lib/askBooks';
@@ -234,27 +235,50 @@ export function wordCodeAnswer(route: CodeRoute, result: unknown, currency: stri
 export interface ModelRule { choose: (routerReason: string) => ModelChoice; strong: string }
 
 /**
- * The model loop with the written model rule: the chosen model answers; if the simple model fails, the
- * turn is retried once on the strong one (reason `simple-model-failed`), and both calls count in the
- * metric. No retry once the simple model has drafted a step (it would draft it twice). Without a rule, `input.model` answers, as before.
+ * A model turn as the person sees it: float noise rounded out of its amounts (tidyFigures), and its
+ * amounts checked against the tool results (figureCheck). Without a rule, `input.model` answers.
  */
 async function modelTurn(input: AssistantTurnInput & { currency?: string | null }, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   const turn = await modelTurnRaw(input, routerReason, rule);
-  return { ...turn, answer: tidyFigures(turn.answer, input.currency) };
+  const answer = tidyFigures(turn.answer, input.currency);
+  if (!turn.metric.ok) return { answer, metric: turn.metric };
+  const check = checkFigures(answer, turn.toolResults, input.question, input.currency);
+  const metric = { ...turn.metric, figuresChecked: check.checked, figuresUntraced: check.untraced.length };
+  // Still unexplained after the strong model had its turn (or with no strong model to ask): the answer is
+  // shown, with the amounts the books did not give named, so nobody acts on a figure nothing backs.
+  return { answer: check.untraced.length ? `${answer}\n\n${untracedNote(check.untraced)}` : answer, metric };
 }
 
-async function modelTurnRaw(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+const untracedNote = (amounts: string[]) =>
+  `Please check: I could not match ${amounts.slice(0, 3).join(', ')}${amounts.length > 3 ? ' and others' : ''} to a figure in your books.`;
+
+type RawTurn = { answer: string; metric: AssistantTurnMetric; toolResults: unknown[] };
+
+/**
+ * The model loop with the written model rule. The chosen model answers; the strong model answers again
+ * (reason `simple-model-failed`) when the simple model failed, or (reason `figure-check-failed`) when its
+ * answer states an amount no tool result explains (figureCheck). Both calls count in the metric. No retry
+ * once the simple model has drafted a step (it would draft it twice).
+ */
+async function modelTurnRaw(input: AssistantTurnInput & { currency?: string | null }, routerReason: string, rule?: ModelRule): Promise<RawTurn> {
   if (!rule) return runAssistantTurn(input);
   const choice = rule.choose(routerReason);
   const first = await runAssistantTurn({ ...input, model: choice.model });
   // A step the simple model already drafted stays drafted; a fresh retry would not know of it and could
-  // draft the same invoice again, so after any propose_ call the failed turn is returned as it is.
+  // draft the same invoice again, so after any propose_ call the turn is returned as it is.
   const drafted = first.metric.toolsCalled.some(name => name.startsWith('propose_'));
-  if (first.metric.ok || choice.tier === 'strong' || drafted) return { answer: first.answer, metric: { ...first.metric, modelTier: choice.tier, modelReason: choice.reason } };
+  const untraced = first.metric.ok && checkFigures(tidyFigures(first.answer, input.currency), first.toolResults, input.question, input.currency).untraced.length > 0;
+  if ((first.metric.ok && !untraced) || choice.tier === 'strong' || drafted) return { ...first, metric: { ...first.metric, modelTier: choice.tier, modelReason: choice.reason } };
   const retry = await runAssistantTurn({ ...input, model: rule.strong });
   const a = first.metric;
   const b = retry.metric;
-  return { answer: retry.answer, metric: { ...b, modelTier: 'strong', modelReason: 'simple-model-failed',
+  // the strong model failed outright: the simple model's answer, with its warning, beats no answer, unless
+  // the failed retry already drafted a step, so the person must be told to check before asking again
+  const retryDrafted = b.toolsCalled.some(name => name.startsWith('propose_'));
+  const keepFirst = !b.ok && a.ok && !retryDrafted;
+  const chosen = keepFirst ? first : retry;
+  return { answer: chosen.answer, toolResults: chosen.toolResults, metric: { ...(keepFirst ? a : b), ok: keepFirst || b.ok, modelTier: keepFirst ? choice.tier : 'strong',
+    modelReason: untraced ? 'figure-check-failed' : 'simple-model-failed',
     modelCalls: a.modelCalls + b.modelCalls, inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens,
     cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens, toolsCalled: [...a.toolsCalled, ...b.toolsCalled],
     toolCacheHits: a.toolCacheHits + b.toolCacheHits, answerMs: a.totalMs + b.answerMs, totalMs: a.totalMs + b.totalMs,

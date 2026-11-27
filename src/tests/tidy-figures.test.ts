@@ -19,6 +19,11 @@ test('an amount after "=" with no currency on the left is a total, not a rate (C
   assert.equal(tidyFigures('The monthly rate is $85,000.123456 per month.'), 'The monthly rate is $85,000.12 per month.');
 });
 
+test('€ after an amount, and a non-ISO word after a sign (CodeRabbit review on #1056)', () => {
+  assert.equal(tidyFigures('10.123456 €'), '10.12 €');
+  assert.equal(tidyFigures('¥1500.4999999 VAT included'), '¥1500 VAT included');
+});
+
 test('half-up on the decimal text, not a binary float (Codex review on #1055)', () => {
   assert.equal(tidyFigures('$2.6750000000000', 'USD'), '$2.68');
   assert.equal(tidyFigures('$10.0750000000000'), '$10.08');

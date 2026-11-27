@@ -44,6 +44,9 @@ export interface AssistantTurnMetric {
   /** US cents; null when any model call in the turn has no price row */
   costCents: number | null;
   ok: boolean;
+  /** Amounts in the answer checked against the tool results, and how many of them no tool result explains */
+  figuresChecked?: number;
+  figuresUntraced?: number;
 }
 
 /** Builds the metric from the model calls the turn made. With no calls the cost is zero, not unknown. */
@@ -131,13 +134,15 @@ export async function cachedToolCall(input: Pick<AssistantTurnInput, 'callTool' 
 /** Sent when the turn is out of steps: answer from what the tools returned, without more calls. */
 export const FINAL_STEP = 'You have used all your steps. Do not call any more tools. Answer the question now from what the tools returned above, and say briefly what you could not check.';
 
-export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+/** The turn's answer and metric, and the tool results it read (kept in memory for the figure check, never stored). */
+export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ answer: string; metric: AssistantTurnMetric; toolResults: unknown[] }> {
   const now = input.now ?? (() => performance.now());
   const started = now();
   const traces: AiCallTrace[] = [];
   const client = tracedClient(input.client, traces, now)!;
   const toolsCalled: string[] = [];
   let toolCacheHits = 0;
+  const toolResults: unknown[] = [];
   // Only the offered tools run; any other name the model returns is refused and recorded as 'unknown',
   // so a made-up or injected name never reaches callTool or the stored metric.
   const declarations = [...input.tools];
@@ -170,6 +175,7 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
             const { value: result, hit } = await cachedToolCall(input, name, (call.args ?? {}) as Record<string, unknown>);
             if (hit) toolCacheHits++;
             response = { result };
+            toolResults.push(result);
             for (const found of input.discover?.(name, result) ?? []) {
               if (found.name && !offered.has(String(found.name))) { offered.add(String(found.name)); declarations.push(found); }
             }
@@ -195,6 +201,7 @@ export async function runAssistantTurn(input: AssistantTurnInput): Promise<{ ans
   const ended = now();
   return {
     answer,
+    toolResults,
     metric: turnMetric({ path: 'model', traces, toolsOffered: declarations.length, toolsCalled, toolCacheHits,
       answerMs: (answered ?? ended) - started, totalMs: ended - started, ok }),
   };
