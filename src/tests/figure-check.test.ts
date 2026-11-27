@@ -57,6 +57,14 @@ test('an amount matches only its own currency, within that currency\'s minor uni
   assert.deepEqual(checkFigures('Acme owes $5,777.', [{ balanceCents: 577700 }], 'who owes?', 'USD').untraced, [], 'records with no currency are the workspace\'s');
 });
 
+test('"$10 CAD" is one CAD amount; question amounts keep their currency; equal records add up (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Beta owes $10 CAD.', [{ currency: 'CAD', balanceCents: 1000 }], 'What does Beta owe?', 'USD'), { checked: 1, untraced: [] });
+  assert.deepEqual(checkFigures('That is USD 85,000.', [{ balanceCents: 577700 }], 'Convert EUR 85000 to USD', 'USD').untraced, ['USD 85,000']);
+  assert.deepEqual(checkFigures('That is EUR 85,000.', [{ balanceCents: 577700 }], 'Convert EUR 85000 to USD', 'USD').untraced, []);
+  const two = [{ currency: 'USD', totalAmountCents: 10000 }, { currency: 'USD', totalAmountCents: 10000 }];
+  assert.deepEqual(checkFigures('Together the two invoices total $200.', two, 'What is the combined total?', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

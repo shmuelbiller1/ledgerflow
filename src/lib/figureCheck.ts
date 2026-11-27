@@ -36,14 +36,21 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
     [BEFORE, m => [m[1], m[2], m[3], m[4]]],
     [AFTER, m => [m[3] ?? m[5], m[4], m[1], m[2]]],
   ];
+  const spans: Array<[number, number]> = [];
   for (const [re, parts] of reads) {
     for (const m of text.matchAll(re)) {
       const index = m.index ?? 0;
-      const [sign, code, number, scale] = parts(m);
+      const end = index + m[0].length;
+      // "$10 CAD" is one amount: the second pass's "10 CAD" overlaps the first's "$10"
+      if (spans.some(([a, b]) => index < b && end > a)) continue;
+      const [sign, written, number, scale] = parts(m);
+      // a code written after a signed amount names its currency ("$10 CAD" is Canadian dollars)
+      const code = written ?? (sign ? /^ ?([A-Z]{3})\b/.exec(text.slice(end))?.[1] : undefined);
       // an exchange rate is not an amount of the books
       if (found.has(index) || (code && !getIsoCurrency(code)) || isRateContext(text, index, index + m[0].length)) continue;
       const before = text.slice(Math.max(0, index - 12), index).toLowerCase();
-      found.set(index, { text: m[0].trim(), value: parse(number, scale), currency: currencyOf(sign, code, workspace),
+      spans.push([index, end]);
+      found.set(index, { text: m[0].trim(), value: parse(number, scale), currency: currencyOf(sign, code && getIsoCurrency(code) ? code : undefined, workspace),
         approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }
   }
@@ -86,13 +93,14 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
     }
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));
-  const groups = new Map<string, Set<number>>();
+  // values with repeats kept: two $100 invoices add up to $200
+  const groups = new Map<string, number[]>();
   const add = (n: number, { d, minor, cur }: Leaf) => {
-    const group = groups.get(cur) ?? new Set<number>();
+    const group = groups.get(cur) ?? [];
     groups.set(cur, group);
-    if (!minor) group.add(n);
+    if (!minor) group.push(n);
     // a record that declares its currency converts with that currency's digits only (KWD 71.25 is not 7125 fils)
-    group.add(n / 10 ** d);
+    group.push(n / 10 ** d);
   };
   leaves.forEach(leaf => add(leaf.n, leaf));
   for (const list of lists.values()) {
@@ -102,8 +110,9 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
     add(sum / list.length, list[0]);
   }
   const out = new Map<string, number[]>();
-  for (const [cur, group] of groups) {
-    const base = [...group].filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
+  for (const [cur, values] of groups) {
+    const group = new Set(values);
+    const base = values.filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
     for (let i = 0; i < base.length; i++)
       for (let j = i + 1; j < base.length; j++) { group.add(base[i] + base[j]); group.add(Math.abs(base[i] - base[j])); }
     out.set(cur, [...group]);
@@ -125,10 +134,14 @@ export function checkFigures(answer: string, toolResults: readonly unknown[], qu
   let digits = 2;
   try { if (currency) digits = currencyDigits(currency); } catch { /* unknown code: cents */ }
   const sources = sourceNumbers(toolResults, digits);
-  const asked = answerAmounts(question, currency).map(a => a.value)
-    // a bare number the person typed ("pay Beta 850"), but not digits inside an identifier ("INV-85000") or a year
-    .concat([...question.matchAll(/(?<![\w\-./#])\d[\d,]*(?:\.\d+)?(?![\w\-/])/g)]
-      .map(m => m[0]).filter(n => !/^(19|20)\d\d$/.test(n)).map(n => Number(n.replace(/,/g, ''))));
+  // amounts the person wrote, with their currency ("EUR 85000" backs EUR 85,000, not USD 85,000)
+  const askedAmounts = answerAmounts(question, currency);
+  const asked: Array<{ value: number; currency?: string }> = [...askedAmounts];
+  let rest = question;
+  for (const a of askedAmounts) rest = rest.replace(a.text, ' ');
+  // and bare numbers they typed ("pay Beta 850"), in no currency, but not digits inside an identifier ("INV-85000") or a year
+  for (const m of rest.matchAll(/(?<![\w\-./#])\d[\d,]*(?:\.\d+)?(?![\w\-/])/g))
+    if (!/^(19|20)\d\d$/.test(m[0])) asked.push({ value: Number(m[0].replace(/,/g, '')) });
   const workspace = currency?.toUpperCase() ?? '';
   // an amount matches only figures in its own currency: a record's declared one, or the workspace's for records
   // that declare none ("USD 10" is not backed by KWD 10; the books gave no conversion)
@@ -139,7 +152,8 @@ export function checkFigures(answer: string, toolResults: readonly unknown[], qu
   };
   const untraced = amounts.filter(a => {
     const unit = 10 ** -(digitsOf(a.currency) ?? digits);
-    return !candidates(a).some(s => close(a.value, s, a.approximate, unit)) && !asked.some(q => close(a.value, q, a.approximate, unit));
+    return !candidates(a).some(s => close(a.value, s, a.approximate, unit))
+      && !asked.some(q => (!q.currency || !a.currency || q.currency === a.currency) && close(a.value, q.value, a.approximate, unit));
   }).map(a => a.text);
   return { checked: amounts.length, untraced };
 }
