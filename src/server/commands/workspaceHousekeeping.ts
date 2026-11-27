@@ -24,6 +24,7 @@ import { createSignLink } from '../services/estimateSignService';
 import { getDb } from '../db/firestore';
 import { writeServerAuditLog } from '../services/auditLogService';
 import { JOURNAL_TEMPLATE_KIND, MAX_TEMPLATE_LINES, templateProblem, type JournalTemplate } from '../../lib/journalTemplates';
+import { contactsLookAlike } from '../../lib/contactLikeness';
 import type { AnyCommandDefinition, CommandDefinition } from './types';
 
 const id = z.string().min(1).max(200);
@@ -85,6 +86,8 @@ const contactSide = z.enum(['customer', 'vendor']);
 
 export const contactMergeInput = identity.extend({
   side: contactSide, keepId: id, mergeId: id,
+  /** Needed when the two share no name, email or tax number (they look like two different companies). */
+  confirmSameBusiness: z.boolean().optional(),
 }).strict();
 
 export const contactMergeCommand: CommandDefinition<typeof contactMergeInput, Record<string, unknown>> = {
@@ -94,12 +97,23 @@ export const contactMergeCommand: CommandDefinition<typeof contactMergeInput, Re
   async handler(ctx, _tx, input) {
     return mergeContacts(ctx.db, {
       workspaceId: ctx.workspaceId, uid: ctx.actor, email: ctx.email, side: input.side, keepId: input.keepId, mergeId: input.mergeId,
+      confirmSameBusiness: input.confirmSameBusiness,
     }) as Promise<Record<string, unknown>>;
   },
-  async preview(_ctx, input) {
+  async preview(ctx, input) {
+    const collection = input.side === 'vendor' ? 'vendors' : 'customers';
+    const read = async (contactId: string) => {
+      const data = (await ctx.db.collection(collection).doc(contactId).get()).data();
+      return data && data.workspaceId === ctx.workspaceId ? data : undefined;
+    };
+    const [keep, dup] = await Promise.all([read(input.keepId), read(input.mergeId)]);
+    const different = keep && dup && !contactsLookAlike(keep, dup);
     return {
-      title: `Merge the ${input.side} ${input.mergeId} into ${input.keepId}`,
-      lines: ['Invoices, bills, payments and the balance move to the one that is kept', 'The other is removed; this cannot be undone'],
+      title: `Merge the ${input.side} ${String(dup?.name || input.mergeId)} into ${String(keep?.name || input.keepId)}`,
+      lines: [
+        ...(different ? [`Warning: these share no name, email or tax number, so they look like two different companies.${input.confirmSameBusiness ? ' The person confirmed they are the same business.' : ' The merge will be refused unless the person confirms they are the same business.'}`] : []),
+        'Invoices, bills, payments and the balance move to the one that is kept', 'The other is removed; this cannot be undone',
+      ],
     };
   },
   audit() { return null; },
@@ -110,7 +124,7 @@ export const contactMergeCommand: CommandDefinition<typeof contactMergeInput, Re
     example: { side: 'customer', keepId: 'cus_1', mergeId: 'cus_2' },
     refusals: [
       { code: 'INVALID_INPUT', when: 'The side is not customer or vendor, or an id is missing.', next: 'Name the side and both ids.' },
-      { code: 'CONFLICT', when: 'The two are the same record, or one is referred to by something a merge cannot move.', next: 'Pick the record to keep and try again.' },
+      { code: 'CONFLICT', when: 'The two are the same record, or one is referred to by something a merge cannot move, or they share no name, email or tax number and the person has not confirmed they are the same business.', next: 'Pick the record to keep, or ask the person to confirm they are the same business (confirmSameBusiness).' },
       { code: 'FORBIDDEN', when: 'The caller is a bookkeeper or a viewer.', next: 'Ask an owner or an accountant.' },
     ],
   },

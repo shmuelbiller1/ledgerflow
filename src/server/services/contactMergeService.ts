@@ -11,6 +11,8 @@ import { writeServerAuditLog } from './auditLogService';
  * database transaction, in the audit log. Owners and accountants only.
  */
 
+import { contactsLookAlike } from '../../lib/contactLikeness';
+
 export class ContactMergeError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -110,6 +112,8 @@ export interface MergeInput {
   side: PartySide;
   keepId: string;
   mergeId: string;
+  /** The person confirmed the two are the same business although they share no name, email or tax number. */
+  confirmSameBusiness?: boolean;
 }
 
 export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{ kept: string; removed: string; moved: Record<string, number> }> {
@@ -128,6 +132,11 @@ export async function mergeContacts(db: Firestore, input: MergeInput): Promise<{
     // another workspace's contact answers like a missing one
     if (!keep || keep.workspaceId !== input.workspaceId || !dup || dup.workspaceId !== input.workspaceId) {
       throw new ContactMergeError(404, `${side.label[0].toUpperCase()}${side.label.slice(1)} not found`);
+    }
+    // two records that share no name word, email or tax number are probably different companies: merging them
+    // moves every document and cannot be undone, so it needs an explicit confirmation, whoever drafted it
+    if (!input.confirmSameBusiness && !contactsLookAlike(keep, dup)) {
+      throw new ContactMergeError(409, `"${String(dup.name || input.mergeId)}" and "${String(keep.name || input.keepId)}" share no name, email or tax number, so they look like two different companies. Confirm they are the same business to merge them.`);
     }
     const keepName = String(keep.name || '');
     const updates = new Map<string, { collection: string; id: string; data: DocumentData }>();

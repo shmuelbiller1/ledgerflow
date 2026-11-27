@@ -34,6 +34,9 @@ const consultByMonth = [400_000, 350_000, 500_000, 450_000, 400_000, 600_000, 50
 const cost = { util: 120_000, office: 180_000, rent: 900_000, wages: 2_000_000 };
 const officeByMonth = [150_000, 160_000, 170_000, 180_000, 175_000, 190_000, 185_000, 180_000, 200_000, 180_000, 280_000];
 
+/** Each month's sales this year, Jan..Nov. */
+export const salesByMonthCents = () => [...salesByMonth];
+
 export function monthFigures(month: string) {
   const i = months.indexOf(month);
   if (i < 0) return { Sales: 0, 'Consulting income': 0, Utilities: 0, 'Office costs': 0, Rent: 0, Wages: 0 };

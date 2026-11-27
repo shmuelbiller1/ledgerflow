@@ -102,6 +102,14 @@ then the 488 LATER items. Claude works through them in that order and ticks them
   accounts in the workspace, period open, role) but doesn't recompute them from the invoice.
   Later: build invoice/bill postings on the server (document engine, shortcut 2).
 
+### Assistant (Flo) quality — next (27 Nov 2026, from the model tests and two outside reviews)
+1. In progress: merge #1052 (graders), #1054 (rules and the merge confirmation), #1055 (rounding float noise).
+2. **Figure check in code**: every amount in an answer must match a tool result, or a sum or average of tool results. When it doesn't, retry on the strong model or show the answer with a warning. Also check the meaning: overdue vs total owed, Sales account vs all revenue.
+3. Re-run all 104 cases on Luna with the new rules, then once more through the real Luna → Terra fallback code, in the test books only.
+4. New test books: several currencies, partial payments, 1,000+ invoices, a closed period, a different chart of accounts.
+5. Tools: drill-down from a report figure to its entries; clear "missing field" replies; exact command lookup.
+6. Fewer tool calls: compact summaries; don't resend unchanged results.
+
 ### Next (in order)
 1. ~~Report shell~~ done (N-08 cash vs accrual, N-03 period columns, N-10 column chooser: later).
 2. ~~Credits, refunds, quick payment~~ done → banking (all done; CA-05 finance books later) → period close → notifications/email → tax

@@ -36,7 +36,7 @@ import { runAssistantTurn } from '../src/server/services/assistantTurn';
 import { answerTurn } from '../src/server/services/assistantRouter';
 import { chooseModel } from '../src/server/services/assistantModels';
 import { openAiCompatibleClient } from '../src/server/services/openAiCompatibleClient';
-import { bookTool, TODAY } from './eval/sampleBooks';
+import { bookTool, bills, invoices, TODAY } from './eval/sampleBooks';
 import { assistantFacts } from '../src/server/services/assistantFacts';
 import { CASES, RECEIPTS, gradeReceipt, whatHappened, type Outcome } from './eval/cases';
 
@@ -61,6 +61,13 @@ export function meteredFetch(spend: Spend, total: { calls: number }, cap: number
 /** The facts the live assistant sends with each question, for the sample company; ASSISTANT_EVAL_FACTS=off leaves them out. */
 /** How many runs the report and docs/eval/runs keep; older runs are still in git history. */
 const KEEP_RUNS = 3;
+/**
+ * ASSISTANT_EVAL_CASES=id1,id2 runs only those questions (for example, re-running on the strong model only what
+ * the cheap model missed); ASSISTANT_EVAL_CATEGORIES=risk,figures runs only those kinds. Unset: every question.
+ */
+const listEnv = (name: string) => (process.env[name] ?? '').split(',').map(s => s.trim()).filter(Boolean);
+const ONLY_CASES = listEnv('ASSISTANT_EVAL_CASES'), ONLY_CATS = listEnv('ASSISTANT_EVAL_CATEGORIES');
+const RUN_CASES = CASES.filter(c => (!ONLY_CASES.length || ONLY_CASES.includes(c.id)) && (!ONLY_CATS.length || ONLY_CATS.includes(c.cat ?? 'core')));
 
 const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assistantFacts({ today: TODAY, currency: 'USD', fiscalYearStartMonth: 1 });
 
@@ -70,6 +77,30 @@ const EVAL_FACTS = process.env.ASSISTANT_EVAL_FACTS === 'off' ? undefined : assi
  * before the next case, so a timed-out turn never keeps spending in the background.
  */
 export interface RoutedModels { simple: string; strong: string }
+
+/**
+ * The books' own refusals, as the live server gives them, so a model sees the same answer it would in the app:
+ * documentPostService refuses to delete, or void, an invoice or bill with payments recorded against it, and
+ * contact.delete refuses a customer or vendor that a document still refers to.
+ */
+export function bookRefusal(command: string, args: Record<string, unknown>): string | null {
+  const record = (collection: string, id: unknown) => (bookTool('get_record', { collection, id: String(id ?? '') }) as { record?: Record<string, unknown> }).record;
+  const kind = /^(invoice|bill)\.(delete|update)$/.exec(command);
+  if (kind) {
+    const doc = record(`${kind[1]}s`, args.id);
+    if (!doc || !(Number(doc.paidCents ?? 0) > 0)) return null;
+    if (kind[2] === 'delete') return `Cannot delete ${kind[1]} with recorded payments or credit applications. Void or unapply settlements first.`;
+    const status = (args.data as { status?: unknown } | undefined)?.status;
+    if (typeof status === 'string' && ['draft', 'void', 'cancelled', 'rejected'].includes(status)) return `Cannot change a settled or written-off ${kind[1]} to ${status}.`;
+    return null;
+  }
+  if (command === 'contact.delete' && !args.checkOnly) {
+    const side = args.side === 'vendor' ? 'vendor' : 'customer';
+    const refers = side === 'customer' ? invoices.some(i => i.customerId === args.id) : bills.some(b => b.vendorId === args.id);
+    return refers ? 'CONFLICT: a document, payment or balance still refers to the contact. Merge it into another contact, or remove what refers to it first.' : null;
+  }
+  return null;
+}
 
 export async function runCase(baseUrl: string, doFetch: typeof fetch, model: string, systemPrompt: string, q: string, timeoutMs = TURN_TIMEOUT_MS, routed?: RoutedModels) {
   const commands = ownerCommands();
@@ -102,6 +133,13 @@ export async function runCase(baseUrl: string, doFetch: typeof fetch, model: str
         const issue = parsed?.error?.issues?.[0];
         calls[calls.length - 1].refusal = command ? `${issue?.path?.join('.') || 'input'}: ${issue?.message ?? 'invalid'}` : 'unknown command';
         return { error: command ? 'Invalid input for this command' : 'Unknown command', issues: parsed?.error?.issues?.slice(0, 5) ?? [] };
+      }
+      // the books' own refusal, as the live server gives it (documentPostService): a paid document cannot be deleted
+      const refusal = bookRefusal(command.name, args);
+      if (refusal) {
+        calls[calls.length - 1].ok = false;
+        calls[calls.length - 1].refusal = refusal;
+        return { error: refusal };
       }
       const step = { id: `step_${steps.length + 1}`, command: name.slice('propose_'.length).replace(/_/g, '.'), position: steps.length + 1, state: 'pending', input: args };
       steps.push(step);
@@ -235,7 +273,7 @@ async function main() {
 
   say(`## Model comparison (${date}, via ${new URL(baseUrl).host})`);
   say();
-  say(`Graded on ${CASES.length} questions against a sample company's books (scripts/eval). Individual models run without routing or fallback; the routed row uses the live code/model router and retry. Tier shares count the final answering tier, including failures; code is separate. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
+  say(`Graded on ${RUN_CASES.length} questions against a sample company's books (scripts/eval). Individual models run without routing or fallback; the routed row uses the live code/model router and retry. Tier shares count the final answering tier, including failures; code is separate. "Correct" means the right step drafted, the right figure stated, or a question asked instead of a guess. Cost is what the endpoint billed.`);
   say();
   say('| model | correct | final tier share (simple / strong / code) | finished (no error/timeout) | model calls | billed cost | cost per correct answer |');
   say('|---|---|---|---|---|---|---|');
@@ -249,7 +287,7 @@ async function main() {
     let correct = 0, finished = 0;
     const tiers = { simple: 0, strong: 0, code: 0 };
     detail.push('', `#### ${label}`, '', `| question | result${repeats > 1 ? ` (of ${repeats})` : ''} | why (first wrong run) |`, '|---|---|---|');
-    for (const c of CASES) {
+    for (const c of RUN_CASES) {
       // each question runs `repeats` times: models answer differently run to run, so one run is luck
       let right = 0, why = '';
       for (let r = 0; r < repeats; r++) {
@@ -258,7 +296,7 @@ async function main() {
         const tier = routeModels ? (metric?.modelTier ?? (metric?.path === 'code' || metric?.path === 'cache' ? 'code' : undefined)) : undefined;
         if (tier) tiers[tier]++;
         const g = outcome.error ? { pass: false, why: outcome.error } : c.check(outcome);
-        log.push({ model: metric?.model ?? (tier === 'code' ? null : model), configuration: name, tier: tier ?? (routeModels ? 'unknown' : 'single'), reason: metric?.modelReason ?? (tier === 'code' ? 'code' : routeModels ? 'unknown' : 'single-model'), prompt: prompt.name, case: c.id, question: c.q, run: r + 1, pass: g.pass, why: g.why, answer: outcome.answer,
+        log.push({ model: metric?.model ?? (tier === 'code' ? null : model), configuration: name, tier: tier ?? (routeModels ? 'unknown' : 'single'), reason: metric?.modelReason ?? (tier === 'code' ? 'code' : routeModels ? 'unknown' : 'single-model'), prompt: prompt.name, case: c.id, category: c.cat ?? 'core', question: c.q, run: r + 1, pass: g.pass, why: g.why, answer: outcome.answer,
           error: outcome.error, calls: outcome.calls, ms: Date.now() - started, modelCalls: spend.calls - before.calls,
           billedCents: spend.priced - before.priced === spend.calls - before.calls ? Math.round((spend.usd - before.usd) * 1e6) / 1e4 : null, metric });
         if (!outcome.error) finished++;
@@ -273,9 +311,9 @@ async function main() {
     // only a fully priced run is a measured cost; otherwise say how much is missing
     const known = spend.priced === spend.calls;
     const billed = known ? `${cents.toFixed(2)}¢` : `unknown (${spend.calls - spend.priced} of ${spend.calls} calls without a billed cost; ≥${cents.toFixed(2)}¢)`;
-    const asked = CASES.length * repeats;
+    const asked = RUN_CASES.length * repeats;
     const share = routeModels ? (['simple', 'strong', 'code'] as const).map(t => `${tiers[t]}/${asked} (${(tiers[t] * 100 / asked).toFixed(1)}%)`).join(' / ') : '—';
-    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${CASES.length} on average)` : ''} | ${share} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
+    say(`| ${label} | ${correct} / ${asked}${repeats > 1 ? ` (${(correct / repeats).toFixed(1)} of ${RUN_CASES.length} on average)` : ''} | ${share} | ${finished} / ${asked} | ${spend.calls} | ${billed} | ${known && correct ? (cents / correct).toFixed(2) + '¢' : '—'} |`);
   }
   if (ocrModels.length) {
     say(); say('### Receipts (OCR)'); say();
@@ -293,6 +331,19 @@ async function main() {
       say(`| ${model} | ${fields} / ${RECEIPTS.length * 4} | ${full} / ${RECEIPTS.length} | ${spend.priced === spend.calls ? `${(spend.usd * 100).toFixed(2)}¢` : 'unknown (no billed cost on some calls)'} |`);
     }
   }
+  // what each model is good at: the share right per kind of question (cases.ts `cat`)
+  const byCat = new Map<string, Map<string, { right: number; of: number }>>();
+  // one column per model and prompt, as in the main table, so prompt variants are never pooled
+  const columnOf = (configuration: string, prompt: string) => prompts.length > 1 ? `${configuration} (${prompt})` : configuration;
+  for (const e of log as Array<{ configuration: string; prompt: string; category: string; pass: boolean }>) {
+    const row = byCat.get(e.category) ?? new Map(); byCat.set(e.category, row);
+    const key = columnOf(e.configuration, e.prompt);
+    const cell = row.get(key) ?? { right: 0, of: 0 }; cell.of++; if (e.pass) cell.right++; row.set(key, cell);
+  }
+  const configs = runs.map(r => columnOf(r.name, r.prompt.name));
+  say(); say('### By kind of question'); say();
+  say(`| kind | ${configs.join(' | ')} |`); say(`|---|${configs.map(() => '---').join('|')}|`);
+  for (const [cat, row] of byCat) say(`| ${cat} | ${configs.map(n => { const c = row.get(n); return c ? `${c.right}/${c.of} (${Math.round(c.right * 100 / c.of)}%)` : '—'; }).join(' | ')} |`);
   say(); say('### Per question'); detail.forEach(l => say(l));
   say(); say(`Model calls in this run: ${total.calls} (cap ${cap}).`);
 
