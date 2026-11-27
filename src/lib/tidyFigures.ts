@@ -30,7 +30,7 @@ export const isRateContext = (all: string, start: number, end: number) =>
   RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:=|(?:per\b|\/)\s?(?:[A-Z]{3}\b|[$€£₪¥]|ש))/.test(all.slice(end, end + 16));
 const leaveAlone = (all: string, start: number, end: number) => SCALED_AFTER.test(all.slice(end, end + 16)) || isRateContext(all, start, end);
 const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}${NOT_AFTER}`, 'g');
-const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
+const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪€]|[A-Z]{3}\b|ש["״]ח)`, 'g');
 
 function digitsFor(mark: string, written: string | undefined, fallback: string | null | undefined): number {
   const shared = SHARED_SIGNS[mark];
@@ -60,7 +60,9 @@ export function tidyFigures(text: string, workspaceCurrency?: string | null): st
       // three capitals are a currency only when ISO 4217 lists them ("VAT 17.123456" is not an amount)
       if ((code && !getIsoCurrency(code)) || leaveAlone(all, offset, offset + match.length)) return match;
       // "¥123.456 CNY": a code written after the amount names its currency
-      const after = /^ ?([A-Z]{3})\b/.exec(all.slice(offset + match.length))?.[1];
+      const trailing = /^ ?([A-Z]{3})\b/.exec(all.slice(offset + match.length))?.[1];
+      // only a real ISO code overrides the sign ("$1.2345678 VAT" stays dollars)
+      const after = trailing && getIsoCurrency(trailing) ? trailing : undefined;
       return match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(sign ?? code ?? '', code ?? after, workspaceCurrency)));
     })
     .replace(AFTER, (match: string, whole: string, decimals: string, mark: string, offset: number, all: string) =>

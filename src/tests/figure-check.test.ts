@@ -107,6 +107,16 @@ test('aging buckets are minor units; a calculation backs any currency (Codex rev
   assert.deepEqual(checkFigures('The total is EUR 120.', [{ expression: '100 * 1.2', cents: 12000, amount: 120 }], 'What is EUR 100 multiplied by 1.2?', 'USD').untraced, []);
 });
 
+test('amounts match within the precision printed, not a percentage (CodeRabbit review on #1056)', () => {
+  const books = [{ currency: 'USD', balanceCents: 1000000 }];
+  assert.deepEqual(checkFigures('Balance: $10,004.', books, 'balance?', 'USD').untraced, ['$10,004']);
+  assert.deepEqual(checkFigures('Balance: about $10,004.', books, 'balance?', 'USD').untraced, ['$10,004']);
+  assert.deepEqual(checkFigures('Balance: $10,000.90.', books, 'balance?', 'USD').untraced, ['$10,000.90']);
+  assert.deepEqual(checkFigures('Balance: $10,000.', [{ balanceCents: 1000040 }], 'balance?', 'USD').untraced, [], 'whole dollars round');
+  assert.deepEqual(checkFigures('Revenue: $1.2 million.', [{ revenueCents: 123456700 }], 'revenue?', 'USD').untraced, [], 'printed precision of a scaled amount');
+  assert.deepEqual(checkFigures('Revenue: $1.3 million.', [{ revenueCents: 123456700 }], 'revenue?', 'USD').untraced, ['$1.3 million']);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

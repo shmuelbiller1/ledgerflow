@@ -26,7 +26,8 @@ const currencyOf = (sign: string | undefined, code: string | undefined, workspac
 const MULTIPLIER: Record<string, number> = { k: 1e3, K: 1e3, thousand: 1e3, m: 1e6, M: 1e6, million: 1e6, bn: 1e9, billion: 1e9 };
 const parse = (raw: string, scale?: string) => Number(raw.replace(/,/g, '')) * (scale ? MULTIPLIER[scale] : 1);
 
-export interface AnswerAmount { text: string; value: number; approximate: boolean; currency?: string }
+/** `step` is the place of the last digit printed, in units ($1.2 million: 100,000; $5,777: 1; $5,777.40: 0.01). */
+export interface AnswerAmount { text: string; value: number; approximate: boolean; step: number; currency?: string }
 
 /** The amounts written in an answer, each with the text it was read from and the currency it is written in. */
 export function answerAmounts(text: string, workspace?: string | null): AnswerAmount[] {
@@ -53,6 +54,7 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
       const before = text.slice(Math.max(0, index - 12), index).toLowerCase();
       spans.push([index, end]);
       found.set(index, { text: m[0].trim(), value: parse(number, scale), currency: currencyOf(sign, code && getIsoCurrency(code) ? code : undefined, workspace),
+        step: 10 ** -(number.split('.')[1]?.length ?? 0) * (scale ? MULTIPLIER[scale] : 1),
         approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }
   }
@@ -135,10 +137,11 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
 }
 
 /** Within rounding: about one minor unit of the amount's currency (0.011 for cents, 0.0011 for fils), or a share of it. */
-const close = (a: number, b: number, approximate: boolean, unit: number) => {
-  const diff = Math.abs(Math.abs(a) - Math.abs(b));
-  return diff <= unit * 1.1 || diff <= Math.abs(b) * (approximate ? 0.05 : 0.0005) || (Math.abs(a) >= 1000 && diff < 1);
-};
+/**
+ * Within rounding of what was printed: half the last printed digit, plus about one minor unit. "$5,777" backs
+ * 5,777.40, "$1.2 million" backs 1,234,567, but "$10,004" does not back 10,000 and "about" widens nothing.
+ */
+const close = (a: number, b: number, step: number, unit: number) => Math.abs(Math.abs(a) - Math.abs(b)) <= step / 2 + unit * 1.1;
 
 export interface FigureCheck { checked: number; untraced: string[] }
 
@@ -166,8 +169,8 @@ export function checkFigures(answer: string, toolResults: readonly unknown[], qu
   };
   const untraced = amounts.filter(a => {
     const unit = 10 ** -(digitsOf(a.currency) ?? digits);
-    return !candidates(a).some(s => close(a.value, s, a.approximate, unit))
-      && !asked.some(q => (!q.currency || !a.currency || q.currency === a.currency) && close(a.value, q.value, a.approximate, unit));
+    return !candidates(a).some(s => close(a.value, s, a.step, unit))
+      && !asked.some(q => (!q.currency || !a.currency || q.currency === a.currency) && close(a.value, q.value, a.step, unit));
   }).map(a => a.text);
   return { checked: amounts.length, untraced };
 }
