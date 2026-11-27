@@ -99,6 +99,13 @@ test('a failed strong retry that drafted a step is reported as failed, not hidde
   assert.equal(turn.metric.modelReason, 'figure-check-failed');
 });
 
+test('aging buckets are minor units; a calculation backs any currency (Codex review on #1056)', () => {
+  const aging = { current: 577700, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 577700 };
+  assert.deepEqual(checkFigures('Customers owe $577,700.', [aging], 'Explain the amounts owed', 'USD').untraced, ['$577,700']);
+  assert.deepEqual(checkFigures('Customers owe $5,777.', [aging], 'Explain the amounts owed', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('The total is EUR 120.', [{ expression: '100 * 1.2', cents: 12000, amount: 120 }], 'What is EUR 100 multiplied by 1.2?', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

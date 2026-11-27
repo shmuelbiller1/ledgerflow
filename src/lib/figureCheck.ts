@@ -61,6 +61,7 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
 }
 
 const MAX_LEAVES = 400;
+const AGING_KEYS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus', 'total'];
 const MINOR_FIELD = /(cents|minor)(\[\])*$/i;
 
 /** Every number in the tool results, plus the totals and averages of each numeric list field. */
@@ -95,8 +96,11 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       // the calculate tool always answers in hundredths ({ cents, amount: cents / 100 }), whatever the workspace currency
       const calculator = typeof record.cents === 'number' && typeof record.amount === 'number' && Math.abs(record.amount * 100 - record.cents) < 1e-6;
       const ownDigits = calculator ? 2 : digitsOf(declared);
-      const ownCur = digitsOf(declared) === undefined ? cur : String(declared).toUpperCase();
-      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}`, depth + 1, ownDigits ?? d, ownCur);
+      // a calculation has no currency of its own: it backs an amount in any currency ('*')
+      const ownCur = calculator ? '*' : digitsOf(declared) === undefined ? cur : String(declared).toUpperCase();
+      // the aging report's buckets and total are minor units though their names do not say so
+      const aging = AGING_KEYS.every(k => typeof record[k] === 'number');
+      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}${aging ? 'Cents' : ''}`, depth + 1, ownDigits ?? d, ownCur);
     }
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));
@@ -154,7 +158,7 @@ export function checkFigures(answer: string, toolResults: readonly unknown[], qu
   // that declare none ("USD 10" is not backed by KWD 10; the books gave no conversion)
   const candidates = (a: AnswerAmount) => {
     if (!a.currency) return [...sources.values()].flat();
-    const own = sources.get(a.currency) ?? [];
+    const own = (sources.get(a.currency) ?? []).concat(sources.get('*') ?? []);
     return a.currency === workspace || !workspace ? own.concat(sources.get('') ?? []) : own;
   };
   const untraced = amounts.filter(a => {
