@@ -59,6 +59,33 @@ export function toChatTools(declarations: FunctionDeclaration[]) {
   } }));
 }
 
+/**
+ * The JSON schema as OpenAI-style structured output accepts it: every object says `additionalProperties:
+ * false` and lists every property as required, and a property that was optional may be null instead.
+ * Gemini takes the schema as written; OpenAI (and Arena, which serves the same models) refuses the whole
+ * request with 400 invalid_json_schema, so no receipt could be read there (found 27 Nov 2026).
+ */
+export function closedSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(closedSchema);
+  if (!schema || typeof schema !== 'object') return schema;
+  const src = schema as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(src)) out[k] = k === 'properties' ? v : closedSchema(v);
+  if (src.type === 'object' && src.properties && typeof src.properties === 'object') {
+    const required = new Set(Array.isArray(src.required) ? src.required as string[] : []);
+    const properties: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(src.properties as Record<string, unknown>)) {
+      const closed = closedSchema(value) as Record<string, unknown>;
+      // an optional field stays optional by being allowed to be null
+      properties[key] = required.has(key) || typeof closed.type !== 'string' ? closed : { ...closed, type: [closed.type, 'null'] };
+    }
+    out.properties = properties;
+    out.required = Object.keys(properties);
+    out.additionalProperties = false;
+  }
+  return out;
+}
+
 export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: string; fetchImpl?: typeof fetch }): ModelClient {
   const doFetch = options.fetchImpl ?? fetch;
   return { models: { async generateContent(req) {
@@ -72,7 +99,7 @@ export function openAiCompatibleClient(options: { baseUrl: string; apiKey?: stri
       ...(declarations.length && config.toolConfig?.functionCallingConfig?.mode === 'NONE' ? { tool_choice: 'none' } : {}),
       // a JSON reply was asked for (receipt reading): the schema when given, else JSON mode
       ...(config.responseMimeType === 'application/json'
-        ? { response_format: config.responseJsonSchema ? { type: 'json_schema', json_schema: { name: 'reply', schema: config.responseJsonSchema } } : { type: 'json_object' } }
+        ? { response_format: config.responseJsonSchema ? { type: 'json_schema', json_schema: { name: 'reply', strict: true, schema: closedSchema(config.responseJsonSchema) } } : { type: 'json_object' } }
         : {}),
     };
     const res = await doFetch(`${options.baseUrl.replace(/\/$/, '')}/chat/completions`, {
