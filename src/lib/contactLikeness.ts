@@ -13,7 +13,13 @@ export interface ContactIdentity { name?: unknown; email?: unknown; taxId?: unkn
 // Hebrew legal forms too: בע"מ (Ltd, with any quote mark), חברה (company), ושות' (& Co), שותפות (partnership), עמותה (non-profit)
 const HEBREW_LTD = /בע ?["״'׳]? ?מ/g;
 const LEGAL_FORMS = new Set(['בעמ', 'בע', 'חברה', 'חברת', 'ושות', 'ושותפים', 'שותפות', 'עמותה', 'ltd', 'limited', 'llc', 'inc', 'incorporated', 'corp', 'corporation', 'co', 'company', 'plc', 'gmbh', 'ag', 'sa', 'srl', 'bv', 'nv', 'pty', 'llp', 'lp', 'the', 'and', 'of', 'group', 'holdings']);
-const PUBLIC_MAIL = new Set(['gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'yahoo.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'gmx.com', 'mail.com']);
+// public mail providers, matched by the provider's name so every country's domain counts (yahoo.co.uk, hotmail.fr,
+// gmail.com, walla.co.il …): two people on the same provider are not one company
+const PUBLIC_MAIL_PROVIDERS = new Set(['gmail', 'googlemail', 'outlook', 'hotmail', 'live', 'msn', 'yahoo', 'ymail', 'rocketmail', 'icloud', 'me', 'mac',
+  'aol', 'proton', 'protonmail', 'pm', 'gmx', 'mail', 'email', 'yandex', 'zoho', 'fastmail', 'tutanota', 'hey', 'walla', 'bezeqint', 'zahav', 'netvision',
+  'web', 't-online', 'orange', 'free', 'laposte', 'libero', 'virgilio', 'qq', '163', '126', 'naver', 'daum', 'rediffmail', 'btinternet', 'sky', 'comcast', 'verizon', 'att']);
+/** The domain belongs to a public mail provider: its first label is one ("yahoo" in yahoo.co.uk, "mail" in mail.ru). */
+const isPublicMail = (domain: string) => PUBLIC_MAIL_PROVIDERS.has(domain.split('.')[0] ?? '');
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim().toLowerCase() : '');
 const nameWords = (value: unknown) => new Set(text(value).replace(HEBREW_LTD, ' ').split(/[^\p{L}\p{N}]+/u).filter(word => word.length > 1 && !LEGAL_FORMS.has(word)));
@@ -23,7 +29,7 @@ export function contactsLookAlike(a: ContactIdentity, b: ContactIdentity): boole
   const emailA = text(a.email), emailB = text(b.email);
   if (emailA && emailA === emailB) return true;
   const domainA = emailA.split('@')[1] ?? '', domainB = emailB.split('@')[1] ?? '';
-  if (domainA && domainA === domainB && !PUBLIC_MAIL.has(domainA)) return true;
+  if (domainA && domainA === domainB && !isPublicMail(domainA)) return true;
   const taxA = taxNumber(a), taxB = taxNumber(b);
   if (taxA && taxA === taxB) return true;
   const wordsB = nameWords(b.name);

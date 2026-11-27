@@ -23,3 +23,10 @@ test('Hebrew company names: the legal form בע"מ is not a shared name, the rea
   assert.equal(contactsLookAlike({ name: 'חברת אלפא' }, { name: 'חברת בטא' }), false);
   assert.equal(contactsLookAlike({ name: 'אלפא בע"מ' }, { name: 'אלפא תוכנה בע״מ' }), true, 'the same name word');
 });
+
+test('regional public-mail domains are not shared ownership either (Codex review on #1054)', () => {
+  for (const domain of ['yahoo.co.uk', 'hotmail.co.uk', 'outlook.fr', 'gmail.com', 'walla.co.il', 'bezeqint.net', 'mail.ru'])
+    assert.equal(contactsLookAlike({ name: 'Alpha Ltd', email: `alpha@${domain}` }, { name: 'Beta Ltd', email: `beta@${domain}` }), false, domain);
+  assert.equal(contactsLookAlike({ name: 'Alpha', email: 'a@alpha.co.uk' }, { name: 'Alpha Trading', email: 'b@alpha.co.uk' }), true, 'a company domain still counts');
+  assert.equal(contactsLookAlike({ name: 'One', email: 'a@acme.co.uk' }, { name: 'Two', email: 'b@acme.co.uk' }), true);
+});
