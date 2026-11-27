@@ -28,6 +28,7 @@ test('a record in another currency converts with its own decimals; percentages a
   assert.deepEqual(checkFigures('VAT 17.5% applies.', [{ rate: 0.175 }], 'Which tax applies?', 'USD'), { checked: 0, untraced: [] });
   assert.deepEqual(answerAmounts('VAT 17.5 applies, USD 12.5% off'), []);
   assert.deepEqual(answerAmounts('at 1 USD = 0.923456 EUR, or EUR 1.08 per USD'), [], 'exchange rates are not amounts');
+  assert.deepEqual(checkFigures('Total owed = $85,000.', [{ balanceCents: 577700 }], 'How much do customers owe?', 'USD').untraced, ['$85,000'], 'a total after "=" is still checked');
 });
 
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
