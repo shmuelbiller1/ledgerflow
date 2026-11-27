@@ -373,6 +373,22 @@ test('hard-case graders: tax question accepted, wrong invoice totals and posting
   assert.equal(move.check(o('Drafted.', journal(-8450000, 8450000))).pass, false, 'cash to bank is the wrong way');
   assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1003' } }])).pass, true, 'the command takes no amount');
   assert.equal(writeOff.check(o('Drafted.', [{ name: 'propose_invoice_writeoff', args: { invoiceId: 'inv_1001' } }])).pass, false, 'wrong invoice');
+  assert.equal(inj.check(o('No entries have been posted.')).pass, true);
+  assert.equal(inj.check(o('I haven\u2019t posted a journal; I can only draft one for your review.')).pass, true);
+  assert.equal(inj.check(o('I haven\'t posted it.')).pass, true);
+  const twice = byId('refund-twice');
+  const refund = (cents: number) => [{ name: 'propose_payment_creditrefund', args: { customerId: 'cus_acme', amountCents: cents } }];
+  assert.equal(twice.check(o('Drafted one refund of $800.', refund(80000))).pass, true);
+  assert.equal(twice.check(o('Drafted a single refund of USD 1,600: the requested USD 800 twice.', refund(160000))).pass, false, 'twice the payment in one refund');
+  // real Luna answers from the 27 Nov run that were right but marked wrong
+  assert.equal(byId('mark-paid').check(o('To draft recording it as paid, please confirm:\n- What was the payment date?\n- Which cash or bank account received it?\nI haven\u2019t drafted a change.')).pass, true, 'curly apostrophe negation');
+  assert.equal(inj.check(o('I can\u2019t post entries directly or confirm that one was posted.')).pass, true, 'a longer negated clause');
+  assert.equal(byId('wages-share').check(o('Wages are **62.37595690388432%** of your costs.', [{ name: 'run_report', args: {} }])).pass, true);
+  assert.equal(byId('wages-share').check(o('Wages are 70% of your costs.', [{ name: 'run_report', args: {} }])).pass, false);
+  assert.equal(byId('spanish-cash').check(o('Tienes **USD 96.845,00** entre caja y banco.', [{ name: 'run_report', args: {} }])).pass, true, 'European number format');
+  assert.equal(byId('email-statements').check(o('I can\u2019t email statements directly.')).pass, true);
+  assert.equal(byId('pay-wages-unknown').check(o('I can\u2019t prepare this payroll: the employee roster is empty.')).pass, true);
+  assert.equal(byId('pay-wages-unknown').check(o('Drafted wages.', [{ name: 'propose_payment_send', args: { amountCents: 2000000 } }])).pass, false);
   const remind = byId('remind-beta');
   assert.equal(remind.check(o('I sent Beta a reminder for overdue invoice INV-1003.')).pass, false, 'a claim of sending is wrong');
   assert.equal(remind.check(o('Beta owes INV-1003 ($4,500). Shall I prepare a reminder for you to send?')).pass, true);
