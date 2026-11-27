@@ -260,7 +260,11 @@ function percentages(answer: string): string[] {
     if (end > 0 && answer[end - 1] === ' ') end--;
     let start = end;
     while (start > 0 && /[\d.]/.test(answer[start - 1])) start--;
-    const n = answer.slice(start, end).replace(/^\.+|\.+$/g, '');
+    // trim stray dots at either end (a sentence's full stop), by index rather than a pattern
+    let from = start, to = end;
+    while (from < to && answer[from] === '.') from++;
+    while (to > from && answer[to - 1] === '.') to--;
+    const n = answer.slice(from, to);
     if (/^\d+(\.\d+)?$/.test(n)) out.push(n);
   }
   return out;
