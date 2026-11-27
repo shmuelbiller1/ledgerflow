@@ -25,7 +25,7 @@ const SCALED_AFTER = /^\s?(?:[A-Z]{3}\s?)?(?:%|(?:k|K|m|M|bn|thousand|million|bi
 const RATE_BEFORE = /(?:=|@|\brate\b[^.\n]*|\bper\b)\s*$/i;
 /** The number between `start` and `end` is an exchange rate, not an amount ("1 USD = 0.92 EUR", "EUR 0.92 per USD"). */
 export const isRateContext = (all: string, start: number, end: number) =>
-  RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:per\b|\/)/.test(all.slice(end, end + 12));
+  RATE_BEFORE.test(all.slice(Math.max(0, start - 40), start)) || /^\s?(?:[A-Z]{3}\s?)?(?:per\b|\/|=)/.test(all.slice(end, end + 12));
 const leaveAlone = (all: string, start: number, end: number) => SCALED_AFTER.test(all.slice(end, end + 16)) || isRateContext(all, start, end);
 const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}${NOT_AFTER}`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
