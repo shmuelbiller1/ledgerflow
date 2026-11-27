@@ -1,0 +1,19 @@
+// Synthetic advance → later invoice/application; actual routes and isolated local database.
+import test from'node:test';import assert from'node:assert/strict';import crypto from'node:crypto';import type{AddressInfo}from'node:net';
+const url=process.env.LF_TEST_DATABASE_URL;const valid=url&&new URL(url).hostname==='127.0.0.1'&&new URL(url).port==='55439'&&new URL(url).pathname==='/lf_test';
+test('monthly cash-basis P&L does not add up to combined P&L for advance',{skip:!valid&&'dedicated local audit database required'},async()=>{
+ process.env.DATABASE_URL=url;const express=(await import('express')).default;const{getDb}=await import('../../src/server/db/firestore');const{documentPostRouter}=await import('../../src/server/routes/documentPostRoutes');const{paymentRouter}=await import('../../src/server/routes/paymentRoutes');const{reportRouter}=await import('../../src/server/routes/reportRoutes');const db=getDb();const ws=`ws_audit_adv_${crypto.randomBytes(5).toString('hex')}`;const id=(s:string)=>`${ws}_${s}`;
+ const app=express();app.use(express.json());app.use((req,_res,next)=>{(req as never as{user:{uid:string}}).user={uid:'audit-owner'};next();});app.use('/api/v1/documents',documentPostRouter);app.use('/api/v1/payments',paymentRouter);app.use('/api/v1/reports',reportRouter);const server=app.listen(0,'127.0.0.1');await new Promise<void>(r=>server.once('listening',r));const base=`http://127.0.0.1:${(server.address()as AddressInfo).port}`;
+ try{
+  await db.collection('workspaces').doc(ws).set({uid:'audit-owner',members:['audit-owner'],name:'Synthetic advance cash basis',currency:'USD',timezone:'UTC'});
+  for(const [key,name,type,category,role]of[['ar','Accounts Receivable','asset','Receivables',''],['sales','Sales','revenue','Revenue',''],['cash','Cash','asset','Cash','cash'],['dep','Customer Deposits','liability','Current Liabilities','']])await db.collection('chartAccounts').doc(id(key)).set({workspaceId:ws,name,type,category,...(role?{role}:{})});
+  async function call(path:string,body?:unknown){const res=await fetch(`${base}${path}`,body?{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}:{});const data=await res.json();assert.equal(res.status,200,JSON.stringify(data));return data;}
+  const advance=await call('/api/v1/payments',{workspaceId:ws,paymentDate:'2026-02-10',cashAccountId:id('cash'),customerId:'c',amountCents:10000,allocations:[]});
+  await call(`/api/v1/documents/invoices/${id('invoice')}/post`,{workspaceId:ws,action:'create',data:{id:id('invoice'),workspaceId:ws,customerId:'c',customerName:'Customer',number:'I-1',date:'2026-03-01',dueDate:'2026-03-31',status:'sent',currency:'USD',amountCents:10000,amountPaidCents:0,items:[{id:'l1',description:'Service',quantity:1,rateCents:10000,amountCents:10000,accountId:id('sales')}]}});
+  await call(`/api/v1/payments/${advance.data.paymentId}/apply`,{workspaceId:ws,date:'2026-03-10',allocations:[{documentId:id('invoice'),documentType:'invoice',amountCents:10000}]});
+  const report=(start:string,end:string)=>call(`/api/v1/reports/profit-and-loss?workspaceId=${ws}&startDate=${start}&endDate=${end}&basis=cash`);
+  const feb=await report('2026-02-01','2026-02-28');const mar=await report('2026-03-01','2026-03-31');const total=await report('2026-02-01','2026-03-31');
+  assert.deepEqual([feb.income.total,mar.income.total,total.income.total],[0,0,10000]);
+  console.log(JSON.stringify({february:feb.income.total,march:mar.income.total,combined:total.income.total}));
+ }finally{await new Promise<void>(r=>server.close(()=>r()));for(const table of['paymentAllocations','allocationOperations','idempotencyKeys','transactions','payments','invoices','chartAccounts','auditLogs','numberingSeries','workspaces'])await db.pool.query(`delete from public."${table}" where workspace_id=$1 or id=$1`,[ws]);await db.terminate();}
+});
