@@ -70,6 +70,35 @@ test('an acronym after a signed amount keeps the amount; sub-unit records add up
   assert.deepEqual(checkFigures('Together the invoices total $0.70.', [{ currency: 'USD', totalAmountCents: 30 }, { currency: 'USD', totalAmountCents: 40 }], 'total?', 'USD').untraced, []);
 });
 
+test('calculator results are hundredths in any workspace; big reports stay fast (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Total: KWD 12.345.', [{ cents: 12345, amount: 123.45 }], 'add these', 'KWD').untraced, ['KWD 12.345']);
+  assert.deepEqual(checkFigures('Total: KWD 123.45.', [{ cents: 12345, amount: 123.45 }], 'add these', 'KWD').untraced, []);
+  const rows = Array.from({ length: 20000 }, (_, i) => ({ debitCents: i, creditCents: i * 2, balanceCents: i * 3 }));
+  const started = performance.now();
+  checkFigures('Total $1.', [{ rows }], 'ledger?', 'USD');
+  assert.ok(performance.now() - started < 5000, 'a 20,000-row report is checked in seconds');
+});
+
+test('a failed strong retry that drafted a step is reported as failed, not hidden behind the earlier answer (Codex review on #1056)', async () => {
+  const seen: string[] = [];
+  const step = new Map<string, number>();
+  const client: ModelClient = { models: { generateContent: async req => {
+    seen.push(req.model);
+    const n = step.get(req.model) ?? 0;
+    step.set(req.model, n + 1);
+    if (req.model === DEFAULT_ASSISTANT_MODELS.simple) return n === 0
+      ? { functionCalls: [{ name: 'run_report', args: {} }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } }
+      : { text: 'The total would be $400.', usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    if (n === 0) return { functionCalls: [{ name: 'propose_invoice_create', args: {} }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } };
+    throw new Error('strong model failed after drafting');
+  } } };
+  const turn = await answerTurn({ client, model: 'unused', systemPrompt: 's', question: q, currency: 'USD',
+    tools: [{ name: 'run_report', description: 'x' }, { name: 'propose_invoice_create', description: 'x' }],
+    callTool: async () => report, modelRule: rule });
+  assert.equal(turn.metric.ok, false);
+  assert.equal(turn.metric.modelReason, 'figure-check-failed');
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

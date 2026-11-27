@@ -272,10 +272,12 @@ async function modelTurnRaw(input: AssistantTurnInput & { currency?: string | nu
   const retry = await runAssistantTurn({ ...input, model: rule.strong });
   const a = first.metric;
   const b = retry.metric;
-  // the strong model failed outright: the simple model's answer, with its warning, beats no answer
-  const keepFirst = !b.ok && a.ok;
+  // the strong model failed outright: the simple model's answer, with its warning, beats no answer, unless
+  // the failed retry already drafted a step, so the person must be told to check before asking again
+  const retryDrafted = b.toolsCalled.some(name => name.startsWith('propose_'));
+  const keepFirst = !b.ok && a.ok && !retryDrafted;
   const chosen = keepFirst ? first : retry;
-  return { answer: chosen.answer, toolResults: chosen.toolResults, metric: { ...(keepFirst ? a : b), ok: a.ok || b.ok, modelTier: keepFirst ? choice.tier : 'strong',
+  return { answer: chosen.answer, toolResults: chosen.toolResults, metric: { ...(keepFirst ? a : b), ok: keepFirst || b.ok, modelTier: keepFirst ? choice.tier : 'strong',
     modelReason: untraced ? 'figure-check-failed' : 'simple-model-failed',
     modelCalls: a.modelCalls + b.modelCalls, inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens,
     cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens, toolsCalled: [...a.toolsCalled, ...b.toolsCalled],

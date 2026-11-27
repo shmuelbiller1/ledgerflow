@@ -84,13 +84,18 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       const leaf = { n: value, d, minor: MINOR_FIELD.test(key), cur };
       leaves.push(leaf);
       const listKey = `${key}@${cur}`;
-      lists.set(listKey, [...(lists.get(listKey) ?? []), leaf]);
+      // appended in place: a 20,000-row report must not be copied row by row
+      const list = lists.get(listKey);
+      if (list) list.push(leaf); else lists.set(listKey, [leaf]);
     } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d, cur);
     else if (Array.isArray(value)) value.forEach(item => walk(item, `${key}[]`, depth + 1, d, cur));
     else if (value && typeof value === 'object') {
-      const declared = (value as Record<string, unknown>).currency;
-      const ownDigits = digitsOf(declared);
-      const ownCur = ownDigits === undefined ? cur : String(declared).toUpperCase();
+      const record = value as Record<string, unknown>;
+      const declared = record.currency;
+      // the calculate tool always answers in hundredths ({ cents, amount: cents / 100 }), whatever the workspace currency
+      const calculator = typeof record.cents === 'number' && typeof record.amount === 'number' && Math.abs(record.amount * 100 - record.cents) < 1e-6;
+      const ownDigits = calculator ? 2 : digitsOf(declared);
+      const ownCur = digitsOf(declared) === undefined ? cur : String(declared).toUpperCase();
       for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}`, depth + 1, ownDigits ?? d, ownCur);
     }
   };
