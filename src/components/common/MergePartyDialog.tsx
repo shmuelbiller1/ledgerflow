@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useLedgerStore } from '../../stores/useLedgerStore';
 import { useLedgerCollections } from '../../hooks/useLedgerCollections';
 import { detectDuplicateContacts } from '../../lib/contactUtils';
+import { contactsLookAlike } from '../../lib/contactLikeness';
 import type { Customer, Vendor } from '../../types';
 import type { PartySide } from './PartyModal';
 
@@ -48,14 +49,17 @@ export default function MergePartyDialog({ side, party, onClose }: MergePartyDia
     : 0;
   const paymentCount = chosen ? payments.filter(p => p.contactId === chosen.id).length : 0;
 
+  // two records that share no name word, email or tax number look like different companies: confirm first
+  const different = !!chosen && !contactsLookAlike(party, chosen);
+  const [sameBusiness, setSameBusiness] = useState(false);
   const submit = async () => {
-    if (!chosen || !workspaceId) return;
+    if (!chosen || !workspaceId || (different && !sameBusiness)) return;
     setSaving(true);
     try {
       await runCommand({
         path: `/api/v1/workspaces/${encodeURIComponent(workspaceId)}/contacts/merge`,
         method: 'POST',
-        body: { side, keepId: party.id, mergeId: chosen.id },
+        body: { side, keepId: party.id, mergeId: chosen.id, ...(different ? { confirmSameBusiness: true } : {}) },
       });
       toast.success(`"${chosen.name}" merged into "${party.name}"`);
       onClose();
@@ -78,7 +82,7 @@ export default function MergePartyDialog({ side, party, onClose }: MergePartyDia
         <div className="p-5 space-y-4">
           <div>
             <label htmlFor="merge-party" className="block text-xs font-semibold text-[var(--muted)] mb-1">Duplicate {label} to merge in</label>
-            <select id="merge-party" value={mergeId} onChange={e => setMergeId(e.target.value)} className="w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]">
+            <select id="merge-party" value={mergeId} onChange={e => { setMergeId(e.target.value); setSameBusiness(false); }} className="w-full px-3 py-2 text-sm bg-[var(--ink)] border border-[var(--line)] rounded-lg text-[var(--text)]">
               <option value="">Choose a {label}…</option>
               {options.map(({ party: p, likely }) => (
                 <option key={p.id} value={p.id}>{p.name}{p.email ? ` (${p.email})` : ''}{likely ? ' · likely duplicate' : ''}</option>
@@ -92,9 +96,18 @@ export default function MergePartyDialog({ side, party, onClose }: MergePartyDia
               &quot;{chosen.name}&quot; is then deleted; empty details here are filled from it. This cannot be undone.
             </p>
           )}
+          {different && (
+            <div role="alert" className="text-xs rounded-lg border border-amber-400 bg-amber-50 p-3 text-amber-950 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-100">
+              <p>&quot;{chosen.name}&quot; and &quot;{party.name}&quot; share no name, email or tax number. They look like two different companies.</p>
+              <label className="mt-2 flex min-h-11 items-center gap-2 font-semibold">
+                <input type="checkbox" checked={sameBusiness} onChange={e => setSameBusiness(e.target.checked)} className="h-4 w-4" />
+                Yes, these are the same business
+              </label>
+            </div>
+          )}
           <div className="flex justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-lg text-[var(--text)] hover:bg-[var(--ink)]">Cancel</button>
-            <button type="button" disabled={!chosen || saving} onClick={submit} className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-700 text-white disabled:opacity-50">
+            <button type="button" disabled={!chosen || saving || (different && !sameBusiness)} onClick={submit} className="px-4 py-2 text-sm font-semibold rounded-lg bg-rose-700 text-white disabled:opacity-50">
               {saving ? 'Merging…' : 'Merge'}
             </button>
           </div>

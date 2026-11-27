@@ -2691,7 +2691,7 @@
     },
     {
       "name": "propose_contact_merge",
-      "description": "Propose contact.merge for review; never apply it to the live books. Merge two duplicate customers or vendors into the one to keep, moving their documents and balance; do not use it to correct a name — edit the contact.\nHigh risk: the person must confirm this step alone with two-step sign-in.\nExample input: {\"side\":\"customer\",\"keepId\":\"cus_1\",\"mergeId\":\"cus_2\"}\nINVALID_INPUT: The side is not customer or vendor, or an id is missing. Name the side and both ids.\nCONFLICT: The two are the same record, or one is referred to by something a merge cannot move. Pick the record to keep and try again.\nFORBIDDEN: The caller is a bookkeeper or a viewer. Ask an owner or an accountant.",
+      "description": "Propose contact.merge for review; never apply it to the live books. Merge two duplicate customers or vendors into the one to keep, moving their documents and balance; do not use it to correct a name — edit the contact.\nHigh risk: the person must confirm this step alone with two-step sign-in.\nExample input: {\"side\":\"customer\",\"keepId\":\"cus_1\",\"mergeId\":\"cus_2\"}\nINVALID_INPUT: The side is not customer or vendor, or an id is missing. Name the side and both ids.\nCONFLICT: The two are the same record, or one is referred to by something a merge cannot move, or they share no name, email or tax number and the person has not confirmed they are the same business. Pick the record to keep, or ask the person to confirm they are the same business (confirmSameBusiness).\nFORBIDDEN: The caller is a bookkeeper or a viewer. Ask an owner or an accountant.",
       "parametersJsonSchema": {
         "type": "object",
         "properties": {
@@ -2716,6 +2716,9 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200
+          },
+          "confirmSameBusiness": {
+            "type": "boolean"
           }
         },
         "required": [
