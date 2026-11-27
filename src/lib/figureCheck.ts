@@ -62,6 +62,7 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
 
 const MAX_LEAVES = 400;
 const AGING_KEYS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus', 'total'];
+const MAJOR_FIELD = /Major(\[\])*$/;
 const MINOR_FIELD = /(cents|minor)(\[\])*$/i;
 
 /** Every number in the tool results, plus the totals and averages of each numeric list field. */
@@ -74,7 +75,7 @@ const digitsOf = (code: unknown): number | undefined => {
  * `currency` decides how its minor units convert (a KWD row in a USD workspace has three decimals). */
 /** The candidate numbers by declared currency ('' for records that declare none). */
 function sourceNumbers(results: readonly unknown[], digits: number): Map<string, number[]> {
-  type Leaf = { n: number; d: number; minor: boolean; cur: string };
+  type Leaf = { n: number; d: number; minor: boolean; major: boolean; cur: string };
   const leaves: Leaf[] = [];
   const lists = new Map<string, Leaf[]>();
   // `cur` is the record's declared currency ('' when none): totals, averages, sums and differences never mix currencies
@@ -82,7 +83,7 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
     if (depth > 8) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
       // a field named in minor units ("balanceCents", "amountMinor") is only ever cents: $577,700 is not 577700 cents
-      const leaf = { n: value, d, minor: MINOR_FIELD.test(key), cur };
+      const leaf = { n: value, d, minor: MINOR_FIELD.test(key), major: MAJOR_FIELD.test(key), cur };
       leaves.push(leaf);
       const listKey = `${key}@${cur}`;
       // appended in place: a 20,000-row report must not be copied row by row
@@ -100,18 +101,20 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       const ownCur = calculator ? '*' : digitsOf(declared) === undefined ? cur : String(declared).toUpperCase();
       // the aging report's buckets and total are minor units though their names do not say so
       const aging = AGING_KEYS.every(k => typeof record[k] === 'number');
-      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}${aging ? 'Cents' : ''}`, depth + 1, ownDigits ?? d, ownCur);
+      // the calculator's `amount` is already major units: it is not divided again ($1.20 is not 120)
+      const unit = (k: string) => (aging || (calculator && k === 'cents') ? 'Cents' : calculator ? 'Major' : '');
+      for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}${unit(k)}`, depth + 1, ownDigits ?? d, ownCur);
     }
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));
   // values with repeats kept: two $100 invoices add up to $200
   const groups = new Map<string, number[]>();
-  const add = (n: number, { d, minor, cur }: Leaf) => {
+  const add = (n: number, { d, minor, major, cur }: Leaf) => {
     const group = groups.get(cur) ?? [];
     groups.set(cur, group);
     if (!minor) group.push(n);
     // a record that declares its currency converts with that currency's digits only (KWD 71.25 is not 7125 fils)
-    group.push(n / 10 ** d);
+    if (!major) group.push(n / 10 ** d);
   };
   leaves.forEach(leaf => add(leaf.n, leaf));
   for (const list of lists.values()) {
