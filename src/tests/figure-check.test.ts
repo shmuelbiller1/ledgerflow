@@ -49,6 +49,14 @@ test('sub-unit amounts are checked, and totals never mix currencies (Codex revie
   assert.deepEqual(checkFigures('Total $35.', same, 'total?', 'USD').untraced, []);
 });
 
+test('an amount matches only its own currency, within that currency\'s minor unit (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Beta owes USD 10.', [{ currency: 'KWD', balanceCents: 10000 }], 'What does Beta owe?', 'USD').untraced, ['USD 10']);
+  assert.deepEqual(checkFigures('Beta owes KWD 10.', [{ currency: 'KWD', balanceCents: 10000 }], 'What does Beta owe?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('Balance: KWD 0.012.', [{ currency: 'KWD', balanceCents: 1 }], 'What is the balance?', 'KWD').untraced, ['KWD 0.012']);
+  assert.deepEqual(checkFigures('Balance: KWD 0.001.', [{ currency: 'KWD', balanceCents: 1 }], 'What is the balance?', 'KWD').untraced, []);
+  assert.deepEqual(checkFigures('Acme owes $5,777.', [{ balanceCents: 577700 }], 'who owes?', 'USD').untraced, [], 'records with no currency are the workspace\'s');
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);

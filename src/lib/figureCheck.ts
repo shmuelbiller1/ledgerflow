@@ -15,27 +15,36 @@ import { isRateContext } from './tidyFigures';
 const NUMBER = String.raw`(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?)`;
 const SCALE = String.raw`(?:\s?(k|K|thousand|m|M|million|bn|billion)\b)?`;
 // a percentage is never an amount; three capitals are a currency only when ISO 4217 lists them ("VAT 17.5")
-const BEFORE = new RegExp(String.raw`(?:[$€£₪¥]\s?|\b([A-Z]{3})\s)${NUMBER}${SCALE}(?!\d|\.\d|\s?%)`, 'g');
-const AFTER = new RegExp(String.raw`(?<![\w.,])${NUMBER}${SCALE}\s?(?:₪|€|\b([A-Z]{3})\b|ש["״]ח)`, 'g');
+const BEFORE = new RegExp(String.raw`(?:([$€£₪¥])\s?|\b([A-Z]{3})\s)${NUMBER}${SCALE}(?!\d|\.\d|\s?%)`, 'g');
+const AFTER = new RegExp(String.raw`(?<![\w.,])${NUMBER}${SCALE}\s?(?:([₪€])|\b([A-Z]{3})\b|(ש["״]ח))`, 'g');
+const SIGN_CURRENCY: Record<string, string> = { '€': 'EUR', '£': 'GBP', '₪': 'ILS', $: 'USD', '¥': 'JPY' };
+const SHARED_SIGN: Record<string, readonly string[]> = { $: ['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'MXN'], '¥': ['JPY', 'CNY'] };
+/** The currency an amount is written in: its code, or its sign (a shared sign takes the workspace currency when it can mean it). */
+const currencyOf = (sign: string | undefined, code: string | undefined, workspace?: string | null) =>
+  code ?? (sign ? (SHARED_SIGN[sign]?.includes(workspace ?? '') ? workspace! : SIGN_CURRENCY[sign] ?? (sign.startsWith('ש') ? 'ILS' : undefined)) : undefined);
 
 const MULTIPLIER: Record<string, number> = { k: 1e3, K: 1e3, thousand: 1e3, m: 1e6, M: 1e6, million: 1e6, bn: 1e9, billion: 1e9 };
 const parse = (raw: string, scale?: string) => Number(raw.replace(/,/g, '')) * (scale ? MULTIPLIER[scale] : 1);
 
-/** The amounts written in an answer, each with the text it was read from. */
-export function answerAmounts(text: string): Array<{ text: string; value: number; approximate: boolean }> {
-  const found = new Map<number, { text: string; value: number; approximate: boolean }>();
-  const reads: Array<[RegExp, (m: RegExpMatchArray) => [string | undefined, string, string | undefined]]> = [
-    [BEFORE, m => [m[1], m[2], m[3]]],
-    [AFTER, m => [m[3], m[1], m[2]]],
+export interface AnswerAmount { text: string; value: number; approximate: boolean; currency?: string }
+
+/** The amounts written in an answer, each with the text it was read from and the currency it is written in. */
+export function answerAmounts(text: string, workspace?: string | null): AnswerAmount[] {
+  const found = new Map<number, AnswerAmount>();
+  // [sign, code, number, scale]
+  const reads: Array<[RegExp, (m: RegExpMatchArray) => [string | undefined, string | undefined, string, string | undefined]]> = [
+    [BEFORE, m => [m[1], m[2], m[3], m[4]]],
+    [AFTER, m => [m[3] ?? m[5], m[4], m[1], m[2]]],
   ];
   for (const [re, parts] of reads) {
     for (const m of text.matchAll(re)) {
       const index = m.index ?? 0;
-      const [code, number, scale] = parts(m);
+      const [sign, code, number, scale] = parts(m);
       // an exchange rate is not an amount of the books
       if (found.has(index) || (code && !getIsoCurrency(code)) || isRateContext(text, index, index + m[0].length)) continue;
       const before = text.slice(Math.max(0, index - 12), index).toLowerCase();
-      found.set(index, { text: m[0].trim(), value: parse(number, scale), approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
+      found.set(index, { text: m[0].trim(), value: parse(number, scale), currency: currencyOf(sign, code, workspace),
+        approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }
   }
   // every nonzero amount, sub-unit ones too ($0.99 is checked like $99)
@@ -53,7 +62,8 @@ const digitsOf = (code: unknown): number | undefined => {
 
 /** Every number in the tool results, plus the totals and averages of each numeric list field. A record's own
  * `currency` decides how its minor units convert (a KWD row in a USD workspace has three decimals). */
-function sourceNumbers(results: readonly unknown[], digits: number): number[] {
+/** The candidate numbers by declared currency ('' for records that declare none). */
+function sourceNumbers(results: readonly unknown[], digits: number): Map<string, number[]> {
   type Leaf = { n: number; d: number; minor: boolean; cur: string };
   const leaves: Leaf[] = [];
   const lists = new Map<string, Leaf[]>();
@@ -91,33 +101,45 @@ function sourceNumbers(results: readonly unknown[], digits: number): number[] {
     add(sum, list[0]);
     add(sum / list.length, list[0]);
   }
-  const out = new Set<number>();
-  for (const group of groups.values()) {
+  const out = new Map<string, number[]>();
+  for (const [cur, group] of groups) {
     const base = [...group].filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
     for (let i = 0; i < base.length; i++)
       for (let j = i + 1; j < base.length; j++) { group.add(base[i] + base[j]); group.add(Math.abs(base[i] - base[j])); }
-    group.forEach(n => out.add(n));
+    out.set(cur, [...group]);
   }
-  return [...out];
+  return out;
 }
 
-const close = (a: number, b: number, approximate: boolean) => {
+/** Within rounding: about one minor unit of the amount's currency (0.011 for cents, 0.0011 for fils), or a share of it. */
+const close = (a: number, b: number, approximate: boolean, unit: number) => {
   const diff = Math.abs(Math.abs(a) - Math.abs(b));
-  return diff <= 0.011 || diff <= Math.abs(b) * (approximate ? 0.05 : 0.0005) || (Math.abs(a) >= 1000 && diff < 1);
+  return diff <= unit * 1.1 || diff <= Math.abs(b) * (approximate ? 0.05 : 0.0005) || (Math.abs(a) >= 1000 && diff < 1);
 };
 
 export interface FigureCheck { checked: number; untraced: string[] }
 
 export function checkFigures(answer: string, toolResults: readonly unknown[], question: string, currency?: string | null): FigureCheck {
-  const amounts = answerAmounts(answer);
+  const amounts = answerAmounts(answer, currency);
   if (!amounts.length) return { checked: 0, untraced: [] };
   let digits = 2;
   try { if (currency) digits = currencyDigits(currency); } catch { /* unknown code: cents */ }
   const sources = sourceNumbers(toolResults, digits);
-  const asked = answerAmounts(question).map(a => a.value)
+  const asked = answerAmounts(question, currency).map(a => a.value)
     // a bare number the person typed ("pay Beta 850"), but not digits inside an identifier ("INV-85000") or a year
     .concat([...question.matchAll(/(?<![\w\-./#])\d[\d,]*(?:\.\d+)?(?![\w\-/])/g)]
       .map(m => m[0]).filter(n => !/^(19|20)\d\d$/.test(n)).map(n => Number(n.replace(/,/g, ''))));
-  const untraced = amounts.filter(a => !sources.some(s => close(a.value, s, a.approximate)) && !asked.some(q => close(a.value, q, a.approximate))).map(a => a.text);
+  const workspace = currency?.toUpperCase() ?? '';
+  // an amount matches only figures in its own currency: a record's declared one, or the workspace's for records
+  // that declare none ("USD 10" is not backed by KWD 10; the books gave no conversion)
+  const candidates = (a: AnswerAmount) => {
+    if (!a.currency) return [...sources.values()].flat();
+    const own = sources.get(a.currency) ?? [];
+    return a.currency === workspace || !workspace ? own.concat(sources.get('') ?? []) : own;
+  };
+  const untraced = amounts.filter(a => {
+    const unit = 10 ** -(digitsOf(a.currency) ?? digits);
+    return !candidates(a).some(s => close(a.value, s, a.approximate, unit)) && !asked.some(q => close(a.value, q, a.approximate, unit));
+  }).map(a => a.text);
   return { checked: amounts.length, untraced };
 }
