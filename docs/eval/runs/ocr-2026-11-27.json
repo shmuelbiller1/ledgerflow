@@ -1,0 +1,3659 @@
+{
+ "gpt-6-luna": [
+  {
+   "id": "r01-acme-hardware",
+   "lang": "en",
+   "expected": {
+    "merchant": "ACME HARDWARE LTD",
+    "date": "2026-03-14",
+    "totalCents": 9280,
+    "taxCents": 546,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ACME HARDWARE LTD",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 9280,
+    "taxMinor": 546,
+    "lines": [
+     {
+      "description": "CLAW HAMMER 16OZ",
+      "amountMinor": 2499
+     },
+     {
+      "description": "WOOD SCREWS 3IN  2 X 8.49",
+      "amountMinor": 1698
+     },
+     {
+      "description": "PAINTER'S TAPE 2IN  3 X 4.29",
+      "amountMinor": 1287
+     },
+     {
+      "description": "PRIMER GAL",
+      "amountMinor": 3250
+     }
+    ],
+    "confidence": 97,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r02-blue-bottle-coffee",
+   "lang": "en",
+   "expected": {
+    "merchant": "BLUE BOTTLE COFFEE",
+    "date": "2026-04-02",
+    "totalCents": 1770,
+    "taxCents": 120,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "BLUE BOTTLE COFFEE",
+    "documentNumber": "ORDER 214",
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1770,
+    "taxMinor": 120,
+    "lines": [
+     {
+      "description": "LATTE 12OZ",
+      "amountMinor": 575
+     },
+     {
+      "description": "ALMOND CROISSANT",
+      "amountMinor": 425
+     },
+     {
+      "description": "DRIP COFFEE",
+      "amountMinor": 350
+     },
+     {
+      "description": "TIP",
+      "amountMinor": 300
+     }
+    ],
+    "confidence": 94,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r03-office-depot",
+   "lang": "en",
+   "expected": {
+    "merchant": "OFFICE DEPOT #2291",
+    "date": "2026-01-27",
+    "totalCents": 16062,
+    "taxCents": 1224,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "OFFICE DEPOT #2291",
+    "documentNumber": null,
+    "date": "2026-01-27",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 16062,
+    "taxMinor": 1224,
+    "lines": [
+     {
+      "description": "TONER CARTRIDGE 26A",
+      "amountMinor": 8999
+     },
+     {
+      "description": "A4 PAPER CASE  2 X 29.95",
+      "amountMinor": 5990
+     },
+     {
+      "description": "BALLPOINT 12PK",
+      "amountMinor": 849
+     },
+     {
+      "description": "DISCOUNT",
+      "amountMinor": -1000
+     }
+    ],
+    "confidence": 97,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r04-shell-fuel",
+   "lang": "en",
+   "expected": {
+    "merchant": "SHELL OIL 57442136",
+    "date": "2026-02-09",
+    "totalCents": 4317,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "SHELL OIL",
+    "documentNumber": "57442136",
+    "date": "2026-02-09",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 4317,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "UNLEADED 87",
+      "amountMinor": 4317
+     }
+    ],
+    "confidence": 91,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r05-hudson-market",
+   "lang": "en",
+   "expected": {
+    "merchant": "HUDSON MARKET",
+    "date": "2026-05-18",
+    "totalCents": 1914,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "HUDSON MARKET",
+    "documentNumber": null,
+    "date": "2026-05-18",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1914,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "WHOLE MILK GAL",
+      "amountMinor": 429
+     },
+     {
+      "description": "SOURDOUGH LOAF",
+      "amountMinor": 549
+     },
+     {
+      "description": "BANANAS LB",
+      "amountMinor": 237
+     },
+     {
+      "description": "AGED CHEDDAR 8OZ",
+      "amountMinor": 699
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r06-city-parking",
+   "lang": "en",
+   "expected": {
+    "merchant": "CITY PARKING GARAGE",
+    "date": "2026-06-03",
+    "totalCents": 2400,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "CITY PARKING GARAGE",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2400,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "FLAT RATE 3 HRS",
+      "amountMinor": 2400
+     }
+    ],
+    "confidence": 94,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r07-airline-eticket",
+   "lang": "en",
+   "expected": {
+    "merchant": "UNITED AIRLINES",
+    "date": "2026-07-11",
+    "totalCents": 45040,
+    "taxCents": 6140,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "UNITED AIRLINES",
+    "documentNumber": "0162345678901",
+    "date": "2026-07-11",
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "BASE FARE",
+      "amountMinor": null
+     },
+     {
+      "description": "TAXES AND FEES",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r08-mainstreet-diner",
+   "lang": "en",
+   "expected": {
+    "merchant": "MAINSTREET DINER",
+    "date": "2026-08-22",
+    "totalCents": 2274,
+    "taxCents": 149,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "MAINSTREET DINER",
+    "documentNumber": null,
+    "date": "2026-08-22",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2274,
+    "taxMinor": 149,
+    "lines": [
+     {
+      "description": "CHEESEBURGER",
+      "amountMinor": 1450
+     },
+     {
+      "description": "FRIES",
+      "amountMinor": 400
+     },
+     {
+      "description": "SODA",
+      "amountMinor": 275
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r09-pacific-rentals",
+   "lang": "en",
+   "expected": {
+    "merchant": "PACIFIC RENTALS",
+    "date": "2026-09-06",
+    "totalCents": 5256,
+    "taxCents": 456,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "PACIFIC RENTALS",
+    "documentNumber": "88-2041",
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 5256,
+    "taxMinor": 456,
+    "lines": [
+     {
+      "description": "BIKE RENTAL 4HR  2 X 24.00",
+      "amountMinor": 4800
+     },
+     {
+      "description": "HELMET 2 X 0.00",
+      "amountMinor": 0
+     },
+     {
+      "description": "REFUNDABLE DEPOSIT",
+      "amountMinor": 10000
+     }
+    ],
+    "confidence": 94,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r10-hadar-supermarket",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופרמרקט הדר",
+    "date": "2026-03-14",
+    "totalCents": 3644,
+    "taxCents": 556,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופרמרקט הדר",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3644,
+    "taxMinor": 556,
+    "lines": [
+     {
+      "description": "חלב 1 ליטר 3%",
+      "amountMinor": 790
+     },
+     {
+      "description": "לחם אחיד",
+      "amountMinor": 850
+     },
+     {
+      "description": "קוטג' 250 ג' 5%",
+      "amountMinor": 620
+     },
+     {
+      "description": "עגבניות 1.2 X 6.90",
+      "amountMinor": 828
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r11-dizengoff-cafe",
+   "lang": "he",
+   "expected": {
+    "merchant": "קפה דיזנגוף",
+    "date": "2026-05-22",
+    "totalCents": 4130,
+    "taxCents": 630,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "קפה דיזנגוף",
+    "documentNumber": null,
+    "date": "2026-05-22",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 4130,
+    "taxMinor": 630,
+    "lines": [
+     {
+      "description": "הפוך גדול",
+      "amountMinor": 1400
+     },
+     {
+      "description": "קרואסון שקדים",
+      "amountMinor": 1600
+     },
+     {
+      "description": "שירות",
+      "amountMinor": 500
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r12-shuk-yerakot",
+   "lang": "he",
+   "expected": {
+    "merchant": "שוק הירקות של מוטי",
+    "date": "2026-06-19",
+    "totalCents": 3950,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "שוק הירקות של מוטי",
+    "documentNumber": null,
+    "date": "2026-06-19",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3950,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "עגבניות בק\"ג",
+      "amountMinor": 1200
+     },
+     {
+      "description": "מלפפונים בק\"ג",
+      "amountMinor": 900
+     },
+     {
+      "description": "תפוחים בק\"ג 2 X 9.25",
+      "amountMinor": 1850
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r13-mochash-ach-im-levi",
+   "lang": "he",
+   "expected": {
+    "merchant": "מוסך אחים לוי",
+    "date": "2026-04-07",
+    "totalCents": 135110,
+    "taxCents": 20610,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מוסך אחים לוי",
+    "documentNumber": null,
+    "date": "2026-04-07",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 135110,
+    "taxMinor": 20610,
+    "lines": [
+     {
+      "description": "חלפים - מסנן שמן ומצתים",
+      "amountMinor": 23500
+     },
+     {
+      "description": "עבודה 3.5 שעות 3.5 X 260.00",
+      "amountMinor": 91000
+     }
+    ],
+    "confidence": 88,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r14-dead-sea-hotel",
+   "lang": "he",
+   "expected": {
+    "merchant": "מלון ים המלח ספא",
+    "date": "2026-02-28",
+    "totalCents": 161660,
+    "taxCents": 24660,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מלון ים המלח ספא",
+    "documentNumber": "7781",
+    "date": "2026-02-28",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 161660,
+    "taxMinor": 24660,
+    "lines": [
+     {
+      "description": "לינה 2 לילות 2 X 590.00",
+      "amountMinor": 118000
+     },
+     {
+      "description": "ארוחת בוקר 2 X 95.00",
+      "amountMinor": 19000
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r15-super-pharm",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופר-פארם סניף 118",
+    "date": "2026-07-11",
+    "totalCents": 6337,
+    "taxCents": 967,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופר-פארם סניף 118",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 6337,
+    "taxMinor": 967,
+    "lines": [
+     {
+      "description": "שמפו לחות 400 מ״ל",
+      "amountMinor": 2290
+     },
+     {
+      "description": "משחת שיניים",
+      "amountMinor": 1590
+     },
+     {
+      "description": "קרם ידיים",
+      "amountMinor": 1990
+     },
+     {
+      "description": "הנחה",
+      "amountMinor": -500
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r16-paz-fuel-invoice",
+   "lang": "he",
+   "expected": {
+    "merchant": "פז חברת נפט בע\"מ",
+    "date": "2026-07-31",
+    "totalCents": 68322,
+    "taxCents": 10422,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "פז חברת נפט בע\"מ",
+    "documentNumber": null,
+    "date": "2026-07-31",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 68322,
+    "taxMinor": 10422,
+    "lines": [
+     {
+      "description": "תדלוק בנזין 95 33.25 X 7.29",
+      "amountMinor": 24239
+     },
+     {
+      "description": "תדלוק סולר 41.1 X 8.19",
+      "amountMinor": 33661
+     }
+    ],
+    "confidence": 94,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r17-ronit-hair",
+   "lang": "he",
+   "expected": {
+    "merchant": "מספרת רונית",
+    "date": "2026-09-23",
+    "totalCents": 8500,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מספרת רונית",
+    "documentNumber": null,
+    "date": "2026-09-23",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 8500,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "תספורת",
+      "amountMinor": 6000
+     },
+     {
+      "description": "עיצוב זקן",
+      "amountMinor": 2500
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r18-alonit-supplies",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "ALONIT SUPPLIES בע\"מ",
+    "date": "2026-08-05",
+    "totalCents": 44073,
+    "taxCents": 6723,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ALONIT SUPPLIES בע״מ",
+    "documentNumber": "2201",
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 44073,
+    "taxMinor": 6723,
+    "lines": [
+     {
+      "description": "TONER HP 26A",
+      "amountMinor": 24900
+     },
+     {
+      "description": "נייר A4 5 X 24.90 חבילות",
+      "amountMinor": 12450
+     }
+    ],
+    "confidence": 92,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r19-dead-sea-spa",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "Dead Sea Spa עין בוקק",
+    "date": "2026-10-12",
+    "totalCents": 59000,
+    "taxCents": 9000,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "עין בוקק Dead Sea Spa",
+    "documentNumber": "ORDER 90210",
+    "date": "2026-10-12",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 59000,
+    "taxMinor": 9000,
+    "lines": [
+     {
+      "description": "SPA TREATMENT 60 MIN",
+      "amountMinor": 32000
+     },
+     {
+      "description": "עיסוי רקמות עמוק",
+      "amountMinor": 18000
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r20-teva-distribution",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "TEVA DISTRIBUTION תרו",
+    "date": "2026-11-17",
+    "totalCents": 24190,
+    "taxCents": 3690,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מרן TEVA DISTRIBUTION",
+    "documentNumber": null,
+    "date": "2026-11-17",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 24190,
+    "taxMinor": 3690,
+    "lines": [
+     {
+      "description": "מוצרי ניקוי - מארז 2 X 64.20",
+      "amountMinor": 12840
+     },
+     {
+      "description": "כפפות ניטריל 100",
+      "amountMinor": 7660
+     }
+    ],
+    "confidence": 94,
+    "needsReview": [],
+    "model": "gpt-6-luna"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  }
+ ],
+ "gpt-6.1-terra": [
+  {
+   "id": "r01-acme-hardware",
+   "lang": "en",
+   "expected": {
+    "merchant": "ACME HARDWARE LTD",
+    "date": "2026-03-14",
+    "totalCents": 9280,
+    "taxCents": 546,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ACME HARDWARE LTD",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 9280,
+    "taxMinor": 546,
+    "lines": [
+     {
+      "description": "CLAW HAMMER 16OZ",
+      "amountMinor": 2499
+     },
+     {
+      "description": "WOOD SCREWS 3IN  2 X 8.49",
+      "amountMinor": 1698
+     },
+     {
+      "description": "PAINTER'S TAPE 2IN  3 X 4.29",
+      "amountMinor": 1287
+     },
+     {
+      "description": "PRIMER GAL",
+      "amountMinor": 3250
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r02-blue-bottle-coffee",
+   "lang": "en",
+   "expected": {
+    "merchant": "BLUE BOTTLE COFFEE",
+    "date": "2026-04-02",
+    "totalCents": 1770,
+    "taxCents": 120,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "BLUE BOTTLE COFFEE",
+    "documentNumber": "214",
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1770,
+    "taxMinor": 120,
+    "lines": [
+     {
+      "description": "LATTE 12OZ",
+      "amountMinor": 575
+     },
+     {
+      "description": "ALMOND CROISSANT",
+      "amountMinor": 425
+     },
+     {
+      "description": "DRIP COFFEE",
+      "amountMinor": 350
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r03-office-depot",
+   "lang": "en",
+   "expected": {
+    "merchant": "OFFICE DEPOT #2291",
+    "date": "2026-01-27",
+    "totalCents": 16062,
+    "taxCents": 1224,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "OFFICE DEPOT #2291",
+    "documentNumber": "0455",
+    "date": "2026-01-27",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 16062,
+    "taxMinor": 1224,
+    "lines": [
+     {
+      "description": "TONER CARTRIDGE 26A",
+      "amountMinor": 8999
+     },
+     {
+      "description": "A4 PAPER CASE 2 X 29.95",
+      "amountMinor": 5990
+     },
+     {
+      "description": "BALLPOINT 12PK",
+      "amountMinor": 849
+     },
+     {
+      "description": "DISCOUNT",
+      "amountMinor": -1000
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r04-shell-fuel",
+   "lang": "en",
+   "expected": {
+    "merchant": "SHELL OIL 57442136",
+    "date": "2026-02-09",
+    "totalCents": 4317,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "SHELL OIL",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 4317,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "UNLEADED 87",
+      "amountMinor": 4317
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r05-hudson-market",
+   "lang": "en",
+   "expected": {
+    "merchant": "HUDSON MARKET",
+    "date": "2026-05-18",
+    "totalCents": 1914,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "HUDSON MARKET",
+    "documentNumber": null,
+    "date": "2026-05-18",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1914,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "WHOLE MILK GAL",
+      "amountMinor": 429
+     },
+     {
+      "description": "SOURDOUGH LOAF",
+      "amountMinor": 549
+     },
+     {
+      "description": "BANANAS LB",
+      "amountMinor": 237
+     },
+     {
+      "description": "AGED CHEDDAR 8OZ",
+      "amountMinor": 699
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r06-city-parking",
+   "lang": "en",
+   "expected": {
+    "merchant": "CITY PARKING GARAGE",
+    "date": "2026-06-03",
+    "totalCents": 2400,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "CITY PARKING GARAGE",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2400,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "FLAT RATE 3 HRS",
+      "amountMinor": 2400
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r07-airline-eticket",
+   "lang": "en",
+   "expected": {
+    "merchant": "UNITED AIRLINES",
+    "date": "2026-07-11",
+    "totalCents": 45040,
+    "taxCents": 6140,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "UNITED AIRLINES",
+    "documentNumber": "0162345678901",
+    "date": "2026-07-11",
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "BASE FARE",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r08-mainstreet-diner",
+   "lang": "en",
+   "expected": {
+    "merchant": "MAINSTREET DINER",
+    "date": "2026-08-22",
+    "totalCents": 2274,
+    "taxCents": 149,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "MAINSTREET DINER",
+    "documentNumber": null,
+    "date": "2026-08-22",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2274,
+    "taxMinor": 149,
+    "lines": [
+     {
+      "description": "CHEESEBURGER",
+      "amountMinor": 1450
+     },
+     {
+      "description": "FRIES",
+      "amountMinor": 400
+     },
+     {
+      "description": "SODA",
+      "amountMinor": 275
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r09-pacific-rentals",
+   "lang": "en",
+   "expected": {
+    "merchant": "PACIFIC RENTALS",
+    "date": "2026-09-06",
+    "totalCents": 5256,
+    "taxCents": 456,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "PACIFIC RENTALS",
+    "documentNumber": "88-2041",
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 5256,
+    "taxMinor": 456,
+    "lines": [
+     {
+      "description": "BIKE RENTAL 4HR  2 X 24.00",
+      "amountMinor": 4800
+     },
+     {
+      "description": "HELMET  2 X 0.00",
+      "amountMinor": 0
+     },
+     {
+      "description": "REFUNDABLE DEPOSIT",
+      "amountMinor": 10000
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r10-hadar-supermarket",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופרמרקט הדר",
+    "date": "2026-03-14",
+    "totalCents": 3644,
+    "taxCents": 556,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופרמרקט הדר",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3644,
+    "taxMinor": 556,
+    "lines": [
+     {
+      "description": "חלב 1 3% ליטר",
+      "amountMinor": 790
+     },
+     {
+      "description": "לחם אחיד",
+      "amountMinor": 850
+     },
+     {
+      "description": "קוטג' 250 5% ג'",
+      "amountMinor": 620
+     },
+     {
+      "description": "עגבניות 1.2 X 6.90",
+      "amountMinor": 828
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r11-dizengoff-cafe",
+   "lang": "he",
+   "expected": {
+    "merchant": "קפה דיזנגוף",
+    "date": "2026-05-22",
+    "totalCents": 4130,
+    "taxCents": 630,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "קפה דיזנגוף",
+    "documentNumber": null,
+    "date": "2026-05-22",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 4130,
+    "taxMinor": 630,
+    "lines": [
+     {
+      "description": "הפוך גדול",
+      "amountMinor": 1400
+     },
+     {
+      "description": "קרואסון שקדים",
+      "amountMinor": 1600
+     },
+     {
+      "description": "שירות",
+      "amountMinor": 500
+     }
+    ],
+    "confidence": 99,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r12-shuk-yerakot",
+   "lang": "he",
+   "expected": {
+    "merchant": "שוק הירקות של מוטי",
+    "date": "2026-06-19",
+    "totalCents": 3950,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "שוק הירקות של מוטי",
+    "documentNumber": null,
+    "date": "2026-06-19",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3950,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "עגבניות בק\"ג",
+      "amountMinor": 1200
+     },
+     {
+      "description": "מלפפונים בק\"ג",
+      "amountMinor": 900
+     },
+     {
+      "description": "תפוחים בק\"ג 2 X 9.25",
+      "amountMinor": 1850
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r13-mochash-ach-im-levi",
+   "lang": "he",
+   "expected": {
+    "merchant": "מוסך אחים לוי",
+    "date": "2026-04-07",
+    "totalCents": 135110,
+    "taxCents": 20610,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מוסך אחים לוי",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 135110,
+    "taxMinor": 20610,
+    "lines": [
+     {
+      "description": "חלקים - מסנן שמן ומצתים",
+      "amountMinor": 23500
+     },
+     {
+      "description": "עבודה 3.5 שעות 3.5 X 260.00",
+      "amountMinor": 91000
+     }
+    ],
+    "confidence": 89,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r14-dead-sea-hotel",
+   "lang": "he",
+   "expected": {
+    "merchant": "מלון ים המלח ספא",
+    "date": "2026-02-28",
+    "totalCents": 161660,
+    "taxCents": 24660,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מלון ים המלח ספא",
+    "documentNumber": "7781",
+    "date": "2026-02-28",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 161660,
+    "taxMinor": 24660,
+    "lines": [
+     {
+      "description": "לינה 2 לילות 2 X 590.00",
+      "amountMinor": 118000
+     },
+     {
+      "description": "ארוחת בוקר 2 X 95.00",
+      "amountMinor": 19000
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r15-super-pharm",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופר-פארם סניף 118",
+    "date": "2026-07-11",
+    "totalCents": 6337,
+    "taxCents": 967,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופר-פארם סניף 118",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 6337,
+    "taxMinor": 967,
+    "lines": [
+     {
+      "description": "שמפו לחות 400 מ\"ל",
+      "amountMinor": 2290
+     },
+     {
+      "description": "משחת שיניים",
+      "amountMinor": 1590
+     },
+     {
+      "description": "קרם ידיים",
+      "amountMinor": 1990
+     },
+     {
+      "description": "הנחה",
+      "amountMinor": -500
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r16-paz-fuel-invoice",
+   "lang": "he",
+   "expected": {
+    "merchant": "פז חברת נפט בע\"מ",
+    "date": "2026-07-31",
+    "totalCents": 68322,
+    "taxCents": 10422,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "פז חברת נפט בע\"מ",
+    "documentNumber": null,
+    "date": "2026-07-31",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 68322,
+    "taxMinor": 10422,
+    "lines": [
+     {
+      "description": "תדלוק בנזין 95 33.25 X 7.29",
+      "amountMinor": 24239
+     },
+     {
+      "description": "תדלוק סולר 41.1 X 8.19",
+      "amountMinor": 33661
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r17-ronit-hair",
+   "lang": "he",
+   "expected": {
+    "merchant": "מספרת רונית",
+    "date": "2026-09-23",
+    "totalCents": 8500,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מספרת רונית",
+    "documentNumber": null,
+    "date": "2026-09-23",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 8500,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "תספורת",
+      "amountMinor": 6000
+     },
+     {
+      "description": "עיצוב זקן",
+      "amountMinor": 2500
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r18-alonit-supplies",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "ALONIT SUPPLIES בע\"מ",
+    "date": "2026-08-05",
+    "totalCents": 44073,
+    "taxCents": 6723,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "בע\"מ ALONIT SUPPLIES",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 44073,
+    "taxMinor": 6723,
+    "lines": [
+     {
+      "description": "TONER HP 26A",
+      "amountMinor": 24900
+     },
+     {
+      "description": "נייר 5 A4 חבילות 5 X 24.90",
+      "amountMinor": 12450
+     }
+    ],
+    "confidence": 86,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": false,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r19-dead-sea-spa",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "Dead Sea Spa עין בוקק",
+    "date": "2026-10-12",
+    "totalCents": 59000,
+    "taxCents": 9000,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "עין בוקק Dead Sea Spa",
+    "documentNumber": "90210",
+    "date": "2026-10-12",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 59000,
+    "taxMinor": 9000,
+    "lines": [
+     {
+      "description": "SPA TREATMENT 60 MIN",
+      "amountMinor": 32000
+     },
+     {
+      "description": "עיסוי רקמות עמוק",
+      "amountMinor": 18000
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r20-teva-distribution",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "TEVA DISTRIBUTION תרו",
+    "date": "2026-11-17",
+    "totalCents": 24190,
+    "taxCents": 3690,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "תרו TEVA DISTRIBUTION",
+    "documentNumber": "8871",
+    "date": "2026-11-17",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 24190,
+    "taxMinor": 3690,
+    "lines": [
+     {
+      "description": "מוצרי ניקוי - מארז 2 X 64.20",
+      "amountMinor": 12840
+     },
+     {
+      "description": "כפפות ניטריל 100",
+      "amountMinor": 7660
+     }
+    ],
+    "confidence": 96,
+    "needsReview": [],
+    "model": "gpt-6.1-terra"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  }
+ ],
+ "claude-haiku-5-5": [
+  {
+   "id": "r01-acme-hardware",
+   "lang": "en",
+   "expected": {
+    "merchant": "ACME HARDWARE LTD",
+    "date": "2026-03-14",
+    "totalCents": 9280,
+    "taxCents": 546,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ACME HARDWARE LTD",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 9280,
+    "taxMinor": 546,
+    "lines": [
+     {
+      "description": "CLAW HAMMER 16OZ",
+      "amountMinor": 2499
+     },
+     {
+      "description": "WOOD SCREWS 3IN  2 X 8.49",
+      "amountMinor": 1698
+     },
+     {
+      "description": "PAINTER'S TAPE 2IN  3 X 4.29",
+      "amountMinor": 1287
+     },
+     {
+      "description": "PRIMER GAL",
+      "amountMinor": 3250
+     }
+    ],
+    "confidence": 90,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r02-blue-bottle-coffee",
+   "lang": "en",
+   "expected": {
+    "merchant": "BLUE BOTTLE COFFEE",
+    "date": "2026-04-02",
+    "totalCents": 1770,
+    "taxCents": 120,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "BLUE BOTTLE COFFEE",
+    "documentNumber": "214",
+    "date": null,
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "LATTE 12OZ",
+      "amountMinor": null
+     },
+     {
+      "description": "ALMOND CROISSANT",
+      "amountMinor": null
+     },
+     {
+      "description": "DRIP COFFEE",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 80,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount",
+     "lines[2].amount",
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r03-office-depot",
+   "lang": "en",
+   "expected": {
+    "merchant": "OFFICE DEPOT #2291",
+    "date": "2026-01-27",
+    "totalCents": 16062,
+    "taxCents": 1224,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "OFFICE DEPOT #2291",
+    "documentNumber": "0455",
+    "date": "2026-01-27",
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "TONER CARTRIDGE 26A",
+      "amountMinor": null
+     },
+     {
+      "description": "A4 PAPER CASE 2 X 29.95",
+      "amountMinor": null
+     },
+     {
+      "description": "BALLPOINT 12PK",
+      "amountMinor": null
+     },
+     {
+      "description": "DISCOUNT",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount",
+     "lines[2].amount",
+     "lines[3].amount"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r04-shell-fuel",
+   "lang": "en",
+   "expected": {
+    "merchant": "SHELL OIL 57442136",
+    "date": "2026-02-09",
+    "totalCents": 4317,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "SHELL OIL 57442136",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 4317,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "UNLEADED 87",
+      "amountMinor": 4317
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r05-hudson-market",
+   "lang": "en",
+   "expected": {
+    "merchant": "HUDSON MARKET",
+    "date": "2026-05-18",
+    "totalCents": 1914,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "HUDSON MARKET",
+    "documentNumber": null,
+    "date": "2026-05-18",
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "WHOLE MILK GAL",
+      "amountMinor": null
+     },
+     {
+      "description": "SOURDOUGH LOAF",
+      "amountMinor": null
+     },
+     {
+      "description": "BANANAS LB",
+      "amountMinor": null
+     },
+     {
+      "description": "AGED CHEDDAR 8OZ",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 92,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount",
+     "lines[2].amount",
+     "lines[3].amount"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": false,
+    "tax": true,
+    "currency": false
+   }
+  },
+  {
+   "id": "r06-city-parking",
+   "lang": "en",
+   "expected": {
+    "merchant": "CITY PARKING GARAGE",
+    "date": "2026-06-03",
+    "totalCents": 2400,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "CITY PARKING GARAGE",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "FLAT RATE 3 HRS",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 90,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": false,
+    "tax": true,
+    "currency": false
+   }
+  },
+  {
+   "id": "r07-airline-eticket",
+   "lang": "en",
+   "expected": {
+    "merchant": "UNITED AIRLINES",
+    "date": "2026-07-11",
+    "totalCents": 45040,
+    "taxCents": 6140,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "UNITED AIRLINES",
+    "documentNumber": "0162345678901",
+    "date": "2026-07-11",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 45040,
+    "taxMinor": 6140,
+    "lines": [
+     {
+      "description": "BASE FARE",
+      "amountMinor": 38900
+     },
+     {
+      "description": "SUBTOTAL",
+      "amountMinor": 38900
+     },
+     {
+      "description": "TAXES AND FEES",
+      "amountMinor": 6140
+     },
+     {
+      "description": "TOTAL",
+      "amountMinor": 45040
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r08-mainstreet-diner",
+   "lang": "en",
+   "expected": {
+    "merchant": "MAINSTREET DINER",
+    "date": "2026-08-22",
+    "totalCents": 2274,
+    "taxCents": 149,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "MAINSTREET DINER",
+    "documentNumber": null,
+    "date": "2026-08-22",
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "CHEESEBURGER",
+      "amountMinor": null
+     },
+     {
+      "description": "FRIES",
+      "amountMinor": null
+     },
+     {
+      "description": "SODA",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount",
+     "lines[2].amount"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r09-pacific-rentals",
+   "lang": "en",
+   "expected": {
+    "merchant": "PACIFIC RENTALS",
+    "date": "2026-09-06",
+    "totalCents": 5256,
+    "taxCents": 456,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "PACIFIC RENTALS",
+    "documentNumber": "88-2041",
+    "date": null,
+    "dueDate": null,
+    "currency": null,
+    "totalMinor": null,
+    "taxMinor": null,
+    "lines": [
+     {
+      "description": "BIKE RENTAL 4HR  2 X 24.00",
+      "amountMinor": null
+     },
+     {
+      "description": "HELMET  2 X 0.00",
+      "amountMinor": null
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [
+     "currency",
+     "total",
+     "tax",
+     "lines[0].amount",
+     "lines[1].amount",
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": false,
+    "tax": false,
+    "currency": false
+   }
+  },
+  {
+   "id": "r10-hadar-supermarket",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופרמרקט הדר",
+    "date": "2026-03-14",
+    "totalCents": 3644,
+    "taxCents": 556,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופרמרקט הדר",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3644,
+    "taxMinor": 556,
+    "lines": [
+     {
+      "description": "חלב 3% 1 ליטר",
+      "amountMinor": 790
+     },
+     {
+      "description": "לחם אחיד",
+      "amountMinor": 850
+     },
+     {
+      "description": "קוטג' 5% 250 ג'",
+      "amountMinor": 620
+     },
+     {
+      "description": "עגבניות 1.2 X 6.90",
+      "amountMinor": 828
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r11-dizengoff-cafe",
+   "lang": "he",
+   "expected": {
+    "merchant": "קפה דיזנגוף",
+    "date": "2026-05-22",
+    "totalCents": 4130,
+    "taxCents": 630,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "קפה דיזנגוף",
+    "documentNumber": null,
+    "date": "2026-05-22",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 4130,
+    "taxMinor": 630,
+    "lines": [
+     {
+      "description": "הפוך גדול",
+      "amountMinor": 1400
+     },
+     {
+      "description": "קרואסון שקדים",
+      "amountMinor": 1600
+     },
+     {
+      "description": "שירות",
+      "amountMinor": 500
+     }
+    ],
+    "confidence": 80,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r12-shuk-yerakot",
+   "lang": "he",
+   "expected": {
+    "merchant": "שוק הירקות של מוטי",
+    "date": "2026-06-19",
+    "totalCents": 3950,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "שוק הירקות של מוטי",
+    "documentNumber": null,
+    "date": "2026-06-19",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3950,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "עגבניות בק\"ג",
+      "amountMinor": 1200
+     },
+     {
+      "description": "מלפפונים בק\"ג",
+      "amountMinor": 900
+     },
+     {
+      "description": "תפוחים בק\"ג 2 X 9.25",
+      "amountMinor": 1850
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r13-mochash-ach-im-levi",
+   "lang": "he",
+   "expected": {
+    "merchant": "מוסך אחים לוי",
+    "date": "2026-04-07",
+    "totalCents": 135110,
+    "taxCents": 20610,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מוסך אחים לוי",
+    "documentNumber": "4412",
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 135110,
+    "taxMinor": 20610,
+    "lines": [
+     {
+      "description": "חלקים - מסנן שמן ומצתים",
+      "amountMinor": 23500
+     },
+     {
+      "description": "עבודה 3.5 שעות 3.5 X 260.00",
+      "amountMinor": 91000
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r14-dead-sea-hotel",
+   "lang": "he",
+   "expected": {
+    "merchant": "מלון ים המלח ספא",
+    "date": "2026-02-28",
+    "totalCents": 161660,
+    "taxCents": 24660,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מלון ים המלח ספא",
+    "documentNumber": "7781",
+    "date": "2026-02-28",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 161660,
+    "taxMinor": 24660,
+    "lines": [
+     {
+      "description": "לינה 2 לילות 2 X 590.00",
+      "amountMinor": 118000
+     },
+     {
+      "description": "ארוחת בוקר 2 X 95.00",
+      "amountMinor": 19000
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r15-super-pharm",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופר-פארם סניף 118",
+    "date": "2026-07-11",
+    "totalCents": 6337,
+    "taxCents": 967,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופר-פארם סניף 118",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 6337,
+    "taxMinor": 967,
+    "lines": [
+     {
+      "description": "שמפו לחות 400 מ\"ל",
+      "amountMinor": 2290
+     },
+     {
+      "description": "משחת שיניים",
+      "amountMinor": 1590
+     },
+     {
+      "description": "קרם ידיים",
+      "amountMinor": 1990
+     },
+     {
+      "description": "הנחה",
+      "amountMinor": -500
+     }
+    ],
+    "confidence": 80,
+    "needsReview": [
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r16-paz-fuel-invoice",
+   "lang": "he",
+   "expected": {
+    "merchant": "פז חברת נפט בע\"מ",
+    "date": "2026-07-31",
+    "totalCents": 68322,
+    "taxCents": 10422,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "פז חברת נפט בע\"מ",
+    "documentNumber": null,
+    "date": "2026-07-31",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 68322,
+    "taxMinor": 10422,
+    "lines": [
+     {
+      "description": "תדלוק בנזין 7.29 X 95 33.25",
+      "amountMinor": 24239
+     },
+     {
+      "description": "תדלוק סולר 8.19 X 41.1",
+      "amountMinor": 33661
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r17-ronit-hair",
+   "lang": "he",
+   "expected": {
+    "merchant": "מספרת רונית",
+    "date": "2026-09-23",
+    "totalCents": 8500,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מספרת רונית",
+    "documentNumber": null,
+    "date": "2026-09-23",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 8500,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "תספורת",
+      "amountMinor": 6000
+     },
+     {
+      "description": "עיצוב זקן",
+      "amountMinor": 2500
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r18-alonit-supplies",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "ALONIT SUPPLIES בע\"מ",
+    "date": "2026-08-05",
+    "totalCents": 44073,
+    "taxCents": 6723,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ALONIT SUPPLIES בע\"מ",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 44073,
+    "taxMinor": 6723,
+    "lines": [
+     {
+      "description": "TONER HP 26A",
+      "amountMinor": 24900
+     },
+     {
+      "description": "נייר 5 A4 חבילות 5 X 24.90",
+      "amountMinor": 12450
+     }
+    ],
+    "confidence": 70,
+    "needsReview": [
+     "date"
+    ],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r19-dead-sea-spa",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "Dead Sea Spa עין בוקק",
+    "date": "2026-10-12",
+    "totalCents": 59000,
+    "taxCents": 9000,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "עין בוקק Dead Sea Spa",
+    "documentNumber": "90210",
+    "date": "2026-10-12",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 59000,
+    "taxMinor": 9000,
+    "lines": [
+     {
+      "description": "SPA TREATMENT 60 MIN",
+      "amountMinor": 32000
+     },
+     {
+      "description": "עיסוי רקמות עמוק",
+      "amountMinor": 18000
+     }
+    ],
+    "confidence": 85,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r20-teva-distribution",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "TEVA DISTRIBUTION תרו",
+    "date": "2026-11-17",
+    "totalCents": 24190,
+    "taxCents": 3690,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "תרו TEVA DISTRIBUTION",
+    "documentNumber": "8871",
+    "date": "2026-11-17",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 24190,
+    "taxMinor": 3690,
+    "lines": [
+     {
+      "description": "מוצרי ניקוי - מארז 2 X 64.20",
+      "amountMinor": 12840
+     },
+     {
+      "description": "כספות ניטריל 100",
+      "amountMinor": 7660
+     }
+    ],
+    "confidence": 90,
+    "needsReview": [],
+    "model": "claude-haiku-5-5"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  }
+ ],
+ "gemini-3.8-flash": [
+  {
+   "id": "r01-acme-hardware",
+   "lang": "en",
+   "expected": {
+    "merchant": "ACME HARDWARE LTD",
+    "date": "2026-03-14",
+    "totalCents": 9280,
+    "taxCents": 546,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ACME HARDWARE LTD",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 9280,
+    "taxMinor": 546,
+    "lines": [
+     {
+      "description": "CLAW HAMMER 16OZ",
+      "amountMinor": 2499
+     },
+     {
+      "description": "WOOD SCREWS 3IN  2 X 8.49",
+      "amountMinor": 1698
+     },
+     {
+      "description": "PAINTER'S TAPE 2IN  3 X 4.29",
+      "amountMinor": 1287
+     },
+     {
+      "description": "PRIMER GAL",
+      "amountMinor": 3250
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r02-blue-bottle-coffee",
+   "lang": "en",
+   "expected": {
+    "merchant": "BLUE BOTTLE COFFEE",
+    "date": "2026-04-02",
+    "totalCents": 1770,
+    "taxCents": 120,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "BLUE BOTTLE COFFEE",
+    "documentNumber": "214",
+    "date": "2026-04-02",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1770,
+    "taxMinor": 120,
+    "lines": [
+     {
+      "description": "LATTE 12OZ",
+      "amountMinor": 575
+     },
+     {
+      "description": "ALMOND CROISSANT",
+      "amountMinor": 425
+     },
+     {
+      "description": "DRIP COFFEE",
+      "amountMinor": 350
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r03-office-depot",
+   "lang": "en",
+   "expected": {
+    "merchant": "OFFICE DEPOT #2291",
+    "date": "2026-01-27",
+    "totalCents": 16062,
+    "taxCents": 1224,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "OFFICE DEPOT #2291",
+    "documentNumber": "0455",
+    "date": "2026-01-27",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 16062,
+    "taxMinor": 1224,
+    "lines": [
+     {
+      "description": "TONER CARTRIDGE 26A",
+      "amountMinor": 8999
+     },
+     {
+      "description": "A4 PAPER CASE 2 X 29.95",
+      "amountMinor": 5990
+     },
+     {
+      "description": "BALLPOINT 12PK",
+      "amountMinor": 849
+     }
+    ],
+    "confidence": 98,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r04-shell-fuel",
+   "lang": "en",
+   "expected": {
+    "merchant": "SHELL OIL 57442136",
+    "date": "2026-02-09",
+    "totalCents": 4317,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "SHELL OIL 57442136",
+    "documentNumber": null,
+    "date": "2026-02-09",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 4317,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "UNLEADED 87 GALLONS 12.481 PRICE/G 3.459",
+      "amountMinor": 4317
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r05-hudson-market",
+   "lang": "en",
+   "expected": {
+    "merchant": "HUDSON MARKET",
+    "date": "2026-05-18",
+    "totalCents": 1914,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "HUDSON MARKET",
+    "documentNumber": null,
+    "date": "2026-05-18",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 1914,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "WHOLE MILK GAL",
+      "amountMinor": 429
+     },
+     {
+      "description": "SOURDOUGH LOAF",
+      "amountMinor": 549
+     },
+     {
+      "description": "BANANAS LB",
+      "amountMinor": 237
+     },
+     {
+      "description": "AGED CHEDDAR 8OZ",
+      "amountMinor": 699
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r06-city-parking",
+   "lang": "en",
+   "expected": {
+    "merchant": "CITY PARKING GARAGE",
+    "date": "2026-06-03",
+    "totalCents": 2400,
+    "taxCents": 0,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "CITY PARKING GARAGE",
+    "documentNumber": null,
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2400,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "FLAT RATE 3 HRS",
+      "amountMinor": 2400
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r07-airline-eticket",
+   "lang": "en",
+   "expected": {
+    "merchant": "UNITED AIRLINES",
+    "date": "2026-07-11",
+    "totalCents": 45040,
+    "taxCents": 6140,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "UNITED AIRLINES",
+    "documentNumber": "0162345678901",
+    "date": "2026-07-11",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 45040,
+    "taxMinor": 6140,
+    "lines": [
+     {
+      "description": "BASE FARE",
+      "amountMinor": 38900
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r08-mainstreet-diner",
+   "lang": "en",
+   "expected": {
+    "merchant": "MAINSTREET DINER",
+    "date": "2026-08-22",
+    "totalCents": 2274,
+    "taxCents": 149,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "MAINSTREET DINER",
+    "documentNumber": null,
+    "date": "2026-08-22",
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 2274,
+    "taxMinor": 149,
+    "lines": [
+     {
+      "description": "CHEESEBURGER",
+      "amountMinor": 1450
+     },
+     {
+      "description": "FRIES",
+      "amountMinor": 400
+     },
+     {
+      "description": "SODA",
+      "amountMinor": 275
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r09-pacific-rentals",
+   "lang": "en",
+   "expected": {
+    "merchant": "PACIFIC RENTALS",
+    "date": "2026-09-06",
+    "totalCents": 5256,
+    "taxCents": 456,
+    "currency": "USD"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "PACIFIC RENTALS",
+    "documentNumber": "88-2041",
+    "date": null,
+    "dueDate": null,
+    "currency": "USD",
+    "totalMinor": 5256,
+    "taxMinor": 456,
+    "lines": [
+     {
+      "description": "BIKE RENTAL 4HR 2 X 24.00",
+      "amountMinor": 4800
+     },
+     {
+      "description": "HELMET 2 X 0.00",
+      "amountMinor": 0
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r10-hadar-supermarket",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופרמרקט הדר",
+    "date": "2026-03-14",
+    "totalCents": 3644,
+    "taxCents": 556,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופרמרקט הדר",
+    "documentNumber": null,
+    "date": "2026-03-14",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3644,
+    "taxMinor": 556,
+    "lines": [
+     {
+      "description": "חלב 1 3% ליטר",
+      "amountMinor": 790
+     },
+     {
+      "description": "לחם אחיד",
+      "amountMinor": 850
+     },
+     {
+      "description": "קוטג' 250 5% ג'",
+      "amountMinor": 620
+     },
+     {
+      "description": "עגבניות 1.2 X 6.90",
+      "amountMinor": 828
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r11-dizengoff-cafe",
+   "lang": "he",
+   "expected": {
+    "merchant": "קפה דיזנגוף",
+    "date": "2026-05-22",
+    "totalCents": 4130,
+    "taxCents": 630,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "קפה דיזנגוף",
+    "documentNumber": null,
+    "date": "2026-05-22",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 4130,
+    "taxMinor": 630,
+    "lines": [
+     {
+      "description": "הפוך גדול",
+      "amountMinor": 1400
+     },
+     {
+      "description": "קרואסון שקדים",
+      "amountMinor": 1600
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r12-shuk-yerakot",
+   "lang": "he",
+   "expected": {
+    "merchant": "שוק הירקות של מוטי",
+    "date": "2026-06-19",
+    "totalCents": 3950,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "שוק הירקות של מוטי",
+    "documentNumber": null,
+    "date": "2026-06-19",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 3950,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "עגבניות בק\"ג",
+      "amountMinor": 1200
+     },
+     {
+      "description": "מלפפונים בק\"ג",
+      "amountMinor": 900
+     },
+     {
+      "description": "תפוחים בק\"ג 2 X 9.25",
+      "amountMinor": 1850
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r13-mochash-ach-im-levi",
+   "lang": "he",
+   "expected": {
+    "merchant": "מוסך אחים לוי",
+    "date": "2026-04-07",
+    "totalCents": 135110,
+    "taxCents": 20610,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מוסך אחים לוי",
+    "documentNumber": "4412",
+    "date": "2026-04-07",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 135110,
+    "taxMinor": 20610,
+    "lines": [
+     {
+      "description": "חלקים - מסנן שמן ומצתים",
+      "amountMinor": 23500
+     },
+     {
+      "description": "עבודה 3.5 שעות 3.5 X 260.00",
+      "amountMinor": 91000
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r14-dead-sea-hotel",
+   "lang": "he",
+   "expected": {
+    "merchant": "מלון ים המלח ספא",
+    "date": "2026-02-28",
+    "totalCents": 161660,
+    "taxCents": 24660,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מלון ים המלח ספא",
+    "documentNumber": "7781",
+    "date": "2026-02-28",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 161660,
+    "taxMinor": 24660,
+    "lines": [
+     {
+      "description": "לינה 2 לילות 2 X 590.00",
+      "amountMinor": 118000
+     },
+     {
+      "description": "ארוחת בוקר 2 X 95.00",
+      "amountMinor": 19000
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r15-super-pharm",
+   "lang": "he",
+   "expected": {
+    "merchant": "סופר-פארם סניף 118",
+    "date": "2026-07-11",
+    "totalCents": 6337,
+    "taxCents": 967,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "סופר-פארם סניף 118",
+    "documentNumber": null,
+    "date": "2026-07-11",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 6337,
+    "taxMinor": 967,
+    "lines": [
+     {
+      "description": "שמפו לחות 400 מ\"ל",
+      "amountMinor": 2290
+     },
+     {
+      "description": "משחת שיניים",
+      "amountMinor": 1590
+     },
+     {
+      "description": "קרם ידיים",
+      "amountMinor": 1990
+     },
+     {
+      "description": "הנחה",
+      "amountMinor": -500
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r16-paz-fuel-invoice",
+   "lang": "he",
+   "expected": {
+    "merchant": "פז חברת נפט בע\"מ",
+    "date": "2026-07-31",
+    "totalCents": 68322,
+    "taxCents": 10422,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "פז חברת נפט בע\"מ",
+    "documentNumber": "07/2026",
+    "date": "2026-07-31",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 68322,
+    "taxMinor": 10422,
+    "lines": [
+     {
+      "description": "תדלוק בנזין 95 33.25 X 7.29",
+      "amountMinor": 24239
+     },
+     {
+      "description": "תדלוק סולר 41.1 X 8.19",
+      "amountMinor": 33661
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r17-ronit-hair",
+   "lang": "he",
+   "expected": {
+    "merchant": "מספרת רונית",
+    "date": "2026-09-23",
+    "totalCents": 8500,
+    "taxCents": 0,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "מספרת רונית",
+    "documentNumber": null,
+    "date": "2026-09-23",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 8500,
+    "taxMinor": 0,
+    "lines": [
+     {
+      "description": "תספורת",
+      "amountMinor": 6000
+     },
+     {
+      "description": "עיצוב זקן",
+      "amountMinor": 2500
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r18-alonit-supplies",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "ALONIT SUPPLIES בע\"מ",
+    "date": "2026-08-05",
+    "totalCents": 44073,
+    "taxCents": 6723,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "ALONIT SUPPLIES בע\"מ",
+    "documentNumber": "2201",
+    "date": null,
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 44073,
+    "taxMinor": 6723,
+    "lines": [
+     {
+      "description": "TONER HP 26A",
+      "amountMinor": 24900
+     },
+     {
+      "description": "נייר A4 5 חבילות 5 X 24.90",
+      "amountMinor": 12450
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [
+     "date"
+    ],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": false,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r19-dead-sea-spa",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "Dead Sea Spa עין בוקק",
+    "date": "2026-10-12",
+    "totalCents": 59000,
+    "taxCents": 9000,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "Dead Sea Spa עין בוקק",
+    "documentNumber": "90210",
+    "date": "2026-10-12",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 59000,
+    "taxMinor": 9000,
+    "lines": [
+     {
+      "description": "SPA TREATMENT 60 MIN",
+      "amountMinor": 32000
+     },
+     {
+      "description": "עיסוי רקמות עמוק",
+      "amountMinor": 18000
+     }
+    ],
+    "confidence": 100,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": true,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  },
+  {
+   "id": "r20-teva-distribution",
+   "lang": "mixed",
+   "expected": {
+    "merchant": "TEVA DISTRIBUTION תרו",
+    "date": "2026-11-17",
+    "totalCents": 24190,
+    "taxCents": 3690,
+    "currency": "ILS"
+   },
+   "got": {
+    "status": "draft",
+    "posted": false,
+    "vendorName": "תרו TEVA DISTRIBUTION",
+    "documentNumber": "8871",
+    "date": "2026-11-17",
+    "dueDate": null,
+    "currency": "ILS",
+    "totalMinor": 24190,
+    "taxMinor": 3690,
+    "lines": [
+     {
+      "description": "מוצרי ניקוי - מארז 2 X 64.20",
+      "amountMinor": 12840
+     },
+     {
+      "description": "כפפות ניטריל 100",
+      "amountMinor": 7660
+     }
+    ],
+    "confidence": 95,
+    "needsReview": [],
+    "model": "gemini-3.8-flash"
+   },
+   "ok": {
+    "merchant": false,
+    "date": true,
+    "total": true,
+    "tax": true,
+    "currency": true
+   }
+  }
+ ]
+}
