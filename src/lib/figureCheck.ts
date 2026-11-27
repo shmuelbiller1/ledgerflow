@@ -58,8 +58,8 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
         approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }
   }
-  // every nonzero amount, sub-unit ones too ($0.99 is checked like $99)
-  return [...found.entries()].sort((x, y) => x[0] - y[0]).map(([, a]) => a).filter(a => Number.isFinite(a.value) && a.value !== 0);
+  // every amount, sub-unit and zero ones too: "USD 0" against a 5,777 balance is checked like any other
+  return [...found.entries()].sort((x, y) => x[0] - y[0]).map(([, a]) => a).filter(a => Number.isFinite(a.value));
 }
 
 const MAX_LEAVES = 400;
@@ -93,7 +93,11 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       const list = lists.get(listKey);
       if (list) list.push(leaf); else lists.set(listKey, [leaf]);
     } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d, cur);
-    else if (Array.isArray(value)) value.forEach(item => walk(item, `${key}[]`, depth + 1, d, cur));
+    else if (Array.isArray(value)) {
+      // an empty list is the books saying "none": it backs a zero
+      if (!value.length) leaves.push({ n: 0, d, minor: false, major: true, cur });
+      value.forEach(item => walk(item, `${key}[]`, depth + 1, d, cur));
+    }
     else if (value && typeof value === 'object') {
       const record = value as Record<string, unknown>;
       const declared = record.currency;

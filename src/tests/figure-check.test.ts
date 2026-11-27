@@ -121,6 +121,12 @@ test('amounts match within the precision printed, not a percentage (CodeRabbit r
   assert.deepEqual(checkFigures('Revenue: $1.3 million.', [{ revenueCents: 123456700 }], 'revenue?', 'USD').untraced, ['$1.3 million']);
 });
 
+test('a stated zero is checked too (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Your balance is USD 0.', [{ balanceCents: 577700 }], 'What is the balance?', 'USD').untraced, ['USD 0']);
+  assert.deepEqual(checkFigures('Nothing is overdue: $0.', [{ overdueCents: 0 }], 'overdue?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('No open bills, so $0 to pay.', [{ rows: [] }], 'bills?', 'USD').untraced, []);
+});
+
 test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
   assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);
