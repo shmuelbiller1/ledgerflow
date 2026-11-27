@@ -13,12 +13,12 @@ import { isRateContext } from './tidyFigures';
  * What cannot be traced is returned, so the caller can retry on the strong model or warn.
  */
 const NUMBER = String.raw`(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?)`;
-const SCALE = String.raw`(?:\s?(k|K|thousand|m|M|million)\b)?`;
+const SCALE = String.raw`(?:\s?(k|K|thousand|m|M|million|bn|billion)\b)?`;
 // a percentage is never an amount; three capitals are a currency only when ISO 4217 lists them ("VAT 17.5")
 const BEFORE = new RegExp(String.raw`(?:[$€£₪¥]\s?|\b([A-Z]{3})\s)${NUMBER}${SCALE}(?!\d|\.\d|\s?%)`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.,])${NUMBER}${SCALE}\s?(?:₪|€|\b([A-Z]{3})\b|ש["״]ח)`, 'g');
 
-const MULTIPLIER: Record<string, number> = { k: 1e3, K: 1e3, thousand: 1e3, m: 1e6, M: 1e6, million: 1e6 };
+const MULTIPLIER: Record<string, number> = { k: 1e3, K: 1e3, thousand: 1e3, m: 1e6, M: 1e6, million: 1e6, bn: 1e9, billion: 1e9 };
 const parse = (raw: string, scale?: string) => Number(raw.replace(/,/g, '')) * (scale ? MULTIPLIER[scale] : 1);
 
 /** The amounts written in an answer, each with the text it was read from. */
@@ -42,6 +42,7 @@ export function answerAmounts(text: string): Array<{ text: string; value: number
 }
 
 const MAX_LEAVES = 400;
+const MINOR_FIELD = /(cents|minor)(\[\])*$/i;
 
 /** Every number in the tool results, plus the totals and averages of each numeric list field. */
 const digitsOf = (code: unknown): number | undefined => {
@@ -52,14 +53,16 @@ const digitsOf = (code: unknown): number | undefined => {
 /** Every number in the tool results, plus the totals and averages of each numeric list field. A record's own
  * `currency` decides how its minor units convert (a KWD row in a USD workspace has three decimals). */
 function sourceNumbers(results: readonly unknown[], digits: number): number[] {
-  const leaves: Array<[number, number]> = [];
-  const lists = new Map<string, Array<[number, number]>>();
+  const leaves: Array<[number, number, boolean]> = [];
+  const lists = new Map<string, Array<[number, number, boolean]>>();
   const walk = (value: unknown, key: string, depth: number, d: number) => {
     if (depth > 8) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
-      leaves.push([value, d]);
+      // a field named in minor units ("balanceCents", "amountMinor") is only ever cents: $577,700 is not 577700 cents
+      const minor = MINOR_FIELD.test(key);
+      leaves.push([value, d, minor]);
       const list = lists.get(key) ?? [];
-      list.push([value, d]);
+      list.push([value, d, minor]);
       lists.set(key, list);
     } else if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) walk(Number(value), key, depth, d);
     else if (Array.isArray(value)) value.forEach(item => walk(item, `${key}[]`, depth + 1, d));
@@ -70,14 +73,18 @@ function sourceNumbers(results: readonly unknown[], digits: number): number[] {
   };
   results.forEach((r, i) => walk(r, `#${i}`, 0, digits));
   const out = new Set<number>();
-  const add = (n: number, d: number) => { out.add(n); out.add(n / 10 ** d); if (d !== digits) out.add(n / 10 ** digits); };
-  leaves.forEach(([n, d]) => add(n, d));
+  const add = (n: number, d: number, minor: boolean) => {
+    if (!minor) out.add(n);
+    out.add(n / 10 ** d);
+    if (d !== digits) out.add(n / 10 ** digits);
+  };
+  leaves.forEach(([n, d, minor]) => add(n, d, minor));
   for (const list of lists.values()) {
     if (list.length < 2) continue;
     const sum = list.reduce((s, [n]) => s + n, 0);
-    const d = list[0][1];
-    add(sum, d);
-    add(sum / list.length, d);
+    const [, d, minor] = list[0];
+    add(sum, d, minor);
+    add(sum / list.length, d, minor);
   }
   const base = [...out].filter(n => Math.abs(n) >= 1).slice(0, MAX_LEAVES);
   for (let i = 0; i < base.length; i++)

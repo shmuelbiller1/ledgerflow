@@ -30,6 +30,13 @@ test('a record in another currency converts with its own decimals; percentages a
   assert.deepEqual(answerAmounts('at 1 USD = 0.923456 EUR, or EUR 1.08 per USD'), [], 'exchange rates are not amounts');
 });
 
+test('minor-unit fields are only cents, and billions are read (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Your balance is $577,700.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, ['$577,700']);
+  assert.deepEqual(checkFigures('Your balance is $5,777.', [{ balanceCents: 577700 }], 'What is my balance?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('Revenue: $1.2 billion', [{ revenueCents: 120000000000 }], 'What is revenue?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('Paid $5,777.', [{ amount: 5777 }], 'what was paid?', 'USD').untraced, [], 'a field without a unit may hold whole amounts');
+});
+
 const tools = [{ name: 'run_report', description: 'x' }];
 const turnClient = (answers: Record<string, string>, seen: string[]): ModelClient => {
   const step = new Map<string, number>();
