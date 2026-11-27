@@ -16,3 +16,10 @@ test('two different companies do not: legal forms and public mail domains are no
   assert.equal(contactsLookAlike({ name: 'Ann', email: 'ann@gmail.com' }, { name: 'Bob', email: 'bob@gmail.com' }), false, 'a public mail domain is not shared ownership');
   assert.equal(contactsLookAlike({}, {}), false);
 });
+
+test('Hebrew company names: the legal form בע"מ is not a shared name, the real name is (Codex review on #1054)', () => {
+  assert.equal(contactsLookAlike({ name: 'אלפא בע"מ' }, { name: 'בטא בע"מ' }), false);
+  assert.equal(contactsLookAlike({ name: 'אלפא בע״מ' }, { name: 'בטא בעמ' }), false, 'any quote mark, or none');
+  assert.equal(contactsLookAlike({ name: 'חברת אלפא' }, { name: 'חברת בטא' }), false);
+  assert.equal(contactsLookAlike({ name: 'אלפא בע"מ' }, { name: 'אלפא תוכנה בע״מ' }), true, 'the same name word');
+});
