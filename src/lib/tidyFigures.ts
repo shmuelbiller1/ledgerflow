@@ -1,4 +1,5 @@
 import { currencyDigits } from './currencyMinorUnits';
+import { getIsoCurrency } from './isoCurrencyReference';
 
 /**
  * Rounds float noise out of the amounts in a model's answer before it is shown: "$42,454.545454545456"
@@ -14,7 +15,9 @@ const SIGNS: Record<string, string> = { $: 'USD', '€': 'EUR', '£': 'GBP', '�
 const SHARED_SIGNS: Record<string, readonly string[]> = { '¥': ['JPY', 'CNY'], $: ['USD', 'CAD', 'AUD', 'NZD', 'SGD', 'HKD', 'MXN'] };
 const NUMBER = String.raw`(\d{1,3}(?:,\d{3})+|\d+)\.(\d{5,})`;
 // a sign may touch the number ("$-12.5"); a code is followed by one space ("KWD 7.125"), so "INV-1.5" is no amount
-const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}(?!\w|\.\d)`, 'g');
+// not before a scale word ("$0.00123456 million" is $1,234.56: rounding it would make it zero) or a percent sign
+const NOT_AFTER = String.raw`(?!\w|\.\d|\s?%|\s?(?:k|K|m|M|bn|thousand|million|billion)\b)`;
+const BEFORE = new RegExp(String.raw`(?:([$€£₪¥]) ?-?|\b([A-Z]{3}) )${NUMBER}${NOT_AFTER}`, 'g');
 const AFTER = new RegExp(String.raw`(?<![\w.]|\w-)${NUMBER} ?([₪]|[A-Z]{3}\b|ש["״]ח)`, 'g');
 
 function digitsFor(mark: string, written: string | undefined, fallback: string | null | undefined): number {
@@ -42,10 +45,12 @@ function round(whole: string, decimals: string, digits: number): string {
 export function tidyFigures(text: string, workspaceCurrency?: string | null): string {
   return text
     .replace(BEFORE, (match: string, sign: string | undefined, code: string | undefined, whole: string, decimals: string, offset: number, all: string) => {
+      // three capitals are a currency only when ISO 4217 lists them ("VAT 17.123456" is not an amount)
+      if (code && !getIsoCurrency(code)) return match;
       // "¥123.456 CNY": a code written after the amount names its currency
       const after = /^ ?([A-Z]{3})\b/.exec(all.slice(offset + match.length))?.[1];
       return match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(sign ?? code ?? '', code ?? after, workspaceCurrency)));
     })
-    .replace(AFTER, (match: string, whole: string, decimals: string, mark: string) =>
+    .replace(AFTER, (match: string, whole: string, decimals: string, mark: string) => /^[A-Z]{3}$/.test(mark) && !getIsoCurrency(mark) ? match :
       match.replace(`${whole}.${decimals}`, round(whole, decimals, digitsFor(mark, undefined, workspaceCurrency))));
 }
