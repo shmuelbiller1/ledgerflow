@@ -238,9 +238,9 @@ export interface ModelRule { choose: (routerReason: string) => ModelChoice; stro
  * turn is retried once on the strong one (reason `simple-model-failed`), and both calls count in the
  * metric. No retry once the simple model has drafted a step (it would draft it twice). Without a rule, `input.model` answers, as before.
  */
-async function modelTurn(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
+async function modelTurn(input: AssistantTurnInput & { currency?: string | null }, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
   const turn = await modelTurnRaw(input, routerReason, rule);
-  return { ...turn, answer: tidyFigures(turn.answer) };
+  return { ...turn, answer: tidyFigures(turn.answer, input.currency) };
 }
 
 async function modelTurnRaw(input: AssistantTurnInput, routerReason: string, rule?: ModelRule): Promise<{ answer: string; metric: AssistantTurnMetric }> {
