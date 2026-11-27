@@ -1,5 +1,6 @@
 import { currencyDigits } from './currencyMinorUnits';
 import { getIsoCurrency } from './isoCurrencyReference';
+import { isRateContext } from './tidyFigures';
 
 /**
  * Checks, in code, that the amounts in an assistant answer come from the books (27 Nov 2026 model tests:
@@ -31,7 +32,8 @@ export function answerAmounts(text: string): Array<{ text: string; value: number
     for (const m of text.matchAll(re)) {
       const index = m.index ?? 0;
       const [code, number, scale] = parts(m);
-      if (found.has(index) || (code && !getIsoCurrency(code))) continue;
+      // an exchange rate is not an amount of the books
+      if (found.has(index) || (code && !getIsoCurrency(code)) || isRateContext(text, index, index + m[0].length)) continue;
       const before = text.slice(Math.max(0, index - 12), index).toLowerCase();
       found.set(index, { text: m[0].trim(), value: parse(number, scale), approximate: Boolean(scale) || /(about|around|roughly|approx|~|כ־|בערך)\s*$/.test(before) });
     }

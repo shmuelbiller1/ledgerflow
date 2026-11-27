@@ -27,6 +27,7 @@ test('a record in another currency converts with its own decimals; percentages a
   assert.deepEqual(checkFigures('Beta owes KWD 7.125.', [{ rows: [{ currency: 'KWD', balanceCents: 7125 }] }], 'what does Beta owe?', 'USD').untraced, []);
   assert.deepEqual(checkFigures('VAT 17.5% applies.', [{ rate: 0.175 }], 'Which tax applies?', 'USD'), { checked: 0, untraced: [] });
   assert.deepEqual(answerAmounts('VAT 17.5 applies, USD 12.5% off'), []);
+  assert.deepEqual(answerAmounts('at 1 USD = 0.923456 EUR, or EUR 1.08 per USD'), [], 'exchange rates are not amounts');
 });
 
 const tools = [{ name: 'run_report', description: 'x' }];
