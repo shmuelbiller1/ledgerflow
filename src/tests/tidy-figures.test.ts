@@ -13,6 +13,20 @@ test('float noise in an amount is rounded to the currency minor units, separator
   assert.equal(tidyFigures('1,000.5000001 ש"ח'), '1,000.50 ש"ח');
 });
 
+test('half-up on the decimal text, not a binary float (Codex review on #1055)', () => {
+  assert.equal(tidyFigures('$2.6750000000000', 'USD'), '$2.68');
+  assert.equal(tidyFigures('$10.0750000000000'), '$10.08');
+  assert.equal(tidyFigures('$999,999.995000001'), '$1,000,000.00');
+  assert.equal(tidyFigures('$0.0049999999'), '$0.00');
+});
+
+test('a shared sign takes the written code, then the workspace currency (Codex review on #1055)', () => {
+  assert.equal(tidyFigures('¥123.456789 CNY', 'CNY'), '¥123.46 CNY');
+  assert.equal(tidyFigures('¥123.456789 CNY', 'USD'), '¥123.46 CNY');
+  assert.equal(tidyFigures('¥123.456789', 'CNY'), '¥123.46');
+  assert.equal(tidyFigures('¥123.456789', 'USD'), '¥123');
+});
+
 test('the workspace currency decides when the amount names none', () => {
   assert.equal(tidyFigures('Total: KWD 7.12500000001', 'USD'), 'Total: KWD 7.125');
   assert.equal(tidyFigures('Total: 7.12500000001 KWD', null), 'Total: 7.125 KWD');
