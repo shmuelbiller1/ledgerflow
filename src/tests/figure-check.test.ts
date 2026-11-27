@@ -23,6 +23,12 @@ test('an amount nothing returned is reported (the 27 Nov Hebrew $85,000 balance)
   assert.deepEqual(checkFigures('Pay $85,000 to Beta?', [report], 'pay Beta $85,000', 'USD').untraced, [], 'an amount from the question is the person’s own');
 });
 
+test('a record in another currency converts with its own decimals; percentages and acronyms are no amounts (Codex review on #1056)', () => {
+  assert.deepEqual(checkFigures('Beta owes KWD 7.125.', [{ rows: [{ currency: 'KWD', balanceCents: 7125 }] }], 'what does Beta owe?', 'USD').untraced, []);
+  assert.deepEqual(checkFigures('VAT 17.5% applies.', [{ rate: 0.175 }], 'Which tax applies?', 'USD'), { checked: 0, untraced: [] });
+  assert.deepEqual(answerAmounts('VAT 17.5 applies, USD 12.5% off'), []);
+});
+
 const tools = [{ name: 'run_report', description: 'x' }];
 const turnClient = (answers: Record<string, string>, seen: string[]): ModelClient => {
   const step = new Map<string, number>();
