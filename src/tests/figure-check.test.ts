@@ -103,6 +103,10 @@ test('aging buckets are minor units; a calculation backs any currency (Codex rev
   const aging = { current: 577700, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0, total: 577700 };
   assert.deepEqual(checkFigures('Customers owe $577,700.', [aging], 'Explain the amounts owed', 'USD').untraced, ['$577,700']);
   assert.deepEqual(checkFigures('Customers owe $5,777.', [aging], 'Explain the amounts owed', 'USD').untraced, []);
+  // the shape the /aging route actually returns (CodeRabbit review on #1056)
+  const route = { current: 10000, '1-30': 0, '31-60': 0, '61-90': 0, '90+': 0, total: 10000 };
+  assert.deepEqual(checkFigures('Customers owe $10,000.', [route], 'Who owes us?', 'USD').untraced, ['$10,000']);
+  assert.deepEqual(checkFigures('Customers owe $100.', [route], 'Who owes us?', 'USD').untraced, []);
   assert.deepEqual(checkFigures('The total is USD 1.20.', [{ expression: '100 * 1.2', cents: 12000, amount: 120 }], 'What is the total?', 'USD').untraced, ['USD 1.20']);
   assert.deepEqual(checkFigures('The total is EUR 120.', [{ expression: '100 * 1.2', cents: 12000, amount: 120 }], 'What is EUR 100 multiplied by 1.2?', 'USD').untraced, []);
 });

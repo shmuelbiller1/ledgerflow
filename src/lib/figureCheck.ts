@@ -63,7 +63,8 @@ export function answerAmounts(text: string, workspace?: string | null): AnswerAm
 }
 
 const MAX_LEAVES = 400;
-const AGING_KEYS = ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus', 'total'];
+// the aging report's buckets as the route returns them (reportRoutes `/aging`), and the internal names
+const AGING_SHAPES = [['current', '1-30', '31-60', '61-90', '90+', 'total'], ['current', 'd1_30', 'd31_60', 'd61_90', 'd90plus', 'total']];
 const MAJOR_FIELD = /Major(\[\])*$/;
 const MINOR_FIELD = /(cents|minor)(\[\])*$/i;
 
@@ -102,7 +103,7 @@ function sourceNumbers(results: readonly unknown[], digits: number): Map<string,
       // a calculation has no currency of its own: it backs an amount in any currency ('*')
       const ownCur = calculator ? '*' : digitsOf(declared) === undefined ? cur : String(declared).toUpperCase();
       // the aging report's buckets and total are minor units though their names do not say so
-      const aging = AGING_KEYS.every(k => typeof record[k] === 'number');
+      const aging = AGING_SHAPES.some(keys => keys.every(k => typeof record[k] === 'number'));
       // the calculator's `amount` is already major units: it is not divided again ($1.20 is not 120)
       const unit = (k: string) => (aging || (calculator && k === 'cents') ? 'Cents' : calculator ? 'Major' : '');
       for (const [k, v] of Object.entries(value)) walk(v, `${key}.${k}${unit(k)}`, depth + 1, ownDigits ?? d, ownCur);
