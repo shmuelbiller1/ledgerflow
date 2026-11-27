@@ -96,6 +96,18 @@ describe('Merging contacts (database)', { skip: !url && 'LF_TEST_DATABASE_URL no
     assert.ok(await get('customers', 'dup'));
   });
 
+  test('two contacts that look like different companies merge only when confirmed as the same business (27 Nov model test)', async () => {
+    const refused = await merge('owner', { side: 'customer', keepId: id('keep'), mergeId: id('bystander') });
+    assert.equal(refused.status, 409);
+    assert.match(JSON.stringify(await refused.json()), /look like two different companies/);
+    assert.equal((await get('invoices', 'inv2'))?.customerId, id('bystander'), 'nothing moved');
+    await db.collection('customers').doc(id('yankee')).set({ workspaceId: ws, name: 'Yankee Supplies' });
+    await db.collection('customers').doc(id('zulu')).set({ workspaceId: ws, name: 'Zulu Trading' });
+    const confirmed = await merge('owner', { side: 'customer', keepId: id('yankee'), mergeId: id('zulu'), confirmSameBusiness: true });
+    assert.equal(confirmed.status, 200, await confirmed.text());
+    assert.equal(await get('customers', 'zulu'), undefined, 'merged after the confirmation');
+  });
+
   test('merging ACME into Acme Ltd moves every document and reference, amounts unchanged', async () => {
     const res = await merge('owner', { side: 'customer', keepId: id('keep'), mergeId: id('dup') });
     assert.equal(res.status, 200, await res.clone().text());

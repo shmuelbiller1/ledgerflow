@@ -7,7 +7,8 @@ export const COMMAND_INPUT_SCHEMA = {
     "workspaceId": COMMAND_SCHEMA_PARTS.part104,
     "side": COMMAND_SCHEMA_PARTS.part95,
     "keepId": COMMAND_SCHEMA_PARTS.part104,
-    "mergeId": COMMAND_SCHEMA_PARTS.part104
+    "mergeId": COMMAND_SCHEMA_PARTS.part104,
+    "confirmSameBusiness": COMMAND_SCHEMA_PARTS.part27
   },
   "required": [
     "side",

@@ -47,10 +47,27 @@ describe('Merge a duplicate contact', () => {
     const calls = stubFetchWithBodies(403, { message: 'Only owners and accountants merge contacts' });
     let closed = 0;
     render(<MergePartyDialog side="customer" party={keep} onClose={() => { closed++; }} />);
-    fireEvent.change(screen.getByLabelText('Duplicate customer to merge in'), { target: { value: 'c-beta' } });
+    fireEvent.change(screen.getByLabelText('Duplicate customer to merge in'), { target: { value: 'c-dup' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Merge' })); });
     await waitFor(() => assert.equal(calls.length, 1));
     await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(closed, 0);
+  });
+
+  test('two contacts that share no name, email or tax number need "same business" ticked, and say so to the server', async () => {
+    const calls = stubFetchWithBodies(200, { status: 'success', moved: { invoices: 1 } });
+    render(<MergePartyDialog side="customer" party={keep} onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Duplicate customer to merge in'), { target: { value: 'c-beta' } });
+    assert.match(screen.getByRole('alert').textContent || '', /"Beta" and "Acme Ltd" share no name, email or tax number/);
+    const merge = screen.getByRole('button', { name: 'Merge' }) as HTMLButtonElement;
+    assert.equal(merge.disabled, true, 'not until confirmed');
+    fireEvent.click(screen.getByLabelText('Yes, these are the same business'));
+    assert.equal(merge.disabled, false);
+    await act(async () => { fireEvent.click(merge); });
+    await waitFor(() => assert.equal(calls.length, 1));
+    assert.deepEqual(calls[0].body, { side: 'customer', keepId: 'c-keep', mergeId: 'c-beta', confirmSameBusiness: true });
+    // choosing another contact clears the confirmation
+    fireEvent.change(screen.getByLabelText('Duplicate customer to merge in'), { target: { value: 'c-zeta' } });
+    assert.equal((screen.getByLabelText('Yes, these are the same business') as HTMLInputElement).checked, false);
   });
 });
