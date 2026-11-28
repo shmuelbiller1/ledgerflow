@@ -32,6 +32,7 @@ import AttachmentsPanel from '../common/AttachmentsPanel';
 import DocumentLineEditor, { type BillEditorLine } from '../common/DocumentLineEditor';
 import { attachmentProblem } from '../../lib/attachments';
 import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 
 /** What the dialog saves: the bill, and for a new one whether it repeats (BE-08; never stored on the bill). */
 export type BillDraft = Partial<Bill> & { recurringInterval?: 'weekly' | 'monthly' | 'quarterly' | 'yearly'; attachmentFiles?: File[] };
@@ -297,6 +298,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
         ...(attachments.length > 0 && !bill.id ? { attachmentFiles: attachments } : {}),
       });
       draft.clear();
+      markSaved(); // the bill is saved: nothing unsaved to protect, and no leave-site prompt after
       return true;
     } catch (err) {
       // PREV-5: the save already said why it failed (its own message); the dialog stays open with
@@ -320,6 +322,14 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // F-9/P2-63: refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
+  // Gitar #1033: BillModal stays mounted in PurchaseOrdersView while closed (`isOpen={!!billingPO}`),
+  // and nothing cleared `dirty` after a save/discard, so the leave-site prompt fired on a page with
+  // no unsaved work. Arm it only for an open, edited form.
+  useUnsavedChangesGuard(dirty, 'You have unsaved changes to this bill. Leave anyway?', isOpen);
+  // the flag lives for the form itself: a save or a discard marks it clean, and reopening an edited
+  // bill sets it again, so nothing has to reset it here (and a setState-in-effect would be a warning)
+  const markSaved = () => setDirty(false);
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
   const draftValue = { bill, splits, memo, repeat };
   const restoreDraft = (kept: typeof draftValue) => {
@@ -331,7 +341,7 @@ export default function BillModal({ isOpen, onClose, onSave, vendors = [], accou
     valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && typeof (v as { bill?: unknown }).bill === 'object' && (v as { bill?: unknown }).bill !== null && Array.isArray((v as { splits?: unknown }).splits),
   });
   const requestClose = () => {
-    if (!dirty || safeConfirm('Discard your changes to this bill?')) { draft.clear(); onClose(); }
+    if (!dirty || safeConfirm('Discard your changes to this bill?')) { draft.clear(); markSaved(); onClose(); }
   };
 
   const { dialogProps, titleId } = useDialog(requestClose, isOpen);

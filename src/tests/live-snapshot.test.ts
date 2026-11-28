@@ -21,6 +21,8 @@ function fakeDatabase() {
   };
   const selects: Array<{ table: string; delta: boolean }> = [];
   const realtime: Array<(payload: unknown) => void> = [];
+  /** The `subscribe` status callbacks the production code registers (F-13). */
+  const statuses: Array<(status: string) => void> = [];
   let removedChannels = 0;
 
   const column = (c: string) => (r: FakeRow): unknown => {
@@ -69,7 +71,10 @@ function fakeDatabase() {
       return Promise.resolve({ error: null });
     },
     channel: () => {
-      const ch = { on: (_e: string, _f: unknown, cb: (p: unknown) => void) => { realtime.push(cb); return ch; }, subscribe: () => ch };
+      const ch = {
+        on: (_e: string, _f: unknown, cb: (p: unknown) => void) => { realtime.push(cb); return ch; },
+        subscribe: (cb?: (status: string) => void) => { if (cb) statuses.push(cb); return ch; },
+      };
       return ch;
     },
     removeChannel: () => { removedChannels++; return Promise.resolve('ok'); },
@@ -83,6 +88,7 @@ function fakeDatabase() {
     remove(name: string, id: string) { table(name).delete(id); },
     selects,
     fireRealtime(payload: unknown) { realtime.forEach(cb => cb(payload)); },
+    fireChannelStatus(status: string) { statuses.slice().forEach(cb => cb(status)); },
     get removedChannels() { return removedChannels; },
   };
 }
@@ -126,6 +132,43 @@ describe('Live lists fetch only what changed', () => {
 
     unsubscribe();
     assert.equal(fake.removedChannels, 1);
+  });
+
+  test('changes made while the socket was down are caught up when it subscribes again (F-13, Gitar #1033)', async () => {
+    const fake = fakeDatabase();
+    fake.put('payments', 'a', { workspaceId: 'w1', date: '2026-01-01' });
+    const seen: string[][] = [];
+    const fullLoads = () => fake.selects.filter(s => !s.delta).length;
+    const unsubscribe = onSnapshot(
+      query(collection(fake.db, 'payments'), where('workspaceId', '==', 'w1'), orderBy('date', 'desc')),
+      snap => seen.push(snap.docs.map(d => d.id)));
+    await settle();
+    assert.deepEqual(seen.at(-1), ['a']);
+    const loadsAfterFirst = fullLoads();
+    assert.equal(loadsAfterFirst, 1, 'the initial load');
+
+    // the socket dies; the row lands *after* that, so the reload at failure time cannot see it
+    fake.fireChannelStatus('CHANNEL_ERROR');
+    await settle();
+    fake.put('payments', 'b', { workspaceId: 'w1', date: '2026-02-01' });
+    assert.deepEqual(seen.at(-1), ['a'], 'no event arrives for a row written during the outage');
+
+    // realtime-js reports SUBSCRIBED again once it rejoins: that is when the catch-up read runs
+    fake.fireChannelStatus('SUBSCRIBED');
+    await settle();
+    assert.deepEqual(seen.at(-1), ['b', 'a'], 'the list caught up on reconnect');
+    assert.equal(fullLoads() - loadsAfterFirst, 2, 'one at the failure and one on reconnect');
+
+    // a further failure after being subscribed reloads once more, not on every retry
+    fake.fireChannelStatus('CHANNEL_ERROR');
+    fake.fireChannelStatus('TIMED_OUT');
+    fake.fireChannelStatus('CLOSED');
+    await settle();
+    assert.equal(fullLoads() - loadsAfterFirst, 3, 'one reload per outage, however many statuses it reports');
+    fake.fireChannelStatus('SUBSCRIBED');
+    await settle();
+    assert.equal(fullLoads() - loadsAfterFirst, 4, 'and one when it comes back');
+    unsubscribe();
   });
 
   test('a delete from a list cut by its limit reloads in full', async () => {

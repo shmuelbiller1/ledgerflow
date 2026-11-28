@@ -105,6 +105,35 @@ describe('runCommand is the one place a screen calls its server', () => {
     });
   });
 
+  test('a refusal carries the server request id when the answer had one (F-22)', async () => {
+    globalThis.fetch = (async () => ({
+      ok: false,
+      status: 500,
+      headers: { get: (name: string) => (name === 'x-request-id' ? 'req-7f3a' : null) },
+      json: async () => ({ message: 'Internal Server Error' }),
+    }) as unknown as Response) as unknown as typeof fetch;
+    await assert.rejects(
+      () => runCommand({ path: '/api/v1/x', method: 'POST', token: 't' }),
+      (error: unknown) => {
+        assert.ok(error instanceof ServerCommandError);
+        assert.equal(error.requestId, 'req-7f3a');
+        return true;
+      },
+    );
+  });
+
+  test('a response with no readable headers still refuses, just without a request id', async () => {
+    answer(500, { message: 'boom' }); // this file's stub has no `headers`
+    await assert.rejects(
+      () => runCommand({ path: '/api/v1/x', token: 't' }),
+      (error: unknown) => {
+        assert.ok(error instanceof ServerCommandError);
+        assert.equal(error.requestId, undefined);
+        return true;
+      },
+    );
+  });
+
   test('a GET sends no body and no content type', async () => {
     answer(200, { rows: [] });
     await runCommand({ path: '/api/v1/thing', token: 't' });

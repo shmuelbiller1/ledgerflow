@@ -34,6 +34,7 @@ import DocumentLineEditor, { type InvoiceEditorLine } from '../common/DocumentLi
 import { attachmentProblem } from '../../lib/attachments';
 import { normalizeDimensionsMap } from '../../lib/dimensionNodeActions';
 import { printElementById } from '../../lib/printRoot';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -272,6 +273,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
         ...(attachments.length > 0 && !invoice.id ? { attachmentFiles: attachments } : {}),
       });
       draft.clear();
+      setDirty(false); // the invoice is saved: nothing unsaved to protect, and no leave-site prompt after
       return true;
     } catch (err) { console.warn('Invoice not saved (PREV-5: the save said why; the draft stays open):', err); return false; }
     finally { setIsSubmitting(false); }
@@ -289,6 +291,8 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
 
   // I-07: closing with unsaved edits asks first
   const [dirty, setDirty] = useState(false);
+  // F-9/P2-63: refresh, back and closing the tab ask here; armed only for an open form with edits (Gitar #1033)
+  useUnsavedChangesGuard(dirty, 'You have unsaved changes to this invoice. Leave anyway?', isOpen);
   // EU-B3: the open form is kept in this browser until it is saved or discarded (files are not kept)
   const draftValue = { invoice, items, memo, terms };
   const restoreDraft = (kept: typeof draftValue) => {
@@ -303,7 +307,7 @@ export default function InvoiceModal({ isOpen, onClose, onSave, customers = [], 
     valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && typeof (v as { invoice?: unknown }).invoice === 'object' && (v as { invoice?: unknown }).invoice !== null && Array.isArray((v as { items?: unknown }).items),
   });
   const requestClose = () => {
-    if (!dirty || safeConfirm('Discard your changes to this invoice?')) { draft.clear(); onClose(); }
+    if (!dirty || safeConfirm('Discard your changes to this invoice?')) { draft.clear(); setDirty(false); onClose(); }
   };
 
   const { dialogProps, titleId } = useDialog(requestClose, isOpen);

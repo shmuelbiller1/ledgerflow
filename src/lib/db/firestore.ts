@@ -17,6 +17,7 @@ import { getSupabase } from './client';
 import { changedSince, latestUpdate, mergeChanges } from './liveQuery';
 import type { LiveRow } from './liveQuery';
 import { guestSession, assertGuestSession, readGuestTable, queryGuestRows, guestRpc, subscribeGuestDatabase } from './guestDatabase';
+import { reloadAfterOutage } from './realtimeRecovery';
 
 // Same shape as firebase's DocumentData: documents are free-form JSON whose fields the
 // screens read directly, so field values are deliberately untyped (as in Firebase).
@@ -761,7 +762,7 @@ export function onSnapshot<T = DocumentData>(target: SnapshotTarget<T>, ...args:
   };
   const channel = client.channel(`lf-${table}-${++channelCounter}`)
     .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, onRealtime)
-    .subscribe();
+    .subscribe(reloadAfterOutage(() => { wantFull = true; schedule(); }));
 
   void run();
 

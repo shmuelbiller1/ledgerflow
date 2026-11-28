@@ -27,6 +27,7 @@ import { useSuggestedRate } from '../../hooks/useSuggestedRate';
 import { documentCurrencies } from '../../lib/exchangeRates';
 import { firstOfNextMonth, reversalDateProblem, withReversal } from '../../lib/autoReversal';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { useUnsavedChangesGuard } from '../../hooks/useUnsavedChangesGuard';
 import { DEFAULT_WORKSPACE_DIMENSIONS } from '../../lib/dimensionUtils';
 import {
   ensureDimensionNodesInMap,
@@ -159,14 +160,25 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
 
   // EU-B3: a typed entry is kept in this browser until it is recorded or discarded (closing keeps it)
   const draftValue = { description, date, reference, lines };
+  // I-07/F-9: the invoice and bill dialogs already ask before discarding a typed form; the journal
+  // entry is the other primary bookkeeping form and had no such guard (its draft was kept, but the
+  // typed entry itself was gone on a stray backdrop click).
+  const formDirty = Boolean(description.trim() || reference.trim() || lines.some(l => l.accountId || Number(l.debit) || Number(l.credit)));
   const draft = useFormDraft({
     form: 'journal-entry', label: 'journal entry', workspaceId, open: isOpen,
-    dirty: Boolean(description.trim() || reference.trim() || lines.some(l => l.accountId || Number(l.debit) || Number(l.credit))),
+    dirty: formDirty,
     value: draftValue,
     restore: (kept: typeof draftValue) => { setDescription(kept.description); setDate(kept.date); setReference(kept.reference); setLines(kept.lines); },
     valid: (v: unknown): v is typeof draftValue => typeof v === 'object' && v !== null && Array.isArray((v as { lines?: unknown }).lines) && (v as { lines: unknown[] }).lines.length > 0,
   });
-  const { dialogProps, titleId } = useDialog(onClose, isOpen);
+  const requestClose = () => {
+    if (!formDirty || safeConfirm('Discard your changes to this journal entry?')) { draft.clear(); onClose(); }
+  };
+  // refresh, back and closing the tab cannot be intercepted by the dialog, so they ask here
+  // Gitar #1033: Ledger.tsx keeps this dialog mounted and toggles `isOpen`, so the guard must be
+  // armed only while it is actually open.
+  useUnsavedChangesGuard(formDirty, 'You have unsaved changes to this journal entry. Leave anyway?', isOpen);
+  const { dialogProps, titleId } = useDialog(requestClose, isOpen);
 
   const transactions = useLedgerStore(s => s.transactions);
   const usedRates = useMemo(() => transactions
@@ -428,7 +440,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={requestClose}
             className="absolute inset-0 bg-zinc-900/60 backdrop-blur-md"
           />
           <motion.div
@@ -448,7 +460,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
                   <p className="text-xs md:text-sm text-[var(--muted)] font-medium">Record manual adjustments to the ledger</p>
                 </div>
               </div>
-              <button aria-label="Close" onClick={onClose} className="p-2 hover:bg-[var(--ink)] rounded-full transition-colors shrink-0 cursor-pointer"><X size={20} className="text-[var(--muted)]" /></button>
+              <button aria-label="Close" onClick={requestClose} className="p-2 hover:bg-[var(--ink)] rounded-full transition-colors shrink-0 cursor-pointer"><X size={20} className="text-[var(--muted)]" /></button>
             </div>
 
             {/* Form Content */}
@@ -660,7 +672,7 @@ export default function JournalEntryModal({ isOpen, onClose, user, accounts, wor
             <div className="p-4 md:p-6 border-t border-[var(--line)] bg-[var(--ink)]/30 flex flex-col sm:flex-row gap-3">
               <button 
                 type="button"
-                onClick={() => { draft.clear(); onClose(); }}
+                onClick={requestClose}
                 className="py-3 px-4 bg-[var(--surface)] border border-[var(--line)] text-[var(--muted)] rounded-xl font-bold hover:bg-[var(--ink)] hover:text-[var(--text)] transition-all order-2 sm:order-1 sm:flex-1 cursor-pointer text-xs uppercase tracking-wider"
                aria-label="Discard Entry">
                 Discard Entry
